@@ -18,12 +18,12 @@ class MockProfileService:
             {
                 "name": "default",
                 "source": "system",
-                "is_active": True,
+                "isActive": True,
             },
             {
                 "name": "custom",
                 "source": "user",
-                "is_active": False,
+                "isActive": False,
             },
         ]
 
@@ -35,8 +35,8 @@ class MockProfileService:
                 "version": "1.0.0",
                 "description": "Default system profile",
                 "source": "system",
-                "is_active": True,
-                "inheritance_chain": [],
+                "isActive": True,
+                "inheritanceChain": [],
                 "providers": [
                     {
                         "module": "openai",
@@ -59,8 +59,8 @@ class MockProfileService:
                 "version": "1.0.0",
                 "description": "Custom user profile",
                 "source": "user",
-                "is_active": False,
-                "inheritance_chain": ["default"],
+                "isActive": False,
+                "inheritanceChain": ["default"],
                 "providers": [],
                 "tools": [],
                 "hooks": [
@@ -78,7 +78,7 @@ class MockProfileService:
         return {
             "name": "default",
             "source": "system",
-            "is_active": True,
+            "isActive": True,
         }
 
     async def activate_profile(self, name: str) -> dict[str, Any]:
@@ -126,11 +126,11 @@ class TestProfilesAPI:
 
         default_profile = next(p for p in data if p["name"] == "default")
         assert default_profile["source"] == "system"
-        assert default_profile["is_active"] is True
+        assert default_profile["isActive"] is True
 
         custom_profile = next(p for p in data if p["name"] == "custom")
         assert custom_profile["source"] == "user"
-        assert custom_profile["is_active"] is False
+        assert custom_profile["isActive"] is False
 
     def test_get_profile_returns_details(self, client: TestClient) -> None:
         """Test GET /api/v1/profiles/{name} returns profile details."""
@@ -142,8 +142,8 @@ class TestProfilesAPI:
         assert data["version"] == "1.0.0"
         assert data["description"] == "Default system profile"
         assert data["source"] == "system"
-        assert data["is_active"] is True
-        assert data["inheritance_chain"] == []
+        assert data["isActive"] is True
+        assert data["inheritanceChain"] == []
         assert len(data["providers"]) == 1
         assert data["providers"][0]["module"] == "openai"
         assert len(data["tools"]) == 1
@@ -157,7 +157,7 @@ class TestProfilesAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "custom"
-        assert data["inheritance_chain"] == ["default"]
+        assert data["inheritanceChain"] == ["default"]
         assert len(data["hooks"]) == 1
         assert data["hooks"][0]["module"] == "pre-commit"
 
@@ -176,7 +176,7 @@ class TestProfilesAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "default"
-        assert data["is_active"] is True
+        assert data["isActive"] is True
 
     def test_get_active_profile_includes_source(self, client: TestClient) -> None:
         """Test GET /api/v1/profiles/active includes profile source."""
@@ -194,10 +194,10 @@ class TestProfilesAPI:
         for profile in data:
             assert "name" in profile
             assert "source" in profile
-            assert "is_active" in profile
+            assert "isActive" in profile
             assert isinstance(profile["name"], str)
             assert isinstance(profile["source"], str)
-            assert isinstance(profile["is_active"], bool)
+            assert isinstance(profile["isActive"], bool)
 
     def test_profile_details_schema(self, client: TestClient) -> None:
         """Test ProfileDetails objects have required fields."""
@@ -208,8 +208,8 @@ class TestProfilesAPI:
         assert "version" in data
         assert "description" in data
         assert "source" in data
-        assert "is_active" in data
-        assert "inheritance_chain" in data
+        assert "isActive" in data
+        assert "inheritanceChain" in data
         assert "providers" in data
         assert "tools" in data
         assert "hooks" in data

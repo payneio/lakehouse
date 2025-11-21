@@ -105,44 +105,106 @@ class ModuleDiscoveryService:
             List of module info dictionaries
         """
         all_modules = []
+        seen_modules = set()
 
-        # Get all module sources from resolver
-        modules = self._resolver.list_all_modules()  # type: ignore[attr-defined]
+        # Manually aggregate modules from all resolution layers
+        # StandardModuleSourceResolver doesn't have list_all_modules(), so we aggregate manually
 
-        for module_id, module_path in modules.items():
-            # Extract module type from module_id (e.g., "openai-provider" -> "provider")
-            module_type = "unknown"
-            if "-provider" in module_id or module_id.endswith("_provider"):
-                module_type = "provider"
-            elif "-hook" in module_id or module_id.endswith("_hook"):
-                module_type = "hook"
-            elif "-tool" in module_id or module_id.endswith("_tool"):
-                module_type = "tool"
-            elif "-orchestrator" in module_id or module_id.endswith("_orchestrator"):
-                module_type = "orchestrator"
+        # Layer 3: Settings provider modules
+        if self._resolver.settings_provider:
+            module_sources = self._resolver.settings_provider.get_module_sources()
+            for module_id, _source in module_sources.items():
+                if module_id in seen_modules:
+                    continue
+                seen_modules.add(module_id)
 
-            # Apply filter if specified
-            if type_filter and module_type != type_filter:
-                continue
+                try:
+                    resolved_source = self._resolver.resolve(module_id)
+                    module_path = str(resolved_source.get_path())
+                except Exception:
+                    # If resolution fails, skip this module
+                    continue
 
-            # Determine collection if module is from collection
-            collection = None
-            if ".amplifier/collections/" in module_path:
-                parts = module_path.split(".amplifier/collections/")
-                if len(parts) > 1:
-                    collection = parts[1].split("/")[0]
+                module_info = self._build_module_info(module_id, module_path, type_filter)
+                if module_info:
+                    all_modules.append(module_info)
 
-            all_modules.append(
-                {
-                    "id": module_id,
-                    "type": module_type,
-                    "name": module_id,
-                    "location": module_path,
-                    "collection": collection,
-                }
-            )
+        # Layer 4: Collection modules
+        if self._resolver.collection_provider:
+            collection_modules = self._resolver.collection_provider.get_collection_modules()
+            for module_id, module_path in collection_modules.items():
+                if module_id in seen_modules:
+                    continue
+                seen_modules.add(module_id)
+
+                module_info = self._build_module_info(module_id, module_path, type_filter)
+                if module_info:
+                    all_modules.append(module_info)
+
+        # Layer 2: Workspace modules
+        if self._resolver.workspace_dir and self._resolver.workspace_dir.exists():
+            for workspace_path in self._resolver.workspace_dir.iterdir():
+                if not workspace_path.is_dir():
+                    continue
+
+                module_id = workspace_path.name
+                if module_id in seen_modules:
+                    continue
+
+                # Check if it has Python files (valid module)
+                if any(workspace_path.glob("**/*.py")):
+                    seen_modules.add(module_id)
+                    module_info = self._build_module_info(module_id, str(workspace_path), type_filter)
+                    if module_info:
+                        all_modules.append(module_info)
 
         return all_modules
+
+    def _build_module_info(
+        self: "ModuleDiscoveryService",
+        module_id: str,
+        module_path: str,
+        type_filter: str | None = None,
+    ) -> dict[str, str | None] | None:
+        """Build module info dictionary from module ID and path.
+
+        Args:
+            module_id: Module identifier
+            module_path: Module filesystem path
+            type_filter: Optional type filter
+
+        Returns:
+            Module info dict if passes filter, None otherwise
+        """
+        # Extract module type from module_id
+        module_type = "unknown"
+        if "-provider" in module_id or module_id.endswith("_provider"):
+            module_type = "provider"
+        elif "-hook" in module_id or module_id.endswith("_hook"):
+            module_type = "hook"
+        elif "-tool" in module_id or module_id.endswith("_tool"):
+            module_type = "tool"
+        elif "-orchestrator" in module_id or module_id.endswith("_orchestrator"):
+            module_type = "orchestrator"
+
+        # Apply filter if specified
+        if type_filter and module_type != type_filter:
+            return None
+
+        # Determine collection if module is from collection
+        collection = None
+        if ".amplifier/collections/" in module_path:
+            parts = module_path.split(".amplifier/collections/")
+            if len(parts) > 1:
+                collection = parts[1].split("/")[0]
+
+        return {
+            "id": module_id,
+            "type": module_type,
+            "name": module_id,
+            "location": module_path,
+            "collection": collection,
+        }
 
     async def list_providers(self: "ModuleDiscoveryService") -> list[dict[str, str | None]]:
         """List provider modules.
@@ -190,8 +252,10 @@ class ModuleDiscoveryService:
         Raises:
             ValueError: If module not found
         """
-        module_path = self._resolver.resolve_module_source(module_id)  # type: ignore[attr-defined]
-        if not module_path:
+        try:
+            resolved_source = self._resolver.resolve(module_id)
+            module_path = str(resolved_source.get_path())
+        except Exception:
             raise ValueError(f"Module not found: {module_id}")
 
         # Extract module type

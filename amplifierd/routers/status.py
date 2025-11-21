@@ -8,6 +8,8 @@ import time
 
 from fastapi import APIRouter
 
+from amplifier_library.storage import get_root_dir
+
 from ..models import StatusResponse
 
 logger = logging.getLogger(__name__)
@@ -23,14 +25,16 @@ async def get_status() -> StatusResponse:
     """Get daemon status.
 
     Returns:
-        Daemon status information including version and uptime
+        Daemon status information including version, uptime, and root directory
     """
     uptime = time.time() - _start_time
+    root_dir = str(get_root_dir())
 
     return StatusResponse(
         status="running",
         version="0.1.0",
         uptime_seconds=uptime,
+        root_dir=root_dir,
     )
 
 

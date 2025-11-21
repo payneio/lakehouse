@@ -28,7 +28,7 @@ class TestSessionsAPI:
         data = response.json()
         assert "id" in data
         assert data["profile"] == "default"
-        assert data["message_count"] == 0
+        assert data["messageCount"] == 0
 
     def test_create_session_with_context(self, client: TestClient) -> None:
         """Test POST /api/v1/sessions stores context data."""
@@ -66,9 +66,9 @@ class TestSessionsAPI:
         session = next(s for s in data if s["id"] == session_id)
 
         assert session["profile"] == "test"
-        assert "created_at" in session
-        assert "updated_at" in session
-        assert session["message_count"] == 0
+        assert "createdAt" in session
+        assert "updatedAt" in session
+        assert session["messageCount"] == 0
 
     def test_get_session_returns_details(self, client: TestClient) -> None:
         """Test GET /api/v1/sessions/{id} returns session details."""

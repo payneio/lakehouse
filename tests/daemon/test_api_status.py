@@ -38,14 +38,14 @@ class TestStatusAPI:
         data = response.json()
         assert data["status"] == "running"
         assert "version" in data
-        assert "uptime_seconds" in data
+        assert "uptimeSeconds" in data
 
     def test_status_uptime_is_positive(self, client: TestClient) -> None:
         """Test status endpoint returns positive uptime."""
         response = client.get("/api/v1/status")
 
         data = response.json()
-        assert data["uptime_seconds"] >= 0
+        assert data["uptimeSeconds"] >= 0
 
     def test_health_check_returns_healthy(self, client: TestClient) -> None:
         """Test GET /api/v1/health returns healthy status."""

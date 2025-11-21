@@ -20,7 +20,7 @@ class MockModuleDiscoveryService:
             "location": "/path/to/providers/openai.py",
             "collection": "core",
             "description": "OpenAI LLM provider",
-            "config_schema": {
+            "configSchema": {
                 "type": "object",
                 "properties": {
                     "model": {"type": "string"},
@@ -64,7 +64,7 @@ class MockModuleDiscoveryService:
             "location": "/path/to/orchestrators/parallel.py",
             "collection": "core",
             "description": "Run tasks in parallel",
-            "config_schema": {
+            "configSchema": {
                 "type": "object",
                 "properties": {
                     "max_workers": {"type": "integer"},
@@ -245,8 +245,8 @@ class TestModulesAPI:
         assert data["location"] == "/path/to/providers/openai.py"
         assert data["collection"] == "core"
         assert data["description"] == "OpenAI LLM provider"
-        assert "config_schema" in data
-        assert data["config_schema"]["type"] == "object"
+        assert "configSchema" in data
+        assert data["configSchema"]["type"] == "object"
 
     def test_get_module_without_collection(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/{id} for module without collection."""
@@ -291,7 +291,7 @@ class TestModulesAPI:
         assert "location" in data
         assert "collection" in data
         assert "description" in data
-        assert "config_schema" in data
+        assert "configSchema" in data
 
     def test_module_with_minimal_details(self, client: TestClient) -> None:
         """Test module with minimal details (no description/schema)."""

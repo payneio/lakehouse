@@ -1,10 +1,11 @@
 """API models for module operations."""
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class ModuleInfo(BaseModel):
+
+class ModuleInfo(CamelCaseModel):
     """Basic module information."""
 
     id: str = Field(description="Module identifier")
@@ -14,7 +15,7 @@ class ModuleInfo(BaseModel):
     collection: str | None = Field(default=None, description="Collection name if from collection")
 
 
-class ModuleDetails(BaseModel):
+class ModuleDetails(CamelCaseModel):
     """Detailed module information."""
 
     id: str = Field(description="Module identifier")

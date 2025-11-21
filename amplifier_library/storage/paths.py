@@ -17,13 +17,13 @@ def get_root_dir() -> Path:
     """Get AMPLIFIERD_ROOT from environment.
 
     Returns:
-        Path to root directory (default: /data)
+        Path to root directory (default: .amplifierd)
 
     Example:
         >>> root = get_root_dir()
         >>> assert root.is_absolute()
     """
-    root = os.environ.get("AMPLIFIERD_ROOT", "/data")
+    root = os.environ.get("AMPLIFIERD_ROOT", ".amplifierd")
     return Path(root).resolve()
 
 
@@ -37,7 +37,7 @@ def get_config_dir() -> Path:
         >>> config_dir = get_config_dir()
         >>> assert config_dir.name == "amplifierd"
     """
-    config_dir = get_root_dir() / "local" / "etc" / "amplifierd"
+    config_dir = get_root_dir() / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
 
@@ -82,6 +82,6 @@ def get_log_dir() -> Path:
         >>> log_dir = get_log_dir()
         >>> assert log_dir.name == "amplifierd"
     """
-    log_dir = get_root_dir() / "local" / "log" / "amplifierd"
+    log_dir = get_root_dir() / "local" / "state" / "logs" / "amplifierd"
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir

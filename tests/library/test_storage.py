@@ -21,7 +21,7 @@ class TestPaths:
         """Test get_root_dir returns default /data when env var not set."""
         monkeypatch.delenv("AMPLIFIERD_ROOT", raising=False)
         root = paths.get_root_dir()
-        assert root == Path("/data")
+        assert root == Path(".amplifierd").resolve()
 
     def test_get_root_dir_custom(self, mock_storage_env: Path) -> None:
         """Test get_root_dir respects AMPLIFIERD_ROOT environment variable."""
@@ -33,8 +33,8 @@ class TestPaths:
         config_dir = paths.get_config_dir()
         assert config_dir.exists()
         assert config_dir.is_dir()
-        assert config_dir.name == "amplifierd"
-        assert "etc" in str(config_dir)
+        assert config_dir.name == "config"
+        assert "config" in str(config_dir)
 
     def test_get_share_dir_creates_directory(self, mock_storage_env: Path) -> None:
         """Test get_share_dir creates directory if it doesn't exist."""

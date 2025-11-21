@@ -21,8 +21,7 @@ class TestConfigLoader:
         config_path = loader.get_config_path()
 
         assert config_path.name == "daemon.yaml"
-        assert "etc" in str(config_path)
-        assert "amplifierd" in str(config_path)
+        assert "config" in str(config_path)
 
     def test_create_default_config_creates_file(self, mock_storage_env: Path) -> None:
         """Test create_default_config creates daemon.yaml if it doesn't exist."""

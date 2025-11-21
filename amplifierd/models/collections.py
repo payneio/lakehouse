@@ -1,10 +1,11 @@
 """API models for collection operations."""
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class CollectionInfo(BaseModel):
+
+class CollectionInfo(CamelCaseModel):
     """Basic collection information."""
 
     identifier: str = Field(description="Collection identifier")
@@ -12,7 +13,7 @@ class CollectionInfo(BaseModel):
     type: str = Field(description="Collection type (git, local)")
 
 
-class CollectionModules(BaseModel):
+class CollectionModules(CamelCaseModel):
     """Module listings in a collection."""
 
     providers: list[str] = Field(default_factory=list, description="Provider module paths")
@@ -21,7 +22,7 @@ class CollectionModules(BaseModel):
     orchestrators: list[str] = Field(default_factory=list, description="Orchestrator module paths")
 
 
-class CollectionDetails(BaseModel):
+class CollectionDetails(CamelCaseModel):
     """Detailed collection information."""
 
     identifier: str = Field(description="Collection identifier")

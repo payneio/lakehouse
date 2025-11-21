@@ -1,10 +1,11 @@
 """API models for profile operations."""
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class ProfileInfo(BaseModel):
+
+class ProfileInfo(CamelCaseModel):
     """Basic profile information."""
 
     name: str = Field(description="Profile name")
@@ -12,7 +13,7 @@ class ProfileInfo(BaseModel):
     is_active: bool = Field(description="Whether this profile is currently active")
 
 
-class ModuleConfig(BaseModel):
+class ModuleConfig(CamelCaseModel):
     """Module configuration in a profile."""
 
     module: str = Field(description="Module identifier")
@@ -20,7 +21,7 @@ class ModuleConfig(BaseModel):
     config: dict[str, object] | None = Field(default=None, description="Module configuration")
 
 
-class ProfileDetails(BaseModel):
+class ProfileDetails(CamelCaseModel):
     """Detailed profile information."""
 
     name: str = Field(description="Profile name")

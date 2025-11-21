@@ -5,11 +5,12 @@ Pydantic models for validating incoming API requests.
 
 from typing import Any
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class CreateSessionRequest(BaseModel):
+
+class CreateSessionRequest(CamelCaseModel):
     """Request to create a new session.
 
     Attributes:
@@ -21,7 +22,7 @@ class CreateSessionRequest(BaseModel):
     context: dict[str, Any] | None = Field(default=None, description="Optional session-specific context data")
 
 
-class SendMessageRequest(BaseModel):
+class SendMessageRequest(CamelCaseModel):
     """Request to send a message to a session.
 
     Attributes:
@@ -33,7 +34,7 @@ class SendMessageRequest(BaseModel):
     stream: bool = Field(default=False, description="Whether to stream the response")
 
 
-class UpdateContextRequest(BaseModel):
+class UpdateContextRequest(CamelCaseModel):
     """Request to update session context.
 
     Attributes:

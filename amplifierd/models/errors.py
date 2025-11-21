@@ -3,11 +3,12 @@
 Pydantic models for error responses.
 """
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class ValidationErrorDetail(BaseModel):
+
+class ValidationErrorDetail(CamelCaseModel):
     """Detail about a validation error.
 
     Attributes:
@@ -21,7 +22,7 @@ class ValidationErrorDetail(BaseModel):
     type: str = Field(..., description="Error type")
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(CamelCaseModel):
     """Standard error response.
 
     Attributes:

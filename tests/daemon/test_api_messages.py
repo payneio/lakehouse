@@ -55,7 +55,7 @@ class TestMessagesAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["session_id"] == session_id
+        assert data["sessionId"] == session_id
         assert len(data["messages"]) == 2
         assert data["messages"][0]["content"] == "First message"
         assert data["messages"][1]["content"] == "Second message"

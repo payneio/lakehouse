@@ -6,11 +6,12 @@ Pydantic models for API responses.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
 from pydantic import Field
 
+from amplifierd.models.base import CamelCaseModel
 
-class MessageResponse(BaseModel):
+
+class MessageResponse(CamelCaseModel):
     """Response representing a message.
 
     Attributes:
@@ -26,7 +27,7 @@ class MessageResponse(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Optional metadata")
 
 
-class SessionInfoResponse(BaseModel):
+class SessionInfoResponse(CamelCaseModel):
     """Response for session listing.
 
     Attributes:
@@ -44,7 +45,7 @@ class SessionInfoResponse(BaseModel):
     message_count: int = Field(..., description="Number of messages")
 
 
-class SessionResponse(BaseModel):
+class SessionResponse(CamelCaseModel):
     """Response for full session details.
 
     Attributes:
@@ -64,7 +65,7 @@ class SessionResponse(BaseModel):
     message_count: int = Field(..., description="Number of messages")
 
 
-class TranscriptResponse(BaseModel):
+class TranscriptResponse(CamelCaseModel):
     """Response for session transcript.
 
     Attributes:
@@ -76,15 +77,17 @@ class TranscriptResponse(BaseModel):
     messages: list[MessageResponse] = Field(..., description="List of messages")
 
 
-class StatusResponse(BaseModel):
+class StatusResponse(CamelCaseModel):
     """Response for daemon status.
 
     Attributes:
         status: Status string (e.g., 'running')
         version: Daemon version
         uptime_seconds: Uptime in seconds
+        root_dir: Root directory path
     """
 
     status: str = Field(..., description="Daemon status")
     version: str = Field(..., description="Daemon version")
     uptime_seconds: float = Field(..., description="Uptime in seconds")
+    root_dir: str = Field(..., description="Root directory path")

@@ -44,4 +44,4 @@ class DaemonSettings(BaseSettings):
     port: int = 8420
     log_level: str = "info"
     workers: int = 1
-    amplifierd_root: str = "/data"
+    amplifierd_root: str = ".amplifierd"

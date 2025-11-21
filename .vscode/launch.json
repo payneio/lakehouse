@@ -9,7 +9,6 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "AMPLIFIERD_ROOT": "${workspaceFolder}/.data",
         "AMPLIFIERD_LOG_LEVEL": "debug"
       },
       "cwd": "${workspaceFolder}"
@@ -21,14 +20,15 @@
       "module": "uvicorn",
       "args": [
         "amplifierd.main:app",
-        "--host", "0.0.0.0",
-        "--port", "8420",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8420",
         "--reload"
       ],
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "AMPLIFIERD_ROOT": "${workspaceFolder}/.data",
         "AMPLIFIERD_LOG_LEVEL": "info"
       },
       "cwd": "${workspaceFolder}"
@@ -38,11 +38,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": [
-        "-v",
-        "--tb=short",
-        "--color=yes"
-      ],
+      "args": ["-v", "--tb=short", "--color=yes"],
       "console": "integratedTerminal",
       "justMyCode": false,
       "cwd": "${workspaceFolder}"
@@ -52,12 +48,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": [
-        "${file}",
-        "-v",
-        "--tb=short",
-        "--color=yes"
-      ],
+      "args": ["${file}", "-v", "--tb=short", "--color=yes"],
       "console": "integratedTerminal",
       "justMyCode": false,
       "cwd": "${workspaceFolder}"
