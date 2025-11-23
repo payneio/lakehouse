@@ -41,6 +41,22 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting amplifierd daemon on {config.host}:{config.port}")
     logger.info(f"Data root: {config.amplifierd_root}")
 
+    # Sync collections on startup
+    try:
+        from amplifier_library.storage import get_share_dir
+
+        from .services.simple_collection_service import SimpleCollectionService
+
+        share_dir = get_share_dir()
+        collection_service = SimpleCollectionService(share_dir=share_dir)
+        results = collection_service.sync_collections()
+
+        synced_count = sum(1 for status in results.values() if status == "synced")
+        if synced_count > 0:
+            logger.info(f"Synced {synced_count} collection(s) on startup: {list(results.keys())}")
+    except Exception as e:
+        logger.warning(f"Collection sync on startup failed: {e}")
+
     yield
 
     # Shutdown

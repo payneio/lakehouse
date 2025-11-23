@@ -6,6 +6,29 @@ Interactive Jupyter notebooks demonstrating amplifierd HTTP API usage.
 
 These notebooks provide hands-on examples of all amplifierd API endpoints, organized by feature area. They're designed for experienced developers who want to understand and integrate with the amplifierd daemon.
 
+**Architecture**: Amplifierd uses a Unix-style package management system:
+- **Collections**: Distribution packages (like .deb or Python packages) containing resources
+- **Installation**: Extracts resources to type-based directories (follows Linux FHS pattern)
+- **Resources**: Profiles, modules, agents, and context files in flattened directory structure
+- **Discovery**: User-centric ("show me profiles" not "show me collections")
+
+### Directory Structure
+
+```
+{AMPLIFIERD_ROOT}/local/share/
+├── collections.yaml                    # Package registry
+├── modules/{collection}/{type}/{name}/ # Flattened module structure
+├── profiles/{collection}/              # Profile packages (also supports standalone)
+├── agents/{collection}/                # Agent packages
+└── context/{collection}/               # Context packages
+```
+
+**Key Points:**
+- **Flattened layout**: Resources organized by type, not nested in collection directories
+- **Unix precedent**: Like `/etc/profile.d/`, `/usr/share/`, etc.
+- **Standalone support**: Can place resources directly (e.g., `profiles/my-profile.yaml`)
+- **Namespace isolation**: Collection name preserved to prevent conflicts
+
 ## Prerequisites
 
 ### 1. Install Dependencies
@@ -60,28 +83,40 @@ Session management for LLM interactions:
 **File**: `03-profile-management.ipynb`
 
 Profile discovery and activation:
-- **Phase 1 (Read)**: List, get, and explore profiles
-- **Phase 2 (Write)**: Activate and deactivate profiles
+- **Read Operations**: List, get, and explore profiles from flattened directory
+- **Write Operations**: Activate and deactivate profiles
+- **Profile Format**: Simple YAML with one-level inheritance via `extends` field
+- **Discovery**: Scans `{AMPLIFIERD_ROOT}/local/share/profiles/**/*.yaml` recursively
+- **Standalone Support**: Create profiles directly in `profiles/` without collections
+- **Activation**: Stored in plain text file (`active_profile.txt`)
 
 **Focus**: Configuring LLM providers, tools, and hooks
 
 ### 04 - Collection Management
 **File**: `04-collection-management.ipynb`
 
-Collection discovery and mounting:
-- **Phase 1 (Read)**: List and explore collections
-- **Phase 2 (Write)**: Mount and unmount collections
+Package management and installation:
+- **Read Operations**: List installed collections from registry (`collections.yaml`)
+- **Write Operations**: Mount (clone → extract → register) and unmount (cleanup)
+- **Package Structure**: Distribution format with `collection.yaml` metadata
+- **Installation**: Extracts resources to flattened directories (`modules/`, `profiles/`, etc.)
+- **Registry**: `collections.yaml` tracks installed collections and their resources
+- **Unix Model**: Like Linux packages installing to `/etc/`, `/usr/share/`, etc.
 
 **Focus**: Managing reusable configuration packages
 
 ### 05 - Module Management
 **File**: `05-module-management.ipynb`
 
-Module discovery and source configuration:
-- **Phase 1 (Read)**: Discover all module types
-- **Phase 2 (Write)**: Configure module sources with scoped overrides
+Module discovery from flattened structure:
+- **Read Operations**: Discover modules from type-based directories
+- **Module IDs**: Format `{collection}/{type}/{name}` (collection preserved for namespace)
+- **Discovery**: Scans `{AMPLIFIERD_ROOT}/local/share/modules/{collection}/{type}/{name}/`
+- **Directory Structure**: `modules/{collection}/` not `collections/{collection}/modules/`
+- **Metadata**: Read from `module.yaml` files
+- **Namespace Isolation**: Collection name prevents conflicts between packages
 
-**Focus**: Advanced module resolution and development workflows
+**Focus**: Understanding module discovery in flattened architecture
 
 ## Learning Path
 
@@ -96,46 +131,42 @@ Work through all notebooks in order (01 → 05).
 ### For Specific Tasks
 - **Managing LLM configurations?** → `03-profile-management.ipynb`
 - **Adding shared modules?** → `04-collection-management.ipynb`
-- **Custom module development?** → `05-module-management.ipynb`
+- **Understanding module structure?** → `05-module-management.ipynb`
 
 ## API Coverage
 
 ### Complete Endpoint Reference
 
-| Category | Read Endpoints (Phase 1) | Write Endpoints (Phase 2) |
-|----------|-------------------------|---------------------------|
+| Category | Read Endpoints | Write Endpoints |
+|----------|----------------|-----------------|
 | **Status** | 3 endpoints | - |
 | **Sessions** | 2 GET | 2 POST, 1 DELETE |
 | **Messages** | 1 GET | 1 POST |
 | **Profiles** | 3 GET | 1 POST, 1 DELETE |
 | **Collections** | 2 GET | 1 POST, 1 DELETE |
-| **Modules** | 7 GET | 1 POST, 1 PUT, 1 DELETE |
+| **Modules** | 7 GET | - |
 
-**Total**: 19 endpoints across all operations
+**Total**: 18 endpoints across all operations
 
 ## Features Demonstrated
 
-### Phase 1 (Read Operations)
+### Read Operations
 - ✓ Resource discovery (profiles, collections, modules)
 - ✓ Detailed information retrieval
 - ✓ Source tracking and type filtering
 - ✓ Session and message management
 
-### Phase 2 (Write Operations)
+### Write Operations
 - ✓ Profile activation
 - ✓ Collection mounting/unmounting
-- ✓ Module source configuration
-- ✓ Scoped configuration management (user/project/local)
 
 ## Safety Notes
 
 **Configuration-modifying examples are commented out** to prevent accidental changes. Uncomment them when you're ready to modify your configuration.
 
-Write operations modify these files:
-- `~/.amplifier/settings.yaml` (user scope)
-- `.amplifier/settings.yaml` (project scope)
-- `.amplifier/settings.local.yaml` (local scope)
-- `~/.amplifier/collections.lock` (collection registry)
+Write operations modify:
+- `~/.amplifier/amplifierd/active_profile.txt` - Active profile name
+- `~/.amplifier/collections/` - Collection directories (mount/unmount)
 
 **Recommendation**: Test write operations in a development environment first.
 

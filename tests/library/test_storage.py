@@ -41,7 +41,7 @@ class TestPaths:
         share_dir = paths.get_share_dir()
         assert share_dir.exists()
         assert share_dir.is_dir()
-        assert share_dir.name == "amplifierd"
+        assert share_dir.name == "share"
         assert "share" in str(share_dir)
 
     def test_get_state_dir_creates_directory(self, mock_storage_env: Path) -> None:
@@ -49,7 +49,7 @@ class TestPaths:
         state_dir = paths.get_state_dir()
         assert state_dir.exists()
         assert state_dir.is_dir()
-        assert state_dir.name == "amplifierd"
+        assert state_dir.name == "state"
         assert "state" in str(state_dir)
 
     def test_get_log_dir_creates_directory(self, mock_storage_env: Path) -> None:

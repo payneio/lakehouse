@@ -51,6 +51,7 @@ exclude = [
     "dist/**",
     ".data/**",
     "ai_working/**",
+    ".amplifierd/**",
 ]
 typeCheckingMode = "basic"
 reportMissingImports = false

@@ -11,6 +11,7 @@ class CollectionInfo(CamelCaseModel):
     identifier: str = Field(description="Collection identifier")
     source: str = Field(description="Collection source path")
     type: str = Field(description="Collection type (git, local)")
+    package_bundled: bool = Field(default=False, description="Whether collection is bundled with package")
 
 
 class CollectionModules(CamelCaseModel):
@@ -31,3 +32,4 @@ class CollectionDetails(CamelCaseModel):
     profiles: list[str] = Field(description="Profile paths in collection")
     agents: list[str] = Field(description="Agent paths in collection")
     modules: CollectionModules = Field(description="Module paths in collection")
+    package_bundled: bool = Field(default=False, description="Whether collection is bundled with package")

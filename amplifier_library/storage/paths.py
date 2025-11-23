@@ -31,11 +31,7 @@ def get_config_dir() -> Path:
     """Get configuration directory.
 
     Returns:
-        Path to config directory ($AMPLIFIERD_ROOT/local/etc/amplifierd)
-
-    Example:
-        >>> config_dir = get_config_dir()
-        >>> assert config_dir.name == "amplifierd"
+        Path to config directory ($AMPLIFIERD_ROOT/config)
     """
     config_dir = get_root_dir() / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -46,13 +42,10 @@ def get_share_dir() -> Path:
     """Get persistent data directory.
 
     Returns:
-        Path to share directory ($AMPLIFIERD_ROOT/local/share/amplifierd)
+        Path to share directory ($AMPLIFIERD_ROOT/local/share)
 
-    Example:
-        >>> share_dir = get_share_dir()
-        >>> assert share_dir.name == "amplifierd"
     """
-    share_dir = get_root_dir() / "local" / "share" / "amplifierd"
+    share_dir = get_root_dir() / "local" / "share"
     share_dir.mkdir(parents=True, exist_ok=True)
     return share_dir
 
@@ -61,13 +54,13 @@ def get_state_dir() -> Path:
     """Get state/cache directory.
 
     Returns:
-        Path to state directory ($AMPLIFIERD_ROOT/local/state/amplifierd)
+        Path to state directory ($AMPLIFIERD_ROOT/local/state)
 
     Example:
         >>> state_dir = get_state_dir()
-        >>> assert state_dir.name == "amplifierd"
+        >>> assert state_dir.name == "state"
     """
-    state_dir = get_root_dir() / "local" / "state" / "amplifierd"
+    state_dir = get_root_dir() / "local" / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir
 
@@ -76,7 +69,7 @@ def get_log_dir() -> Path:
     """Get log directory.
 
     Returns:
-        Path to log directory ($AMPLIFIERD_ROOT/local/log/amplifierd)
+        Path to log directory ($AMPLIFIERD_ROOT/local/logs/amplifierd)
 
     Example:
         >>> log_dir = get_log_dir()

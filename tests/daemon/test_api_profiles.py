@@ -1,6 +1,6 @@
 """Integration tests for profile API endpoints."""
 
-from typing import Any
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,100 +9,344 @@ from amplifierd.main import app
 from amplifierd.routers.profiles import get_profile_service
 
 
+@pytest.fixture
+def test_profiles_dir(tmp_path: Path) -> Path:
+    """Create test profile structure."""
+    # Create system profiles directory
+    system_dir = tmp_path / "system"
+    system_dir.mkdir()
+
+    # Create default profile
+    (system_dir / "default.yaml").write_text("""
+profile:
+  name: "default"
+  version: "1.0.0"
+  description: "Default system profile"
+providers:
+  - module: "openai"
+    source: "amplifier://providers/openai"
+    config:
+      model: "gpt-4"
+tools:
+  - module: "bash"
+    source: "amplifier://tools/bash"
+    config: null
+hooks: []
+""")
+
+    # Create user profiles directory
+    user_dir = tmp_path / "user"
+    user_dir.mkdir()
+
+    # Create custom profile
+    (user_dir / "custom.yaml").write_text("""
+profile:
+  name: "custom"
+  version: "1.0.0"
+  description: "Custom user profile"
+  extends: "default"
+providers: []
+tools: []
+hooks:
+  - module: "pre-commit"
+    source: "file:///path/to/hook"
+    config:
+      enabled: true
+""")
+
+    return tmp_path
+
+
+class MockProfileInfo:
+    """Mock profile info object."""
+
+    def __init__(self: "MockProfileInfo", name: str, version: str, description: str) -> None:
+        """Initialize profile info.
+
+        Args:
+            name: Profile name
+            version: Profile version
+            description: Profile description
+        """
+        self.name = name
+        self.version = version
+        self.description = description
+
+
+class MockProfile:
+    """Mock profile object."""
+
+    def __init__(self: "MockProfile", data: dict) -> None:
+        """Initialize mock profile.
+
+        Args:
+            data: Profile data
+        """
+        profile_data = data.get("profile", {})
+        self.profile = MockProfileInfo(
+            name=profile_data.get("name", ""),
+            version=profile_data.get("version", "0.0.0"),
+            description=profile_data.get("description", ""),
+        )
+        self.providers = data.get("providers", [])
+        self.tools = data.get("tools", [])
+        self.hooks = data.get("hooks", [])
+        self.extends = profile_data.get("extends")
+
+
+class MockProfileLoader:
+    """Mock profile loader for testing."""
+
+    def __init__(self: "MockProfileLoader", profiles_dir: Path) -> None:
+        """Initialize mock loader.
+
+        Args:
+            profiles_dir: Directory containing test profiles
+        """
+        self.profiles_dir = profiles_dir
+        self.profiles: dict[str, MockProfile] = {}
+        self.sources: dict[str, str] = {}
+
+        # Load profiles from both system and user dirs
+        for dir_name in ["system", "user"]:
+            dir_path = profiles_dir / dir_name
+            if not dir_path.exists():
+                continue
+
+            for profile_file in dir_path.glob("*.yaml"):
+                profile_name = profile_file.stem
+                self.profiles[profile_name] = self._parse_profile(profile_file)
+                self.sources[profile_name] = dir_name
+
+    def _parse_profile(self: "MockProfileLoader", profile_file: Path) -> "MockProfile":
+        """Parse profile YAML file.
+
+        Args:
+            profile_file: Path to profile YAML
+
+        Returns:
+            Mock profile object
+        """
+        import yaml
+
+        with open(profile_file) as f:
+            data = yaml.safe_load(f)
+
+        return MockProfile(data)
+
+    def list_profiles(self: "MockProfileLoader") -> list[str]:
+        """List all profile names.
+
+        Returns:
+            List of profile names
+        """
+        return list(self.profiles.keys())
+
+    def load_profile(self: "MockProfileLoader", name: str) -> MockProfile:
+        """Load profile by name.
+
+        Args:
+            name: Profile name
+
+        Returns:
+            Profile object
+
+        Raises:
+            FileNotFoundError: If profile not found
+        """
+        if name not in self.profiles:
+            raise FileNotFoundError(f"Profile not found: {name}")
+        return self.profiles[name]
+
+    def get_profile_source(self: "MockProfileLoader", name: str) -> str | None:
+        """Get profile source.
+
+        Args:
+            name: Profile name
+
+        Returns:
+            Profile source or None
+        """
+        return self.sources.get(name)
+
+    def get_inheritance_chain(self: "MockProfileLoader", name: str) -> list[str]:
+        """Get inheritance chain for profile.
+
+        Args:
+            name: Profile name
+
+        Returns:
+            List of parent profile names
+        """
+        profile = self.profiles.get(name)
+        if not profile or not hasattr(profile, "extends") or not profile.extends:
+            return []
+        return [profile.extends]
+
+
+class MockConfigManager:
+    """Mock config manager for testing."""
+
+    def __init__(self: "MockConfigManager") -> None:
+        """Initialize mock config manager."""
+        self.active_profile = "default"
+
+    def get_active_profile(self: "MockConfigManager") -> str | None:
+        """Get active profile name.
+
+        Returns:
+            Active profile name or None
+        """
+        return self.active_profile
+
+    def set_active_profile(self: "MockConfigManager", name: str | None, scope: object) -> None:
+        """Set active profile.
+
+        Args:
+            name: Profile name or None to deactivate
+            scope: Configuration scope
+        """
+        self.active_profile = name
+
+
 class MockProfileService:
-    """Mock ProfileService for testing."""
+    """Mock ProfileService for testing with real directories."""
 
-    async def list_profiles(self) -> list[dict[str, Any]]:
-        """List all profiles."""
-        return [
-            {
-                "name": "default",
-                "source": "system",
-                "isActive": True,
-            },
-            {
-                "name": "custom",
-                "source": "user",
-                "isActive": False,
-            },
-        ]
+    def __init__(self: "MockProfileService", profiles_dir: Path) -> None:
+        """Initialize with test profiles directory.
 
-    async def get_profile(self, name: str) -> dict[str, Any]:
-        """Get profile by name."""
-        if name == "default":
-            return {
-                "name": "default",
-                "version": "1.0.0",
-                "description": "Default system profile",
-                "source": "system",
-                "isActive": True,
-                "inheritanceChain": [],
-                "providers": [
-                    {
-                        "module": "openai",
-                        "source": "amplifier://providers/openai",
-                        "config": {"model": "gpt-4"},
-                    }
-                ],
-                "tools": [
-                    {
-                        "module": "bash",
-                        "source": "amplifier://tools/bash",
-                        "config": None,
-                    }
-                ],
-                "hooks": [],
-            }
-        if name == "custom":
-            return {
-                "name": "custom",
-                "version": "1.0.0",
-                "description": "Custom user profile",
-                "source": "user",
-                "isActive": False,
-                "inheritanceChain": ["default"],
-                "providers": [],
-                "tools": [],
-                "hooks": [
-                    {
-                        "module": "pre-commit",
-                        "source": "file:///path/to/hook",
-                        "config": {"enabled": True},
-                    }
-                ],
-            }
-        raise FileNotFoundError(f"Profile not found: {name}")
+        Args:
+            profiles_dir: Test profiles directory
+        """
+        self._profile_loader = MockProfileLoader(profiles_dir)
+        self._config_manager = MockConfigManager()
 
-    async def get_active_profile(self) -> dict[str, Any] | None:
-        """Get active profile."""
+    def _get_loader(self: "MockProfileService") -> MockProfileLoader:
+        """Get profile loader.
+
+        Returns:
+            Profile loader
+        """
+        return self._profile_loader
+
+    def list_profiles(self: "MockProfileService") -> list[dict[str, str | bool]]:
+        """List all available profiles."""
+        loader = self._get_loader()
+        profiles = loader.list_profiles()
+        active_profile = self._config_manager.get_active_profile()
+
+        result = []
+        for profile_name in profiles:
+            source = loader.get_profile_source(profile_name) or "unknown"
+            result.append(
+                {
+                    "name": profile_name,
+                    "source": source,
+                    "isActive": profile_name == active_profile,
+                }
+            )
+        return result
+
+    def get_profile(
+        self: "MockProfileService", name: str
+    ) -> dict[str, str | bool | list[str] | list[dict[str, object]]]:
+        """Get profile details by name."""
+        loader = self._get_loader()
+        profile_obj = loader.load_profile(name)
+        chain_names = loader.get_inheritance_chain(name)
+        active_profile = self._config_manager.get_active_profile()
+
         return {
-            "name": "default",
-            "source": "system",
-            "isActive": True,
+            "name": profile_obj.profile.name,
+            "version": profile_obj.profile.version,
+            "description": profile_obj.profile.description,
+            "source": loader.get_profile_source(name) or "unknown",
+            "isActive": name == active_profile,
+            "inheritanceChain": chain_names,
+            "providers": [
+                {"module": item["module"], "source": item.get("source"), "config": item.get("config")}
+                for item in profile_obj.providers
+            ],
+            "tools": [
+                {"module": item["module"], "source": item.get("source"), "config": item.get("config")}
+                for item in profile_obj.tools
+            ],
+            "hooks": [
+                {"module": item["module"], "source": item.get("source"), "config": item.get("config")}
+                for item in profile_obj.hooks
+            ],
         }
 
-    async def activate_profile(self, name: str) -> dict[str, Any]:
-        """Activate a profile."""
-        if name == "custom":
-            return {"name": name, "status": "activated"}
-        raise ValueError(f"Profile not found: {name}")
+    def get_active_profile(
+        self: "MockProfileService",
+    ) -> dict[str, str | bool | list[str] | list[dict[str, object]]] | None:
+        """Get currently active profile."""
+        active_profile = self._config_manager.get_active_profile()
+        if not active_profile:
+            return None
 
-    async def deactivate_profile(self) -> dict[str, Any]:
-        """Deactivate current profile."""
+        # Return full profile details like get_profile does
+        return self.get_profile(active_profile)
+
+    def activate_profile(self: "MockProfileService", name: str) -> dict[str, str]:
+        """Activate a profile by name."""
+        try:
+            self.get_profile(name)
+        except (FileNotFoundError, KeyError) as exc:
+            raise FileNotFoundError(f"Profile not found: {name}") from exc
+
+        self._config_manager.active_profile = name
+
+        return {
+            "name": name,
+            "status": "activated",
+        }
+
+    def deactivate_profile(self: "MockProfileService") -> dict[str, bool]:
+        """Deactivate the current profile."""
+        self._config_manager.active_profile = None
+
         return {"deactivated": True}
 
 
 @pytest.fixture
-def override_profile_service():
-    """Override ProfileService dependency with mock."""
-    app.dependency_overrides[get_profile_service] = lambda: MockProfileService()
+def profile_service(test_profiles_dir: Path) -> MockProfileService:
+    """Create profile service with test data.
+
+    Args:
+        test_profiles_dir: Test profiles directory
+
+    Returns:
+        Profile service
+    """
+    return MockProfileService(test_profiles_dir)
+
+
+@pytest.fixture
+def override_profile_service(profile_service: MockProfileService):
+    """Override ProfileService dependency with test service.
+
+    Args:
+        profile_service: Profile service
+
+    Yields:
+        None
+    """
+    app.dependency_overrides[get_profile_service] = lambda: profile_service
     yield
     app.dependency_overrides.clear()
 
 
 @pytest.fixture
 def client(override_profile_service):
-    """Create FastAPI test client with mocked dependencies."""
+    """Create FastAPI test client with test dependencies.
+
+    Args:
+        override_profile_service: Dependency override fixture
+
+    Returns:
+        Test client
+    """
     return TestClient(app)
 
 
@@ -113,7 +357,6 @@ class TestProfilesAPI:
     def test_list_profiles_returns_200(self, client: TestClient) -> None:
         """Test GET /api/v1/profiles/ returns 200."""
         response = client.get("/api/v1/profiles/")
-
         assert response.status_code == 200
 
     def test_list_profiles_includes_profile_info(self, client: TestClient) -> None:
@@ -252,4 +495,4 @@ class TestProfilesAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["deactivated"] is True
+        assert data["success"] is True
