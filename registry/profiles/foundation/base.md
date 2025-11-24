@@ -62,8 +62,9 @@ hooks:
 - module: hooks-streaming-ui
   source: git+https://github.com/microsoft/amplifier-module-hooks-streaming-ui@main
 agents:
-  dirs:
-  - ./agents
+  explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
 ---
 
 @foundation:context/shared/common-agent-base.md

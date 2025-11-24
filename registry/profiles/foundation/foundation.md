@@ -16,6 +16,8 @@ providers:
   source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
   config:
     default_model: claude-sonnet-4-5
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
 ---
 
 You are an AI assistant powered by Amplifier.

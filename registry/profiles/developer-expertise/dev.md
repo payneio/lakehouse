@@ -77,8 +77,14 @@ hooks:
     git_include_branch: true
     git_include_main_branch: true
 agents:
-  dirs:
-  - ./agents
+  bug-hunter: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/bug-hunter.md
+  explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
+  modular-builder: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/modular-builder.md
+  post-task-cleanup: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/post-task-cleanup.md
+  researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
+  zen-architect: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/zen-architect.md
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
 ui:
   show_thinking_stream: true
   show_tool_lines: 5

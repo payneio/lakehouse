@@ -103,11 +103,15 @@ hooks:
     max_concurrent: 5
     batch_size: 10
 agents:
-  dirs:
-  - ./agents
-  - ./agents
+  bug-hunter: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/bug-hunter.md
+  explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
+  modular-builder: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/modular-builder.md
+  post-task-cleanup: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/post-task-cleanup.md
+  researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
+  zen-architect: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/zen-architect.md
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
 ---
-
 # Core Instructions
 
 @foundation:context/shared/common-profile-base.md

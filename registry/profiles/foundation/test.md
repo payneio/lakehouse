@@ -70,8 +70,7 @@ hooks:
 - module: hooks-streaming-ui
   source: git+https://github.com/microsoft/amplifier-module-hooks-streaming-ui@main
 agents:
-  dirs:
-  - ./agents
+  explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
   inline:
     test-agent:
       name: test-agent
@@ -80,6 +79,8 @@ agents:
       - module: tool-filesystem
       system:
         instruction: You are a test agent. Respond with 'Test successful' to any query.
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
 ---
 
 # Core Instructions
