@@ -1,47 +1,5 @@
 collections:
-  foundation:
-    version: 1.0.0
-    source: bundled:amplifierd.data.collections.foundation
-    installed_at: '2025-11-23T11:43:30.686427'
-    resources:
-      modules: []
-      profiles:
-      - profiles/foundation/production.md
-      - profiles/foundation/base.md
-      - profiles/foundation/test.md
-      - profiles/foundation/foundation.md
-      agents: []
-      context:
-      - context/foundation/KERNEL_PHILOSOPHY.md
-      - context/foundation/MODULAR_DESIGN_PHILOSOPHY.md
-      - context/foundation/IMPLEMENTATION_PHILOSOPHY.md
-      - context/foundation/shared/common-profile-base.md
-      - context/foundation/shared/common-agent-base.md
-    package_bundled: false
   developer-expertise:
-    version: 1.0.0
     source: bundled:amplifierd.data.collections.developer-expertise
-    installed_at: '2025-11-23T11:43:36.980882'
-    resources:
-      modules: []
-      profiles:
-      - profiles/developer-expertise/dev.md
-      - profiles/developer-expertise/full.md
-      agents: []
-      context: []
-    package_bundled: false
-  max-payne-collection:
-    version: 0.1.1
-    source: git+https://github.com/payneio/payne-amplifier@main#subdirectory=max_payne_collection
-    installed_at: '2025-11-23T11:43:42.053673'
-    resources:
-      modules:
-      - modules/max-payne-collection/tool-issue
-      - modules/max-payne-collection/amplifier-module-loop-streaming
-      - modules/max-payne-collection/issue-manager
-      profiles:
-      - profiles/max-payne-collection/general.md
-      - profiles/max-payne-collection/issue-aware.md
-      agents: []
-      context: []
-    package_bundled: false
+  foundation:
+    source: bundled:amplifierd.data.collections.foundation

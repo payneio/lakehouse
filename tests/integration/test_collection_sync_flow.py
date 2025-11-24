@@ -26,7 +26,6 @@ def test_collection_sync_seeds_and_mounts_package_collections(tmp_path: Path) ->
 
     for name, entry in collections.items():
         assert entry["source"].startswith("bundled:"), f"Collection {name} should have bundled: source"
-        assert entry["package_bundled"] is True, f"Collection {name} should be marked as package_bundled"
 
     results = service.sync_collections()
 

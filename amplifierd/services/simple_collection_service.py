@@ -163,7 +163,15 @@ class SimpleCollectionService:
 
             installed_resources = self._extract_resources(identifier, source_dir)
 
-            self.registry.add_collection(name=identifier, source=source, version=version, resources=installed_resources)
+            # Detect if this is a bundled collection
+            is_bundled = source.startswith("bundled:")
+            self.registry.add_collection(
+                name=identifier,
+                source=source,
+                version=version,
+                resources=installed_resources,
+                package_bundled=is_bundled,
+            )
 
             logger.info(f"Successfully mounted collection {identifier} from {source}")
 

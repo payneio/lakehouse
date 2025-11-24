@@ -2,11 +2,13 @@
 
 from pathlib import Path
 
+import yaml
+
 from amplifierd.services.collection_registry import CollectionRegistry
 
 
 def test_initialize_with_defaults_creates_registry(tmp_path: Path) -> None:
-    """Test that initialize_with_defaults creates collections.yaml with package collections."""
+    """Test that initialize_with_defaults creates minimal declarative collections.yaml."""
     share_dir = tmp_path / "share"
     registry = CollectionRegistry(share_dir)
 
@@ -15,13 +17,20 @@ def test_initialize_with_defaults_creates_registry(tmp_path: Path) -> None:
     registry_file = share_dir / "collections.yaml"
     assert registry_file.exists(), "collections.yaml should be created"
 
-    collections = registry.load()
+    # Load raw YAML to verify minimal format
+    with open(registry_file) as f:
+        data = yaml.safe_load(f)
+
+    assert "collections" in data
+    collections = data["collections"]
     assert len(collections) > 0, "Should have at least one package collection"
 
+    # Verify minimal format (just source field)
     for name, entry in collections.items():
-        assert entry.source.startswith("bundled:"), f"Collection {name} should have bundled: source"
-        assert entry.package_bundled is True, f"Collection {name} should be marked as package_bundled"
-        assert entry.version == "0.0.0", "Initial version should be 0.0.0"
+        assert "source" in entry, f"Collection {name} should have source field"
+        assert entry["source"].startswith("bundled:"), f"Collection {name} should have bundled: source"
+        # Minimal entries should NOT have full registry fields yet
+        # Those are populated during sync
 
 
 def test_initialize_with_defaults_skips_if_not_empty(tmp_path: Path) -> None:

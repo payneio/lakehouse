@@ -84,12 +84,16 @@ class CollectionRegistry:
                     context=resources_data.get("context", []),
                 )
 
+                # Infer package_bundled from source if not explicitly set
+                source = entry_data.get("source", "")
+                package_bundled = entry_data.get("package_bundled", source.startswith("bundled:"))
+
                 collections[name] = CollectionRegistryEntry(
                     version=entry_data.get("version", "0.0.0"),
-                    source=entry_data.get("source", ""),
+                    source=source,
                     installed_at=entry_data.get("installed_at", ""),
                     resources=resources,
-                    package_bundled=entry_data.get("package_bundled", False),
+                    package_bundled=package_bundled,
                 )
 
             logger.info(f"Loaded {len(collections)} collections from registry")
@@ -200,12 +204,15 @@ class CollectionRegistry:
     def initialize_with_defaults(self) -> None:
         """Initialize collections.yaml with package-bundled collections if empty.
 
-        Seeds with built-in collections from amplifierd package on first run.
+        Seeds with minimal declarative entries - sync process will populate full details.
         """
-        collections = self.load()
-        if collections:
-            logger.debug("Collections registry already initialized")
-            return
+        if self.registry_file.exists():
+            # Check if it's truly empty
+            with open(self.registry_file) as f:
+                data = yaml.safe_load(f)
+            if data and data.get("collections"):
+                logger.debug("Collections registry already initialized")
+                return
 
         package_dir = Path(__file__).parent.parent
         collections_dir = package_dir / "data" / "collections"
@@ -214,7 +221,9 @@ class CollectionRegistry:
             logger.debug("No package collections to seed")
             return
 
-        default_collections = {}
+        # Build minimal declarative entries
+        seed_data = {"collections": {}}
+
         for dir_path in collections_dir.iterdir():
             if not dir_path.is_dir() or dir_path.name.startswith((".", "_")):
                 continue
@@ -224,14 +233,13 @@ class CollectionRegistry:
             if not has_resources:
                 continue
 
-            default_collections[dir_path.name] = CollectionRegistryEntry(
-                version="0.0.0",
-                source=f"bundled:amplifierd.data.collections.{dir_path.name}",
-                installed_at="",
-                resources=CollectionResourceInfo(modules=[], profiles=[], agents=[], context=[]),
-                package_bundled=True,
-            )
+            # Minimal entry - just source field
+            seed_data["collections"][dir_path.name] = {"source": f"bundled:amplifierd.data.collections.{dir_path.name}"}
 
-        if default_collections:
-            self.save(default_collections)
-            logger.info(f"Initialized collections.yaml with {len(default_collections)} package-bundled collection(s)")
+        if seed_data["collections"]:
+            with open(self.registry_file, "w") as f:
+                yaml.dump(seed_data, f, default_flow_style=False, sort_keys=False)
+
+            logger.info(
+                f"Initialized collections.yaml with {len(seed_data['collections'])} package-bundled collection(s)"
+            )
