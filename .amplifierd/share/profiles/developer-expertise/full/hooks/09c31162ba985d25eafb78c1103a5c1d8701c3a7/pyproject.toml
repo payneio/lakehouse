@@ -1,0 +1,32 @@
+[project]
+name = "amplifier-module-hooks-scheduler-cost-aware"
+version = "1.0.0"
+description = "Cost and latency aware scheduler for Amplifier event-driven orchestration"
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Microsoft MADE:Explorations Team" },
+]
+dependencies = [
+]
+
+[project.entry-points."amplifier.modules"]
+hooks-scheduler-cost-aware = "amplifier_module_hooks_scheduler_cost_aware:mount"
+
+[build-system]
+requires = [
+    "hatchling",
+]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "amplifier_module_hooks_scheduler_cost_aware",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true

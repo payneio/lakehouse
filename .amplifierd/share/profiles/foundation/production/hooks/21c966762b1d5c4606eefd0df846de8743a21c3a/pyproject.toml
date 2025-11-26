@@ -1,0 +1,17 @@
+[project]
+name = "amplifier-module-hooks-status-context"
+version = "1.0.0"
+description = "Status context injection hook - Injects git status and datetime into agent context"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.entry-points."amplifier.modules"]
+hooks-status-context = "amplifier_module_hooks_status_context:mount"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=8.4.2"]

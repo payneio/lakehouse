@@ -136,7 +136,7 @@ def temp_storage_dir() -> Generator[Path, None, None]:
 
 @pytest.fixture
 def mock_storage_env(temp_storage_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Mock AMPLIFIERD_ROOT environment variable to use temp directory.
+    """Mock AMPLIFIERD_HOME environment variable to use temp directory.
 
     This ensures tests use isolated storage and don't interfere with
     real data or other tests.
@@ -154,7 +154,7 @@ def mock_storage_env(temp_storage_dir: Path, monkeypatch: pytest.MonkeyPatch) ->
         ...     root = get_root_dir()
         ...     assert root == mock_storage_env
     """
-    monkeypatch.setenv("AMPLIFIERD_ROOT", str(temp_storage_dir))
+    monkeypatch.setenv("AMPLIFIERD_HOME", str(temp_storage_dir))
     return temp_storage_dir
 
 

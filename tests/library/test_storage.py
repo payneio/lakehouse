@@ -19,13 +19,13 @@ class TestPaths:
 
     def test_get_root_dir_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_root_dir returns default /data when env var not set."""
-        monkeypatch.delenv("AMPLIFIERD_ROOT", raising=False)
-        root = paths.get_root_dir()
+        monkeypatch.delenv("AMPLIFIERD_HOME", raising=False)
+        root = paths.get_home_dir()
         assert root == Path(".amplifierd").resolve()
 
     def test_get_root_dir_custom(self, mock_storage_env: Path) -> None:
-        """Test get_root_dir respects AMPLIFIERD_ROOT environment variable."""
-        root = paths.get_root_dir()
+        """Test get_root_dir respects AMPLIFIERD_HOME environment variable."""
+        root = paths.get_home_dir()
         assert root == mock_storage_env
 
     def test_get_config_dir_creates_directory(self, mock_storage_env: Path) -> None:
@@ -62,7 +62,7 @@ class TestPaths:
 
     def test_paths_are_absolute(self, mock_storage_env: Path) -> None:
         """Test all path functions return absolute paths."""
-        assert paths.get_root_dir().is_absolute()
+        assert paths.get_home_dir().is_absolute()
         assert paths.get_config_dir().is_absolute()
         assert paths.get_share_dir().is_absolute()
         assert paths.get_state_dir().is_absolute()

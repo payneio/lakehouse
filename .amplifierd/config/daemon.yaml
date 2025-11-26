@@ -9,4 +9,11 @@ log_level: "info"
 workers: 1
 
 # Data directory root
-amplifierd_root: ".amplifierd"
+amplifierd_home_dir: ".amplifierd" # Common alternate: ~/.amplifierd
+amplifierd_root_working_dir: "/data"
+
+# Optional overrides.
+# amplifierd_config_dir: "/etc/amplifierd" # Default: ".amplifierd/config"
+# amplifierd_cache_dir: "/tmp/amplifierd" # Default: ".amplifierd/cache"
+# amplifierd_data_dir: "/usr/local/share/amplifierd" # Default: ".amplifierd/share"
+# amplifierd_state_dir: "/usr/local/state/amplifierd" # Default: ".amplifierd/state"

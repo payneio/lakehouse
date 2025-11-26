@@ -41,15 +41,36 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting amplifierd daemon on {config.host}:{config.port}")
     logger.info(f"Data root: {config.amplifierd_root}")
 
-    # Sync collections on startup
+    # Sync collections on startup with automatic profile discovery
     try:
         from amplifier_library.storage import get_share_dir
+        from amplifier_library.storage import get_state_dir
+        from amplifier_library.storage.paths import get_profiles_dir
 
-        from .services.simple_collection_service import SimpleCollectionService
+        from .services.collection_service import CollectionService
+        from .services.profile_compilation import ProfileCompilationService
+        from .services.profile_discovery import ProfileDiscoveryService
+        from .services.ref_resolution import RefResolutionService
 
         share_dir = get_share_dir()
-        collection_service = SimpleCollectionService(share_dir=share_dir)
-        results = collection_service.sync_collections()
+        state_dir = get_state_dir()
+
+        profiles_dir = get_profiles_dir()
+        discovery_service = ProfileDiscoveryService(cache_dir=profiles_dir)
+
+        ref_resolution = RefResolutionService(state_dir=state_dir)
+        compilation_service = ProfileCompilationService(
+            share_dir=share_dir,
+            ref_resolution=ref_resolution,
+        )
+
+        collection_service = CollectionService(
+            share_dir=share_dir,
+            discovery_service=discovery_service,
+            compilation_service=compilation_service,
+        )
+
+        results = collection_service.sync_collections(update=True)
 
         synced_count = sum(1 for status in results.values() if status == "synced")
         if synced_count > 0:

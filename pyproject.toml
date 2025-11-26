@@ -13,6 +13,11 @@ dependencies = [
     "pyyaml>=6.0.2",
     "sse-starlette>=2.2.1",
     "amplifier-core @ git+https://github.com/microsoft/amplifier-core",
+    "gitpython>=3.1.45",
+    "fsspec>=2025.10.0",
+    "claude-code-sdk>=0.0.25",
+    "requests>=2.32.4",
+    "aiohttp>=3.13.2",
 ]
 
 [tool.uv.workspace]

@@ -8,7 +8,7 @@ Public Interface:
     - list_stored: List stored items
     - delete_stored: Delete stored item
     - exists: Check if item exists
-    - get_root_dir: Get AMPLIFIERD_ROOT
+    - get_root_dir: Get AMPLIFIERD_HOME
     - get_config_dir: Get config directory
     - get_share_dir: Get data directory
     - get_state_dir: Get state/cache directory
@@ -21,8 +21,8 @@ from .json_store import list_stored
 from .json_store import load_json
 from .json_store import save_json
 from .paths import get_config_dir
+from .paths import get_home_dir
 from .paths import get_log_dir
-from .paths import get_root_dir
 from .paths import get_share_dir
 from .paths import get_state_dir
 
@@ -32,7 +32,7 @@ __all__ = [
     "list_stored",
     "delete_stored",
     "exists",
-    "get_root_dir",
+    "get_home_dir",
     "get_config_dir",
     "get_share_dir",
     "get_state_dir",

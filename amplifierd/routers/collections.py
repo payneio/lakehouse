@@ -8,10 +8,10 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from amplifier_library.storage import get_share_dir
+from amplifier_library.storage import get_state_dir
 
-from ..models import CollectionDetails
 from ..models import CollectionInfo
-from ..services.simple_collection_service import SimpleCollectionService
+from ..services.collection_service import CollectionService
 
 router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
 
@@ -23,19 +23,38 @@ class MountCollectionRequest(BaseModel):
     source: str
 
 
-def get_collection_service() -> SimpleCollectionService:
+def get_collection_service() -> CollectionService:
     """Get collection service instance.
 
     Returns:
-        SimpleCollectionService instance
+        SimpleCollectionService instance with profile discovery/compilation
     """
+    from amplifier_library.storage.paths import get_profiles_dir
+
+    from ..services.profile_compilation import ProfileCompilationService
+    from ..services.profile_discovery import ProfileDiscoveryService
+    from ..services.ref_resolution import RefResolutionService
+
     share_dir = get_share_dir()
-    return SimpleCollectionService(share_dir=share_dir)
+    state_dir = get_state_dir()
+
+    # Create profile services for auto-discovery and compilation
+    profiles_dir = get_profiles_dir()
+    discovery_service = ProfileDiscoveryService(cache_dir=profiles_dir)
+
+    ref_resolution = RefResolutionService(state_dir=state_dir)
+    compilation_service = ProfileCompilationService(share_dir=share_dir, ref_resolution=ref_resolution)
+
+    return CollectionService(
+        share_dir=share_dir,
+        discovery_service=discovery_service,
+        compilation_service=compilation_service,
+    )
 
 
 @router.get("/", response_model=list[CollectionInfo])
 async def list_collections(
-    service: Annotated[SimpleCollectionService, Depends(get_collection_service)],
+    service: Annotated[CollectionService, Depends(get_collection_service)],
 ) -> list[CollectionInfo]:
     """List all available collections.
 
@@ -48,11 +67,11 @@ async def list_collections(
     return service.list_collections()
 
 
-@router.get("/{identifier:path}", response_model=CollectionDetails)
+@router.get("/{identifier:path}", response_model=CollectionInfo)
 async def get_collection(
     identifier: str,
-    service: Annotated[SimpleCollectionService, Depends(get_collection_service)],
-) -> CollectionDetails:
+    service: Annotated[CollectionService, Depends(get_collection_service)],
+) -> CollectionInfo:
     """Get collection details by identifier.
 
     Args:
@@ -66,7 +85,7 @@ async def get_collection(
         HTTPException: 404 if collection not found, 500 for other errors
     """
     try:
-        return service.get_collection(identifier)
+        return service.get_collection_info(identifier)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -77,7 +96,7 @@ async def get_collection(
 
 @router.post("/sync")
 async def sync_collections(
-    service: Annotated[SimpleCollectionService, Depends(get_collection_service)],
+    service: Annotated[CollectionService, Depends(get_collection_service)],
     update: bool = False,
     sync_modules: bool = True,
 ) -> dict[str, dict[str, str] | dict[str, dict[str, str]]]:
@@ -103,11 +122,11 @@ async def sync_collections(
 
         module_results = {}
         if sync_modules:
-            from ..services.simple_profile_service import SimpleProfileService
+            from ..services.profile_service import ProfileService
 
             share_dir = get_share_dir()
             data_dir = get_share_dir()
-            profile_service = SimpleProfileService(share_dir=share_dir, data_dir=data_dir)
+            profile_service = ProfileService(share_dir=share_dir, data_dir=data_dir)
 
             for collection_name, status in results.items():
                 if status in ["synced", "updated"]:
@@ -132,7 +151,7 @@ async def sync_collections(
 @router.post("/", status_code=201)
 async def mount_collection(
     request: MountCollectionRequest,
-    service: Annotated[SimpleCollectionService, Depends(get_collection_service)],
+    service: Annotated[CollectionService, Depends(get_collection_service)],
 ) -> dict[str, str]:
     """Mount a collection.
 
@@ -160,7 +179,7 @@ async def mount_collection(
 @router.delete("/{identifier:path}", status_code=200)
 async def unmount_collection(
     identifier: str,
-    service: Annotated[SimpleCollectionService, Depends(get_collection_service)],
+    service: Annotated[CollectionService, Depends(get_collection_service)],
 ) -> dict[str, bool]:
     """Unmount a collection.
 

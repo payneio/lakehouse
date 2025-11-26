@@ -132,7 +132,7 @@ uv run pytest tests/services/test_bundled_collections.py tests/integration/test_
 uv run pytest tests/services/test_bundled_collections.py::TestBundledCollectionResolution -v
 
 # Run with coverage
-uv run pytest tests/services/test_bundled_collections.py --cov=amplifierd.services.simple_collection_service
+uv run pytest tests/services/test_bundled_collections.py --cov=amplifierd.services.collection_service
 
 # Run all collection-related tests
 uv run pytest tests/ -k "collection" -v

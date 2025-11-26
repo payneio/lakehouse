@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from amplifierd.services.module_resolver_service import ModuleResolverService
-from amplifierd.services.simple_profile_service import SimpleProfileService
+from amplifierd.services.simple_profile_service import ProfileService
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def test_profile_service_integration(temp_structure):
     with open(profile_file, "w") as f:
         yaml.dump(profile_data, f)
 
-    profile_service = SimpleProfileService(share_dir=share_dir, data_dir=data_dir)
+    profile_service = ProfileService(share_dir=share_dir, data_dir=data_dir)
 
     profiles = profile_service.list_profiles()
     assert len(profiles) == 1
@@ -131,7 +131,7 @@ def test_end_to_end_profile_module_resolution(temp_structure):
     with open(profile_file, "w") as f:
         yaml.dump(profile_data, f)
 
-    profile_service = SimpleProfileService(share_dir=share_dir, data_dir=data_dir)
+    profile_service = ProfileService(share_dir=share_dir, data_dir=data_dir)
 
     profile = profile_service.get_profile("e2e-test")
     assert profile.name == "e2e-test"

@@ -3,9 +3,8 @@
 This module defines request and response models for the REST API.
 """
 
-from .collections import CollectionDetails
 from .collections import CollectionInfo
-from .collections import CollectionModules
+from .collections import ProfileManifest
 from .errors import ErrorResponse
 from .errors import ValidationErrorDetail
 from .modules import ModuleDetails
@@ -37,8 +36,7 @@ __all__ = [
     "ProfileDetails",
     "ModuleConfig",
     "CollectionInfo",
-    "CollectionDetails",
-    "CollectionModules",
+    "ProfileManifest",
     "ModuleInfo",
     "ModuleDetails",
 ]

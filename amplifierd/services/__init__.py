@@ -3,12 +3,12 @@
 This module contains simplified business logic services.
 """
 
-from .simple_collection_service import SimpleCollectionService
-from .simple_module_service import SimpleModuleService
-from .simple_profile_service import SimpleProfileService
+from .collection_service import CollectionService
+from .module_service import ModuleService
+from .profile_service import ProfileService
 
 __all__ = [
-    "SimpleProfileService",
-    "SimpleCollectionService",
-    "SimpleModuleService",
+    "ProfileService",
+    "CollectionService",
+    "ModuleService",
 ]

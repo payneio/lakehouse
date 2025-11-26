@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from amplifierd.services.simple_collection_service import SimpleCollectionService
+from amplifierd.services.collection_service import CollectionService
 
 
 def main() -> None:
@@ -21,7 +21,7 @@ def main() -> None:
         print("Step 1: Initialize SimpleCollectionService")
         print(f"  Share directory: {share_dir}")
 
-        service = SimpleCollectionService(share_dir)
+        service = CollectionService(share_dir)
 
         print("  ✓ Service initialized\n")
 
@@ -52,14 +52,12 @@ def main() -> None:
 
         for collection in collections:
             print(f"\n    - {collection.identifier}:")
-            print(f"        type: {collection.type}")
             print(f"        source: {collection.source}")
-            print(f"        package_bundled: {collection.package_bundled}")
+            print(f"        bundled: {collection.source.startswith('bundled:')}")
+            print(f"        profiles: {len(collection.profiles)}")
 
-            details = service.get_collection(collection.identifier)
-            print(f"        modules: {len(details.modules.providers)} provider(s)")
+            details = service.get_collection_info(collection.identifier)
             print(f"        profiles: {len(details.profiles)} profile(s)")
-            print(f"        agents: {len(details.agents)} agent(s)")
 
         print("\nStep 5: Verify resources extracted to share directory")
         for collection in collections:

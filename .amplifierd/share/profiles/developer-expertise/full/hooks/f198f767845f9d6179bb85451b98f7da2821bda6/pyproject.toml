@@ -1,0 +1,20 @@
+[project]
+name = "amplifier-module-hooks-streaming-ui"
+version = "1.0.0"
+description = "Streaming UI display hooks for Amplifier - displays thinking blocks and tool invocations to console"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+[project.entry-points."amplifier.modules"]
+hooks-streaming-ui = "amplifier_module_hooks_streaming_ui:mount"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]

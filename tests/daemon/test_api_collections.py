@@ -11,12 +11,10 @@ from amplifierd.routers.collections import get_collection_service
 
 @pytest.fixture
 def test_collections_dir(tmp_path: Path) -> Path:
-    """Create test collection structure with flat module layout."""
+    """Create test collection structure."""
     # Create collection-core (local)
     core = tmp_path / "core"
     (core / "profiles").mkdir(parents=True)
-    (core / "agents").mkdir(parents=True)
-    (core / "modules").mkdir(parents=True)
 
     # Create collection.yaml for core
     (core / "collection.yaml").write_text("""
@@ -25,60 +23,30 @@ version: "1.0.0"
 description: "Core Amplifier collection"
 """)
 
-    # Create profiles
-    (core / "profiles" / "default.yaml").write_text("""
-profile:
-  name: "default"
-  version: "1.0.0"
-  description: "Default profile"
+    # Create schema v2 profiles
+    (core / "profiles" / "default.md").write_text("""---
+name: "default"
+schema_version: 2
+version: "1.0.0"
+description: "Default profile"
+---
+
+# Default Profile
 """)
 
-    (core / "profiles" / "advanced.yaml").write_text("""
-profile:
-  name: "advanced"
-  version: "1.0.0"
-  description: "Advanced profile"
+    (core / "profiles" / "advanced.md").write_text("""---
+name: "advanced"
+schema_version: 2
+version: "1.0.0"
+description: "Advanced profile"
+---
+
+# Advanced Profile
 """)
-
-    # Create agents
-    (core / "agents" / "helper.yaml").write_text("""
-agent:
-  name: "helper"
-  version: "1.0.0"
-""")
-
-    (core / "agents" / "reviewer.yaml").write_text("""
-agent:
-  name: "reviewer"
-  version: "1.0.0"
-""")
-
-    # Create modules (flat structure - one directory per module)
-    (core / "modules" / "openai-provider").mkdir(parents=True)
-    (core / "modules" / "openai-provider" / "module.py").write_text("# OpenAI Provider")
-
-    (core / "modules" / "anthropic-provider").mkdir(parents=True)
-    (core / "modules" / "anthropic-provider" / "module.py").write_text("# Anthropic Provider")
-
-    (core / "modules" / "bash-tool").mkdir(parents=True)
-    (core / "modules" / "bash-tool" / "module.py").write_text("# Bash Tool")
-
-    (core / "modules" / "git-tool").mkdir(parents=True)
-    (core / "modules" / "git-tool" / "module.py").write_text("# Git Tool")
-
-    (core / "modules" / "search-tool").mkdir(parents=True)
-    (core / "modules" / "search-tool" / "module.py").write_text("# Search Tool")
-
-    (core / "modules" / "pre-commit-hook").mkdir(parents=True)
-    (core / "modules" / "pre-commit-hook" / "module.py").write_text("# Pre-commit Hook")
-
-    (core / "modules" / "parallel-orchestrator").mkdir(parents=True)
-    (core / "modules" / "parallel-orchestrator" / "module.py").write_text("# Parallel Orchestrator")
 
     # Create git-style collection
     git_repo = tmp_path / "github.com" / "org" / "repo"
     (git_repo / "profiles").mkdir(parents=True)
-    (git_repo / "modules").mkdir(parents=True)
     (git_repo / ".git").mkdir(parents=True)
 
     (git_repo / "collection.yaml").write_text("""
@@ -87,14 +55,15 @@ version: "1.0.0"
 description: "Collection from git"
 """)
 
-    (git_repo / "profiles" / "production.yaml").write_text("""
-profile:
-  name: "production"
-  version: "1.0.0"
-""")
+    (git_repo / "profiles" / "production.md").write_text("""---
+name: "production"
+schema_version: 2
+version: "1.0.0"
+description: "Production profile"
+---
 
-    (git_repo / "modules" / "custom-tool").mkdir(parents=True)
-    (git_repo / "modules" / "custom-tool" / "module.py").write_text("# Custom Tool")
+# Production Profile
+""")
 
     return tmp_path
 
@@ -159,91 +128,86 @@ class MockCollectionService:
             collections_dir: Test collections directory
         """
         self._resolver = MockCollectionResolver(collections_dir)
+        # Simulate registry - in real service this is in collections.yaml
+        self._registry: dict[str, dict[str, str]] = {}
 
-    def list_collections(self: "MockCollectionService") -> list[dict[str, str]]:
+        # Auto-register discovered collections
+        for name, path in self._resolver.list_collections():
+            source = f"git+https://github.com/test/{name}@main" if (path / ".git").exists() else str(path)
+            self._registry[name] = {"source": source}
+
+    def list_collections(self: "MockCollectionService") -> list[dict[str, str | list]]:
         """List all available collections."""
-        collections = self._resolver.list_collections()
         result = []
 
-        for metadata_name, collection_path in collections:
-            collection_type = "local"
-            if (collection_path / ".git").exists():
-                collection_type = "git"
+        for identifier, entry in self._registry.items():
+            collection_path = self._resolver.resolve_collection(identifier)
+            if not collection_path:
+                continue
 
-            result.append(
-                {
-                    "identifier": metadata_name,
-                    "source": str(collection_path),
-                    "type": collection_type,
-                }
-            )
+            # Discover profiles
+            profiles = []
+            if (collection_path / "profiles").exists():
+                for p in list((collection_path / "profiles").glob("*.md")) + list(
+                    (collection_path / "profiles").glob("*.yaml")
+                ):
+                    profiles.append(
+                        {
+                            "name": p.stem,
+                            "version": "1.0.0",
+                            "path": str(p),
+                            "installedAt": None,
+                        }
+                    )
+
+            result.append({"identifier": identifier, "source": entry["source"], "profiles": profiles})
         return result
 
-    def get_collection(
-        self: "MockCollectionService", identifier: str
-    ) -> dict[str, str | list[str] | dict[str, list[str]]]:
+    def get_collection_info(self: "MockCollectionService", identifier: str) -> dict[str, str | list]:
         """Get collection details by identifier."""
-        collection_path = self._resolver.resolve_collection(identifier)
-        if not collection_path:
-            raise ValueError(f"Collection not found: {identifier}")
+        if identifier not in self._registry:
+            raise FileNotFoundError(f"Collection not found: {identifier}")
 
-        collection_type = "local"
-        if (collection_path / ".git").exists():
-            collection_type = "git"
-
-        # Manually discover resources in test directories
-        profiles = []
-        if (collection_path / "profiles").exists():
-            profiles = [str(p) for p in (collection_path / "profiles").glob("*.yaml")]
-
-        agents = []
-        if (collection_path / "agents").exists():
-            agents = [str(a) for a in (collection_path / "agents").glob("*.yaml")]
-
-        # Discover modules (flat structure - all module directories)
-        modules_dir = collection_path / "modules"
-        all_modules = []
-
-        if modules_dir.exists():
-            # Flat structure: all modules are subdirectories in modules/
-            all_modules = [str(m) for m in modules_dir.iterdir() if m.is_dir() and not m.name.startswith(".")]
-
-        return {
-            "identifier": identifier,
-            "source": str(collection_path),
-            "type": collection_type,
-            "profiles": profiles,
-            "agents": agents,
-            "modules": {
-                # Flat structure: same list for all categories
-                "providers": all_modules,
-                "tools": all_modules,
-                "hooks": all_modules,
-                "orchestrators": all_modules,
-            },
-        }
-
-    def mount_collection(self: "MockCollectionService", identifier: str, source: str) -> dict[str, str]:
-        """Mount a collection."""
-        # Check if collection already exists
-        collection_path = self._resolver.resolve_collection(identifier)
-        if collection_path:
-            raise ValueError(f"Collection already exists: {identifier}")
-
-        # Check if source is valid (for local mounts)
-        if not source.startswith("http") and not Path(source).exists():
-            raise FileNotFoundError(f"Source not found: {source}")
-
-        return {"identifier": identifier, "source": source, "status": "mounted"}
-
-    def unmount_collection(self: "MockCollectionService", identifier: str) -> dict[str, bool]:
-        """Unmount a collection."""
-        # Check if collection exists
         collection_path = self._resolver.resolve_collection(identifier)
         if not collection_path:
             raise FileNotFoundError(f"Collection not found: {identifier}")
 
-        return {"unmounted": True}
+        # Manually discover profiles
+        profiles = []
+        if (collection_path / "profiles").exists():
+            for p in list((collection_path / "profiles").glob("*.md")) + list(
+                (collection_path / "profiles").glob("*.yaml")
+            ):
+                profiles.append(
+                    {
+                        "name": p.stem,
+                        "version": "1.0.0",
+                        "path": str(p),
+                        "installedAt": None,
+                    }
+                )
+
+        return {"identifier": identifier, "source": self._registry[identifier]["source"], "profiles": profiles}
+
+    def mount_collection(self: "MockCollectionService", identifier: str, source: str) -> None:
+        """Mount a collection."""
+        # Check if collection already exists
+        if identifier in self._registry:
+            raise ValueError(f"Collection already exists: {identifier}")
+
+        # Check if source is valid (for local mounts)
+        if not source.startswith("http") and not source.startswith("git+") and not Path(source).exists():
+            raise FileNotFoundError(f"Source not found: {source}")
+
+        self._registry[identifier] = {"source": source}
+
+    def unmount_collection(self: "MockCollectionService", identifier: str) -> None:
+        """Unmount a collection."""
+        # Check if collection exists
+        if identifier not in self._registry:
+            raise FileNotFoundError(f"Collection not found: {identifier}")
+
+        del self._registry[identifier]
 
 
 @pytest.fixture
@@ -306,11 +270,11 @@ class TestCollectionsAPI:
 
         core = next(c for c in data if c["identifier"] == "core")
         assert "source" in core
-        assert core["type"] == "local"
+        # Note: 'type' field removed from CollectionInfo model (can be inferred from source prefix)
 
         git_repo = next(c for c in data if "github.com" in c["identifier"])
         assert "source" in git_repo
-        assert git_repo["type"] == "git"
+        # Note: 'type' field removed from CollectionInfo model (can be inferred from source prefix)
 
     def test_get_collection_returns_details(self, client: TestClient) -> None:
         """Test GET /api/v1/collections/{identifier} returns details."""
@@ -320,37 +284,13 @@ class TestCollectionsAPI:
         data = response.json()
         assert data["identifier"] == "core"
         assert "source" in data
-        assert data["type"] == "local"
         assert len(data["profiles"]) == 2
-        assert any("default.yaml" in str(p) for p in data["profiles"])
-        assert any("advanced.yaml" in str(p) for p in data["profiles"])
-        assert len(data["agents"]) == 2
-        assert any("helper.yaml" in str(a) for a in data["agents"])
-
-    def test_get_collection_includes_modules(self, client: TestClient) -> None:
-        """Test GET /api/v1/collections/{identifier} includes module listings."""
-        response = client.get("/api/v1/collections/core")
-
-        data = response.json()
-        assert "modules" in data
-        modules = data["modules"]
-
-        # Flat structure: all modules in same lists
-        # Note: CollectionDetails model duplicates module lists for backward compatibility
-        assert "providers" in modules
-        assert "tools" in modules
-        assert "hooks" in modules
-        assert "orchestrators" in modules
-
-        # All module lists contain the same items (flat structure)
-        all_modules = modules["providers"]  # or any category - they're all the same
-        assert len(all_modules) == 7  # Total modules created in fixture
-
-        # Check some module names exist
-        assert any("openai-provider" in str(m) for m in all_modules)
-        assert any("bash-tool" in str(m) for m in all_modules)
-        assert any("pre-commit-hook" in str(m) for m in all_modules)
-        assert any("parallel-orchestrator" in str(m) for m in all_modules)
+        # Verify profiles are ProfileManifest objects with correct structure
+        for profile in data["profiles"]:
+            assert "name" in profile
+            assert "version" in profile
+            assert "path" in profile
+            assert "installedAt" in profile
 
     def test_get_collection_git_type(self, client: TestClient) -> None:
         """Test GET /api/v1/collections/{identifier} for git collection."""
@@ -359,10 +299,9 @@ class TestCollectionsAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["identifier"] == "github.com/org/repo"
-        assert data["type"] == "git"
         assert "source" in data
+        # Collection type can be inferred from source (git+ prefix)
         assert len(data["profiles"]) == 1
-        assert len(data["agents"]) == 0
 
     def test_get_collection_404_for_nonexistent(self, client: TestClient) -> None:
         """Test GET /api/v1/collections/{identifier} returns 404."""
@@ -379,54 +318,25 @@ class TestCollectionsAPI:
         for collection in data:
             assert "identifier" in collection
             assert "source" in collection
-            assert "type" in collection
+            assert "profiles" in collection
             assert isinstance(collection["identifier"], str)
             assert isinstance(collection["source"], str)
-            assert isinstance(collection["type"], str)
-            assert collection["type"] in ["local", "git"]
+            assert isinstance(collection["profiles"], list)
 
     def test_collection_details_schema(self, client: TestClient) -> None:
-        """Test CollectionDetails objects have required fields."""
+        """Test Collection detail response has required fields."""
         response = client.get("/api/v1/collections/core")
 
         data = response.json()
         assert "identifier" in data
         assert "source" in data
-        assert "type" in data
         assert "profiles" in data
-        assert "agents" in data
-        assert "modules" in data
         assert isinstance(data["profiles"], list)
-        assert isinstance(data["agents"], list)
-        assert isinstance(data["modules"], dict)
-
-    def test_collection_modules_schema(self, client: TestClient) -> None:
-        """Test CollectionModules objects have required fields."""
-        response = client.get("/api/v1/collections/core")
-
-        data = response.json()
-        modules = data["modules"]
-        assert "providers" in modules
-        assert "tools" in modules
-        assert "hooks" in modules
-        assert "orchestrators" in modules
-        assert isinstance(modules["providers"], list)
-        assert isinstance(modules["tools"], list)
-        assert isinstance(modules["hooks"], list)
-        assert isinstance(modules["orchestrators"], list)
-
-    def test_collection_with_empty_modules(self, client: TestClient) -> None:
-        """Test collection with minimal modules (flat structure)."""
-        response = client.get("/api/v1/collections/github.com%2Forg%2Frepo")
-
-        data = response.json()
-        modules = data["modules"]
-
-        # Flat structure: all categories show same modules
-        assert len(modules["providers"]) == 1  # custom-tool from fixture
-        assert len(modules["tools"]) == 1
-        assert len(modules["hooks"]) == 1
-        assert len(modules["orchestrators"]) == 1
+        # Verify each profile is a ProfileManifest
+        for profile in data["profiles"]:
+            assert "name" in profile
+            assert "version" in profile
+            assert "path" in profile
 
     def test_mount_collection_success(self, client: TestClient) -> None:
         """Test POST /api/v1/collections/ mounts collection."""

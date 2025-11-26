@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from amplifierd.main import app
 from amplifierd.routers.modules import get_module_discovery_service
-from amplifierd.services.simple_module_service import SimpleModuleService
+from amplifierd.services.simple_module_service import ModuleService
 
 
 @pytest.fixture
@@ -94,13 +94,13 @@ config_schema:
 
 
 @pytest.fixture
-def module_service(test_collections_dir: Path) -> SimpleModuleService:
+def module_service(test_collections_dir: Path) -> ModuleService:
     """Create module service with test data."""
-    return SimpleModuleService(share_dir=test_collections_dir)
+    return ModuleService(share_dir=test_collections_dir)
 
 
 @pytest.fixture
-def override_module_discovery_service(module_service: SimpleModuleService):
+def override_module_discovery_service(module_service: ModuleService):
     """Override ModuleDiscoveryService dependency with test service."""
     app.dependency_overrides[get_module_discovery_service] = lambda: module_service
     yield

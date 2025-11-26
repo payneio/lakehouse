@@ -1,67 +1,84 @@
-"""Test collection registry seeding functionality."""
+"""Test collection registry functionality."""
 
 from pathlib import Path
 
-import yaml
-
-from amplifierd.services.collection_registry import CollectionRegistry
+from amplifierd.services.collection_service import CollectionService
 
 
-def test_initialize_with_defaults_creates_registry(tmp_path: Path) -> None:
-    """Test that initialize_with_defaults creates minimal declarative collections.yaml."""
+def test_empty_registry_on_init(tmp_path: Path) -> None:
+    """Test that new service starts with empty registry."""
     share_dir = tmp_path / "share"
-    registry = CollectionRegistry(share_dir)
+    service = CollectionService(share_dir)
 
-    registry.initialize_with_defaults()
+    # Registry should be empty on first init (no default seeding)
+    collections = service.list_collection_entries()
+    assert len(collections) == 0, "New service should have empty registry"
 
     registry_file = share_dir / "collections.yaml"
-    assert registry_file.exists(), "collections.yaml should be created"
-
-    # Load raw YAML to verify minimal format
-    with open(registry_file) as f:
-        data = yaml.safe_load(f)
-
-    assert "collections" in data
-    collections = data["collections"]
-    assert len(collections) > 0, "Should have at least one package collection"
-
-    # Verify minimal format (just source field)
-    for name, entry in collections.items():
-        assert "source" in entry, f"Collection {name} should have source field"
-        assert entry["source"].startswith("bundled:"), f"Collection {name} should have bundled: source"
-        # Minimal entries should NOT have full registry fields yet
-        # Those are populated during sync
+    assert not registry_file.exists(), "Empty registry should not create file yet"
 
 
-def test_initialize_with_defaults_skips_if_not_empty(tmp_path: Path) -> None:
-    """Test that initialize_with_defaults skips if registry already has collections."""
+def test_registry_persistence(tmp_path: Path) -> None:
+    """Test that registry changes are persisted across service instances."""
     share_dir = tmp_path / "share"
-    registry = CollectionRegistry(share_dir)
 
-    registry.initialize_with_defaults()
+    # First service adds a collection
+    service1 = CollectionService(share_dir)
+    service1._add_collection_to_registry(name="test-collection", source="git+https://github.com/org/repo@main")
 
-    initial_collections = registry.load()
-    initial_count = len(initial_collections)
+    # Registry file should exist
+    assert (share_dir / "collections.yaml").exists()
 
-    registry.initialize_with_defaults()
+    # Second service should load the persisted collection
+    service2 = CollectionService(share_dir)
+    collections = service2.list_collection_entries()
+    assert len(collections) == 1, "Should load persisted collection"
+    assert collections[0][0] == "test-collection"
+    assert collections[0][1].source == "git+https://github.com/org/repo@main"
 
-    final_collections = registry.load()
-    assert len(final_collections) == initial_count, "Should not add more collections on second init"
+
+def test_mount_collection_adds_to_registry(tmp_path: Path) -> None:
+    """Test that mounting a collection adds it to the registry."""
+    share_dir = tmp_path / "share"
+    service = CollectionService(share_dir)
+
+    # Create a local collection
+    local_collection = tmp_path / "local-collection"
+    local_collection.mkdir()
+    (local_collection / "collection.yaml").write_text("name: Test\nversion: 1.0.0\n")
+
+    # Mount the collection
+    service.mount_collection("local-test", str(local_collection))
+
+    # Verify it's in the registry
+    collections = service.list_collection_entries()
+    assert len(collections) == 1
+    assert collections[0][0] == "local-test"
+
+    # Verify persistence
+    service2 = CollectionService(share_dir)
+    collections2 = service2.list_collection_entries()
+    assert len(collections2) == 1
+    assert collections2[0][0] == "local-test"
 
 
-def test_package_collections_have_expected_structure() -> None:
-    """Test that package collections directory structure exists."""
-    package_dir = Path(__file__).parent.parent.parent / "amplifierd"
-    collections_dir = package_dir / "data" / "collections"
+def test_unmount_collection_removes_from_registry(tmp_path: Path) -> None:
+    """Test that unmounting removes collection from registry."""
+    share_dir = tmp_path / "share"
+    service = CollectionService(share_dir)
 
-    assert collections_dir.exists(), "Package collections directory should exist"
+    # Add a collection
+    service._add_collection_to_registry(name="test-collection", source="git+https://github.com/org/repo@main")
 
-    found_collections = []
-    for dir_path in collections_dir.iterdir():
-        if dir_path.is_dir() and not dir_path.name.startswith((".", "_")):
-            has_resources = any((dir_path / subdir).is_dir() for subdir in ["modules", "profiles", "agents", "context"])
-            if has_resources:
-                found_collections.append(dir_path.name)
+    # Verify it exists
+    assert len(service.list_collection_entries()) == 1
 
-    assert len(found_collections) > 0, "Should have at least one valid package collection"
-    assert "foundation" in found_collections or "developer-expertise" in found_collections
+    # Unmount it
+    service.unmount_collection("test-collection")
+
+    # Verify it's gone
+    assert len(service.list_collection_entries()) == 0
+
+    # Verify persistence
+    service2 = CollectionService(share_dir)
+    assert len(service2.list_collection_entries()) == 0

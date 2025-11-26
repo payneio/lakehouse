@@ -1,0 +1,9 @@
+collections:
+  developer-expertise:
+    source: /data/repos/msft/payneio/amplifierd/registry/profiles/developer-expertise
+    installed_at: '2025-11-25T15:36:00'
+  foundation:
+    source: /data/repos/msft/payneio/amplifierd/registry/profiles/foundation
+    installed_at: '2025-11-25T15:36:00'
+  max-payne-collection:
+    source: git+https://github.com/payneio/payne-amplifier@main#subdirectory=max_payne_collection/profiles.v2

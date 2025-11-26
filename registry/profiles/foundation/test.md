@@ -80,7 +80,7 @@ agents:
       system:
         instruction: You are a test agent. Respond with 'Test successful' to any query.
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
 ---
 
 # Core Instructions

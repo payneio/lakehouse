@@ -15,7 +15,7 @@ These notebooks provide hands-on examples of all amplifierd API endpoints, organ
 ### Directory Structure
 
 ```
-{AMPLIFIERD_ROOT}/local/share/
+{AMPLIFIERD_HOME}/local/share/
 ├── collections.yaml                    # Package registry
 ├── modules/{collection}/{type}/{name}/ # Flattened module structure
 ├── profiles/{collection}/              # Profile packages (also supports standalone)
@@ -86,7 +86,7 @@ Profile discovery and activation:
 - **Read Operations**: List, get, and explore profiles from flattened directory
 - **Write Operations**: Activate and deactivate profiles
 - **Profile Format**: Simple YAML with one-level inheritance via `extends` field
-- **Discovery**: Scans `{AMPLIFIERD_ROOT}/local/share/profiles/**/*.yaml` recursively
+- **Discovery**: Scans `{AMPLIFIERD_HOME}/local/share/profiles/**/*.yaml` recursively
 - **Standalone Support**: Create profiles directly in `profiles/` without collections
 - **Activation**: Stored in plain text file (`active_profile.txt`)
 
@@ -111,7 +111,7 @@ Package management and installation:
 Module discovery from flattened structure:
 - **Read Operations**: Discover modules from type-based directories
 - **Module IDs**: Format `{collection}/{type}/{name}` (collection preserved for namespace)
-- **Discovery**: Scans `{AMPLIFIERD_ROOT}/local/share/modules/{collection}/{type}/{name}/`
+- **Discovery**: Scans `{AMPLIFIERD_HOME}/local/share/modules/{collection}/{type}/{name}/`
 - **Directory Structure**: `modules/{collection}/` not `collections/{collection}/modules/`
 - **Metadata**: Read from `module.yaml` files
 - **Namespace Isolation**: Collection name prevents conflicts between packages

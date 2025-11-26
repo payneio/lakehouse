@@ -1,0 +1,32 @@
+[project]
+name = "amplifier-module-hooks-scheduler-heuristic"
+version = "1.0.0"
+description = "Heuristic scheduler for Amplifier event-driven orchestration"
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Microsoft MADE:Explorations Team" },
+]
+dependencies = [
+]
+
+[project.entry-points."amplifier.modules"]
+hooks-scheduler-heuristic = "amplifier_module_hooks_scheduler_heuristic:mount"
+
+[build-system]
+requires = [
+    "hatchling",
+]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "amplifier_module_hooks_scheduler_heuristic",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true

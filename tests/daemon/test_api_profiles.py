@@ -16,42 +16,60 @@ def test_profiles_dir(tmp_path: Path) -> Path:
     system_dir = tmp_path / "system"
     system_dir.mkdir()
 
-    # Create default profile
-    (system_dir / "default.yaml").write_text("""
+    # Create default profile (schema v2)
+    (system_dir / "default.md").write_text("""---
 profile:
   name: "default"
+  schema_version: 2
   version: "1.0.0"
   description: "Default system profile"
 providers:
   - module: "openai"
     source: "amplifier://providers/openai"
-    config:
-      model: "gpt-4"
+    config: {}
 tools:
   - module: "bash"
     source: "amplifier://tools/bash"
-    config: null
-hooks: []
+    config: {}
+---
+
+# Default Profile
+
+Schema v2 profile for testing.
+
+## Providers
+
+- openai: GPT-4
+
+## Tools
+
+- bash: Shell execution
 """)
 
     # Create user profiles directory
     user_dir = tmp_path / "user"
     user_dir.mkdir()
 
-    # Create custom profile
-    (user_dir / "custom.yaml").write_text("""
+    # Create custom profile (schema v2 - no extends)
+    (user_dir / "custom.md").write_text("""---
 profile:
   name: "custom"
+  schema_version: 2
   version: "1.0.0"
   description: "Custom user profile"
-  extends: "default"
-providers: []
-tools: []
 hooks:
   - module: "pre-commit"
-    source: "file:///path/to/hook"
-    config:
-      enabled: true
+    source: "amplifier://hooks/pre-commit"
+    config: {}
+---
+
+# Custom Profile
+
+Schema v2 profile for testing.
+
+## Hooks
+
+- pre-commit: Enabled
 """)
 
     return tmp_path
@@ -113,7 +131,8 @@ class MockProfileLoader:
             if not dir_path.exists():
                 continue
 
-            for profile_file in dir_path.glob("*.yaml"):
+            # Support both .yaml (old) and .md (schema v2) profiles
+            for profile_file in list(dir_path.glob("*.yaml")) + list(dir_path.glob("*.md")):
                 profile_name = profile_file.stem
                 self.profiles[profile_name] = self._parse_profile(profile_file)
                 self.sources[profile_name] = dir_name
@@ -129,8 +148,20 @@ class MockProfileLoader:
         """
         import yaml
 
-        with open(profile_file) as f:
-            data = yaml.safe_load(f)
+        content = profile_file.read_text(encoding="utf-8")
+
+        # Handle .md files with YAML frontmatter
+        if profile_file.suffix == ".md":
+            # Split frontmatter from markdown content
+            parts = content.split("---", 2)
+            if len(parts) < 3:
+                raise ValueError(f"Invalid frontmatter format in {profile_file.name}")
+            # Parse only the YAML frontmatter (middle section)
+            yaml_content = parts[1]
+            data = yaml.safe_load(yaml_content)
+        else:
+            # Handle plain YAML files (old format)
+            data = yaml.safe_load(content)
 
         return MockProfile(data)
 
@@ -393,16 +424,19 @@ class TestProfilesAPI:
         assert data["tools"][0]["module"] == "bash"
         assert len(data["hooks"]) == 0
 
-    def test_get_profile_with_inheritance(self, client: TestClient) -> None:
-        """Test GET /api/v1/profiles/{name} includes inheritance chain."""
+    def test_get_custom_profile_details(self, client: TestClient) -> None:
+        """Test GET /api/v1/profiles/{name} for custom profile (schema v2 - no inheritance)."""
         response = client.get("/api/v1/profiles/custom")
 
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "custom"
-        assert data["inheritanceChain"] == ["default"]
-        assert len(data["hooks"]) == 1
-        assert data["hooks"][0]["module"] == "pre-commit"
+        assert data["version"] == "1.0.0"
+        assert data["description"] == "Custom user profile"
+        assert data["source"] == "user"
+        assert data["isActive"] is False
+        # Schema v2 doesn't have inheritance
+        assert data["inheritanceChain"] == []
 
     def test_get_profile_404_for_nonexistent(self, client: TestClient) -> None:
         """Test GET /api/v1/profiles/{name} returns 404 for nonexistent."""

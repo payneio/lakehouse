@@ -92,6 +92,9 @@ Dockerfile
 Makefile
 .env.example
 AMPLIFIER_README.md
+# related-projects
+# working
 
 # amplifierd
-.amplifierd/local/state
+.amplifierd/state
+.amplifierd/cache
