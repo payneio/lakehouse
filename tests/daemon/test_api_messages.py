@@ -18,7 +18,6 @@ from amplifierd.models.mount_plans import SessionConfig
 from amplifierd.models.sessions import SessionMessage
 from amplifierd.models.sessions import SessionMetadata
 from amplifierd.models.sessions import SessionStatus
-from amplifierd.routers.messages import get_session_manager
 from amplifierd.routers.mount_plans import get_mount_plan_service
 from amplifierd.routers.sessions import get_session_state_service
 
@@ -144,9 +143,12 @@ def override_services(
     Yields:
         None
     """
-    app.dependency_overrides[get_session_manager] = lambda: mock_session_manager
+    # Import here to avoid circular import issues
+    from amplifierd.routers.messages import get_session_state_service as get_msg_svc
+
     app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
+    app.dependency_overrides[get_msg_svc] = lambda: mock_session_state_service
     yield
     app.dependency_overrides.clear()
 
