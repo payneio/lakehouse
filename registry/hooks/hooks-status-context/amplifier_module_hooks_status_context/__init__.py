@@ -115,24 +115,17 @@ class StatusContextHook:
     def _gather_env_info(self) -> dict[str, Any]:
         """Gather environment information (working dir, platform, OS, date, git detection)."""
         try:
-            # Get working directory - prefer session CWD if available
+            # Get working directory - prefer session CWD from config
             session = getattr(self.coordinator, "session", None)
-            logger.warning(f"[DEBUG-CWD] Session object: {session}")
-            logger.warning(f"[DEBUG-CWD] Session type: {type(session)}")
-            if session:
-                logger.warning(f"[DEBUG-CWD] Has session_cwd attr: {hasattr(session, 'session_cwd')}")
-                logger.warning(f"[DEBUG-CWD] Session __dict__: {getattr(session, '__dict__', 'No __dict__')}")
-
-            if session and hasattr(session, "session_cwd"):
-                # Access session_cwd field directly from SessionMetadata
-                from amplifier_library.storage.paths import get_data_path
-
-                data_dir = get_data_path()
-                working_dir = str((data_dir / session.session_cwd).resolve())
-                logger.warning(f"[DEBUG-CWD] Using session CWD: {working_dir}")
+            if session and hasattr(session, "config"):
+                session_settings = session.config.get("session", {}).get("settings", {})
+                session_cwd = session_settings.get("session_cwd")
+                if session_cwd:
+                    working_dir = session_cwd  # Already absolute path
+                else:
+                    working_dir = str(Path.cwd())
             else:
                 working_dir = str(Path.cwd())
-                logger.warning(f"[DEBUG-CWD] Using process CWD (fallback): {working_dir}")
 
             # Detect if in git repo
             is_git_repo = self._run_git(["rev-parse", "--git-dir"]) is not None
@@ -230,13 +223,12 @@ class StatusContextHook:
     def _run_git(self, args: list[str], timeout: float = 1.0) -> str | None:
         """Run a git command and return output."""
         try:
-            # Use session CWD if available, otherwise process CWD
+            # Use session CWD from config if available
             session = getattr(self.coordinator, "session", None)
-            if session and hasattr(session, "session_cwd"):
-                from amplifier_library.storage.paths import get_data_path
-
-                data_dir = get_data_path()
-                cwd = (data_dir / session.session_cwd).resolve()
+            if session and hasattr(session, "config"):
+                session_settings = session.config.get("session", {}).get("settings", {})
+                session_cwd = session_settings.get("session_cwd")
+                cwd = Path(session_cwd) if session_cwd else Path.cwd()
             else:
                 cwd = Path.cwd()
 
