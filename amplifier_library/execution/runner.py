@@ -9,7 +9,7 @@ Contract:
 """
 
 import logging
-from pathlib import Path
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -36,7 +36,7 @@ class ExecutionRunner:
         >>> from amplifier_library.sessions import SessionManager
         >>> manager = SessionManager()
         >>> session = manager.create_session("default")
-        >>> runner = ExecutionRunner(config={}, search_paths=[])
+        >>> runner = ExecutionRunner(config={})
         >>> async def run():
         ...     async for chunk in runner.execute(session, "Hello"):
         ...         print(chunk, end="")
@@ -46,16 +46,13 @@ class ExecutionRunner:
     def __init__(
         self: "ExecutionRunner",
         config: dict[str, Any],
-        search_paths: list[Path] | None = None,
     ) -> None:
         """Initialize execution runner.
 
         Args:
             config: Amplifier configuration dictionary
-            search_paths: Optional module search paths
         """
         self.config = config
-        self.search_paths = search_paths or []
         self._session: AmplifierSession | None = None
 
     async def execute(
@@ -101,7 +98,19 @@ class ExecutionRunner:
                     "amplifier-core is required for execution. Install it with: pip install amplifier-core"
                 ) from e
 
+            from amplifier_library.storage.paths import get_share_dir
+            from amplifierd.module_resolver import DaemonModuleSourceResolver
+
+            # Create session (loader is created internally)
             self._session = AmplifierSession(self.config, session_id=session.id)
+
+            # Mount resolver for module resolution
+            share_dir = get_share_dir()
+            resolver = DaemonModuleSourceResolver(share_dir)
+            await self._session.coordinator.mount("module-source-resolver", resolver)
+            logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}")
+
+            # Initialize session - loader will use resolver
             await self._session.initialize()
             logger.info(f"Initialized AmplifierSession for {session.id}")
 
@@ -120,6 +129,81 @@ class ExecutionRunner:
             logger.error(error_msg)
             add_message(session, role="assistant", content=error_msg)
             return error_msg
+
+    async def execute_stream(
+        self: "ExecutionRunner",
+        session: Session,
+        user_input: str,
+    ) -> AsyncIterator[str]:
+        """Execute user input and stream response tokens in real-time.
+
+        Args:
+            session: Session object
+            user_input: User's prompt/message
+
+        Yields:
+            Response tokens as they're generated
+
+        Example:
+            >>> async for token in runner.execute_stream(session, "Hello"):
+            ...     print(token, end='', flush=True)
+        """
+
+        # Add user message to session state
+        add_message(session, role="user", content=user_input)
+
+        # Create AmplifierSession if needed
+        if self._session is None:
+            try:
+                from amplifier_core import AmplifierSession
+            except ImportError as e:
+                raise RuntimeError(
+                    "amplifier-core is required for execution. Install it with: pip install amplifier-core"
+                ) from e
+
+            from amplifier_library.storage.paths import get_share_dir
+            from amplifierd.module_resolver import DaemonModuleSourceResolver
+
+            # Create session (loader is created internally)
+            self._session = AmplifierSession(self.config, session_id=session.id)
+
+            # Mount resolver for module resolution
+            share_dir = get_share_dir()
+            resolver = DaemonModuleSourceResolver(share_dir)
+            await self._session.coordinator.mount("module-source-resolver", resolver)
+            logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}")
+
+            # Initialize session - loader will use resolver
+            await self._session.initialize()
+            logger.info(f"Initialized AmplifierSession for {session.id}")
+
+        # Get orchestrator and stream tokens
+        try:
+            orchestrator = self._session.coordinator.get("orchestrator")
+            if not orchestrator:
+                raise RuntimeError("No orchestrator mounted")
+
+            context = self._session.coordinator.get("context")
+            providers = self._session.coordinator.get("providers")
+            tools = self._session.coordinator.get("tools") or {}
+            hooks = self._session.coordinator.get("hooks")
+
+            full_response = ""
+            async for token, _iteration in orchestrator._execute_stream(
+                user_input, context, providers, tools, hooks, self._session.coordinator
+            ):
+                full_response += token
+                yield token
+
+            # Add complete response to session state
+            if full_response:
+                add_message(session, role="assistant", content=full_response)
+
+        except Exception as e:
+            error_msg = f"Execution error: {e!s}"
+            logger.error(error_msg)
+            add_message(session, role="assistant", content=error_msg)
+            yield error_msg
 
     async def cleanup(self: "ExecutionRunner") -> None:
         """Clean up resources.

@@ -62,22 +62,20 @@ def format_sse_event(event_type: str, data: dict[str, Any]) -> str:
 
 
 async def wrap_execution_stream(
-    runner_execute_coro: Any,
+    token_stream: AsyncIterator[str],
 ) -> AsyncIterator[dict[str, Any]]:
-    """Wrap execution runner into event stream.
+    """Wrap token stream into event stream.
 
     Args:
-        runner_execute_coro: Coroutine from ExecutionRunner.execute()
+        token_stream: AsyncIterator yielding response tokens
 
     Yields:
         Event dictionaries for SSE streaming
     """
     try:
-        # Execute and get response
-        response = await runner_execute_coro
-
-        # Yield response as message event
-        yield {"event": "message", "data": {"type": "content", "content": response}}
+        # Stream tokens as they arrive
+        async for token in token_stream:
+            yield {"event": "message", "data": {"type": "content", "content": token}}
 
         # Yield completion event
         yield {"event": "done", "data": {"type": "done"}}

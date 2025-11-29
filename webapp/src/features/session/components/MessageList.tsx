@@ -4,14 +4,15 @@ import { User, Bot } from 'lucide-react';
 
 interface MessageListProps {
   messages: SessionMessage[];
+  streamingContent?: string;
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, streamingContent }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingContent]);
 
   if (messages.length === 0) {
     return (
@@ -55,6 +56,20 @@ export function MessageList({ messages }: MessageListProps) {
           </div>
         );
       })}
+
+      {/* Show streaming content as it arrives */}
+      {streamingContent && (
+        <div className="flex gap-3 justify-start">
+          <div className="shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Bot className="h-4 w-4 text-primary animate-pulse" />
+          </div>
+          <div className="max-w-[80%] rounded-lg p-3 bg-muted">
+            <div className="whitespace-pre-wrap break-words">{streamingContent}</div>
+            <div className="text-xs opacity-70 mt-1">Streaming...</div>
+          </div>
+        </div>
+      )}
+
       <div ref={bottomRef} />
     </div>
   );

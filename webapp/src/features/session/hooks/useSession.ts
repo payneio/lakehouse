@@ -12,7 +12,7 @@ export function useSession(sessionId: string) {
   const transcript = useQuery({
     queryKey: ['transcript', sessionId],
     queryFn: () => api.getTranscript(sessionId),
-    refetchInterval: 5000, // Refetch every 5 seconds to catch new messages
+    // No polling needed - SSE provides real-time updates, invalidateQueries handles refresh
   });
 
   const startSession = useMutation({

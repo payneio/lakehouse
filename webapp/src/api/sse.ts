@@ -54,30 +54,44 @@ export async function executeWithSSE(
         }
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
 
-        // Keep the last potentially incomplete line in the buffer
-        buffer = lines.pop() || '';
+        // Process complete SSE events (delimited by double newline)
+        while (buffer.includes('\n\n')) {
+          const eventEndIndex = buffer.indexOf('\n\n');
+          const eventBlock = buffer.substring(0, eventEndIndex);
+          buffer = buffer.substring(eventEndIndex + 2);
 
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+          // Parse event block
+          let eventType = 'message';
+          let eventData: string | null = null;
+
+          const lines = eventBlock.split('\n');
+          for (const line of lines) {
+            const trimmedLine = line.replace('\r', '').trim();
+            if (!trimmedLine) continue;
+
+            if (trimmedLine.startsWith('event:')) {
+              eventType = trimmedLine.substring(6).trim();
+            } else if (trimmedLine.startsWith('data:')) {
+              eventData = trimmedLine.substring(5).trim();
+            }
+          }
+
+          // Process the event if we have data
+          if (eventData) {
             try {
-              const parsed = JSON.parse(data);
+              const parsed = JSON.parse(eventData);
               handlers.onMessage({
-                event: currentEvent,
+                event: eventType,
                 data: parsed,
               });
-            } catch {
-              // If not JSON, treat as plain text
+            } catch (e) {
+              console.warn('Failed to parse SSE data as JSON:', eventData, e);
               handlers.onMessage({
-                event: currentEvent,
-                data: { content: data },
+                event: eventType,
+                data: { content: eventData },
               });
             }
-            currentEvent = 'message'; // Reset to default
           }
         }
       }

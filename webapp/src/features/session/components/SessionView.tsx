@@ -18,27 +18,49 @@ export function SessionView() {
 
   const { session, transcript, isLoading, startSession } = useSession(sessionId);
   const [isSending, setIsSending] = React.useState(false);
+  const [streamingContent, setStreamingContent] = React.useState<string>('');
 
   const handleSend = async (message: string) => {
     setIsSending(true);
+    setStreamingContent(''); // Clear previous streaming content
     try {
       await api.executeWithSSE(sessionId, message, {
         onMessage: (msg) => {
-          console.log('SSE message:', msg);
-          // Messages are appended by the backend, just wait for completion
+          console.log('SSE message received:', msg);
+          console.log('SSE message.data:', msg.data);
+          console.log('SSE message.data type:', typeof msg.data);
+
+          // Accumulate streaming content for real-time display
+          const data = msg.data as { type: string; content: string };
+          console.log('Parsed data.type:', data.type);
+          console.log('Parsed data.content:', data.content);
+
+          if (data.type === 'content' && data.content) {
+            console.log('Updating streamingContent with:', data.content);
+            setStreamingContent((prev) => {
+              const updated = prev + data.content;
+              console.log('New streamingContent:', updated);
+              return updated;
+            });
+          } else {
+            console.log('Skipping message - type:', data.type, 'has content:', !!data.content);
+          }
         },
         onComplete: () => {
           // Refresh transcript after execution completes
           queryClient.invalidateQueries({ queryKey: ['transcript', sessionId] });
+          setStreamingContent(''); // Clear streaming content
           setIsSending(false);
         },
         onError: (error) => {
           console.error('SSE error:', error);
+          setStreamingContent(''); // Clear on error
           setIsSending(false);
         },
       });
     } catch (error) {
       console.error('Failed to send message:', error);
+      setStreamingContent(''); // Clear on error
       setIsSending(false);
     }
   };
@@ -92,7 +114,10 @@ export function SessionView() {
       </div>
 
       {/* Messages */}
-      <MessageList messages={transcript} />
+      <MessageList
+        messages={transcript}
+        streamingContent={streamingContent}
+      />
 
       {/* Input */}
       <MessageInput
