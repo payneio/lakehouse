@@ -8,7 +8,7 @@ port: 8420
 log_level: "info"
 workers: 1
 
-amplifierd_root_working_dir: "/data"
+data_path: "/data"
 
 force_collection_refresh_on_start: False
 auto_profile_build_on_start: True
