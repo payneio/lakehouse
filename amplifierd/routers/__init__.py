@@ -11,6 +11,7 @@ from .mount_plans import router as mount_plans_router
 from .profiles import router as profiles_router
 from .sessions import router as sessions_router
 from .status import router as status_router
+from .stream import router as stream_router
 
 __all__ = [
     "amplified_directories_router",
@@ -21,4 +22,5 @@ __all__ = [
     "collections_router",
     "modules_router",
     "mount_plans_router",
+    "stream_router",
 ]

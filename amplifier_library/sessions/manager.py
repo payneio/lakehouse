@@ -273,12 +273,23 @@ class SessionManager:
         self,
         status: SessionStatus | None = None,
         profile_name: str | None = None,
+        amplified_dir: str | None = None,
         since: datetime | None = None,
         limit: int | None = None,
     ) -> list[SessionMetadata]:
         """Query sessions with filters.
 
         Uses index for fast filtering, then loads full metadata.
+
+        Args:
+            status: Optional filter by session status
+            profile_name: Optional filter by profile name
+            amplified_dir: Optional filter by amplified directory path
+            since: Optional filter by creation time
+            limit: Optional maximum number of results
+
+        Returns:
+            List of session metadata matching filters, sorted by creation time descending
         """
         # Load index
         index = self._load_index()
@@ -289,6 +300,8 @@ class SessionManager:
             if status is not None and entry.status != status:
                 continue
             if profile_name is not None and entry.profile_name != profile_name:
+                continue
+            if amplified_dir is not None and entry.amplified_dir != amplified_dir:
                 continue
             if since is not None and entry.created_at < since:
                 continue

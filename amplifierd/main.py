@@ -21,6 +21,7 @@ from .routers import mount_plans_router
 from .routers import profiles_router
 from .routers import sessions_router
 from .routers import status_router
+from .routers import stream_router
 
 # Configure logging
 logging.basicConfig(
@@ -138,7 +139,10 @@ app = FastAPI(
 # Add CORS middleware for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:5174",  # Alternative port
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -153,6 +157,7 @@ app.include_router(profiles_router)
 app.include_router(collections_router)
 app.include_router(modules_router)
 app.include_router(mount_plans_router)
+app.include_router(stream_router)
 
 
 @app.get("/")

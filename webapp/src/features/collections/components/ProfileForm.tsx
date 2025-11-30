@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Trash2 } from 'lucide-react';
 import type { CreateProfileRequest, UpdateProfileRequest, ModuleConfig } from '@/types/api';
+import { KeyValueEditor } from './KeyValueEditor';
 
 interface ProfileFormProps {
   isOpen: boolean;
@@ -12,7 +13,10 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: ProfileFormProps) {
-  const [formData, setFormData] = useState<CreateProfileRequest>({
+  const [formData, setFormData] = useState<CreateProfileRequest & {
+    agentsArray?: { key: string; value: string }[];
+    contextsArray?: { key: string; value: string }[];
+  }>({
     name: initialData?.name || '',
     version: initialData?.version || '1.0.0',
     description: initialData?.description || '',
@@ -21,16 +25,43 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
     hooks: initialData?.hooks || [],
     orchestrator: initialData?.orchestrator,
     context: initialData?.context,
+    agentsArray: initialData?.agents
+      ? Object.entries(initialData.agents).map(([key, value]) => ({ key, value }))
+      : [],
+    contextsArray: initialData?.contexts
+      ? Object.entries(initialData.contexts).map(([key, value]) => ({ key, value }))
+      : [],
+    instruction: initialData?.instruction || '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Convert key-value arrays to dicts
+    const agents = Object.fromEntries(
+      (formData.agentsArray || []).filter(a => a.key && a.value).map(a => [a.key, a.value])
+    );
+
+    const contexts = Object.fromEntries(
+      (formData.contextsArray || []).filter(c => c.key && c.value).map(c => [c.key, c.value])
+    );
+
     if (mode === 'edit') {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { name, ...updateData } = formData;
-      onSubmit(updateData);
+      const { name, agentsArray, contextsArray, ...updateData } = formData;
+      onSubmit({
+        ...updateData,
+        agents: Object.keys(agents).length > 0 ? agents : undefined,
+        contexts: Object.keys(contexts).length > 0 ? contexts : undefined,
+      });
     } else {
-      onSubmit(formData);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { agentsArray, contextsArray, ...createData } = formData;
+      onSubmit({
+        ...createData,
+        agents: Object.keys(agents).length > 0 ? agents : undefined,
+        contexts: Object.keys(contexts).length > 0 ? contexts : undefined,
+      });
     }
   };
 
@@ -66,6 +97,7 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Core Information */}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Name</label>
@@ -106,30 +138,77 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
             </div>
           </div>
 
-          <ModuleListSection
-            title="Providers"
-            modules={formData.providers || []}
-            onAdd={() => addModule('providers')}
-            onRemove={(i) => removeModule('providers', i)}
-            onUpdate={(i, field, value) => updateModule('providers', i, field, value)}
-          />
+          {/* Providers */}
+          <div className="pt-4 border-t">
+            <ModuleListSection
+              title="Providers"
+              modules={formData.providers || []}
+              onAdd={() => addModule('providers')}
+              onRemove={(i) => removeModule('providers', i)}
+              onUpdate={(i, field, value) => updateModule('providers', i, field, value)}
+            />
+          </div>
 
-          <ModuleListSection
-            title="Tools"
-            modules={formData.tools || []}
-            onAdd={() => addModule('tools')}
-            onRemove={(i) => removeModule('tools', i)}
-            onUpdate={(i, field, value) => updateModule('tools', i, field, value)}
-          />
+          {/* Tools */}
+          <div className="pt-4 border-t">
+            <ModuleListSection
+              title="Tools"
+              modules={formData.tools || []}
+              onAdd={() => addModule('tools')}
+              onRemove={(i) => removeModule('tools', i)}
+              onUpdate={(i, field, value) => updateModule('tools', i, field, value)}
+            />
+          </div>
 
-          <ModuleListSection
-            title="Hooks"
-            modules={formData.hooks || []}
-            onAdd={() => addModule('hooks')}
-            onRemove={(i) => removeModule('hooks', i)}
-            onUpdate={(i, field, value) => updateModule('hooks', i, field, value)}
-          />
+          {/* Hooks */}
+          <div className="pt-4 border-t">
+            <ModuleListSection
+              title="Hooks"
+              modules={formData.hooks || []}
+              onAdd={() => addModule('hooks')}
+              onRemove={(i) => removeModule('hooks', i)}
+              onUpdate={(i, field, value) => updateModule('hooks', i, field, value)}
+            />
+          </div>
 
+          {/* Agents */}
+          <div className="pt-4 border-t">
+            <KeyValueEditor
+              label="Agents"
+              items={formData.agentsArray || []}
+              onChange={(items) => setFormData({ ...formData, agentsArray: items })}
+              keyPlaceholder="agent-name"
+              valuePlaceholder="@agents/agent.md or https://..."
+            />
+          </div>
+
+          {/* Contexts */}
+          <div className="pt-4 border-t">
+            <KeyValueEditor
+              label="Contexts"
+              items={formData.contextsArray || []}
+              onChange={(items) => setFormData({ ...formData, contextsArray: items })}
+              keyPlaceholder="context-name"
+              valuePlaceholder="@contexts/dir or git+https://..."
+            />
+          </div>
+
+          {/* System Instruction */}
+          <div className="pt-4 border-t">
+            <label className="block text-sm font-medium mb-2">System Instruction</label>
+            <textarea
+              value={formData.instruction || ''}
+              onChange={(e) => setFormData({ ...formData, instruction: e.target.value })}
+              rows={10}
+              placeholder="Additional markdown content for the profile..."
+              className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              This content appears in the profile markdown file after the frontmatter
+            </p>
+          </div>
+
+          {/* Footer */}
           <div className="flex gap-2 justify-end pt-4 border-t">
             <button
               type="button"

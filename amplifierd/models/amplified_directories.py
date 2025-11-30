@@ -12,9 +12,12 @@ class AmplifiedDirectory(BaseModel):
 
     Contract:
     - relative_path: Path relative to AMPLIFIERD_DATA_PATH
-    - metadata: User-defined metadata including required default_profile
+    - default_profile: Default profile for new sessions (extracted from metadata)
+    - metadata: User-defined metadata
     - created_at: Directory registration timestamp
     - last_used_at: Last session creation timestamp
+    - path: Absolute path to directory
+    - is_amplified: Always True for this model
 
     Metadata schema:
     {
@@ -26,9 +29,12 @@ class AmplifiedDirectory(BaseModel):
     """
 
     relative_path: str = Field(..., description="Path relative to AMPLIFIERD_DATA_PATH")
-    metadata: dict = Field(..., description="User metadata including default_profile")
+    default_profile: str | None = Field(None, description="Default profile for new sessions")
+    metadata: dict = Field(..., description="User metadata")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_used_at: datetime | None = None
+    path: str = Field("", description="Absolute path to directory")
+    is_amplified: bool = Field(True, description="Always true for amplified directories")
 
     @field_validator("relative_path")
     @classmethod
@@ -54,6 +60,7 @@ class AmplifiedDirectoryCreate(BaseModel):
 class AmplifiedDirectoryUpdate(BaseModel):
     """Request to update amplified directory metadata"""
 
+    default_profile: str | None = None
     metadata: dict | None = None
 
 

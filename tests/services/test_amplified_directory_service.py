@@ -509,8 +509,8 @@ class TestAmplifiedDirectoryService:
         assert len(results) == 1
         assert results[0].relative_path == "valid"
 
-    def test_update_replaces_metadata(self, service: AmplifiedDirectoryService) -> None:
-        """Test that update replaces metadata completely."""
+    def test_update_merges_metadata(self, service: AmplifiedDirectoryService) -> None:
+        """Test that update merges metadata (preserves existing fields)."""
         # Create with metadata
         create_req = AmplifiedDirectoryCreate(
             relative_path="preserve",
@@ -518,17 +518,17 @@ class TestAmplifiedDirectoryService:
         )
         service.create(create_req)
 
-        # Update with new metadata (replacing all)
+        # Update with new metadata (merging with existing)
         update_req = AmplifiedDirectoryUpdate(
             metadata={"field1": "updated", "field3": "value3", "default_profile": "foundation/base"}
         )
         result = service.update("preserve", update_req)
 
         assert result is not None
-        # New metadata should completely replace old
-        assert result.metadata["field1"] == "updated"
-        assert "field2" not in result.metadata  # Was not in update
-        assert result.metadata["field3"] == "value3"
+        # New metadata should merge with existing (not replace)
+        assert result.metadata["field1"] == "updated"  # Updated value
+        assert result.metadata["field2"] == "value2"  # Preserved from original
+        assert result.metadata["field3"] == "value3"  # New field added
 
     def test_find_parent_amplified_directory(self, service: AmplifiedDirectoryService) -> None:
         """Test _find_parent_amplified_directory helper."""

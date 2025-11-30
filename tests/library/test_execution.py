@@ -18,7 +18,7 @@ class TestExecutionRunner:
     def test_execution_runner_init(self) -> None:
         """Test ExecutionRunner initialization."""
         config = {"model": "gpt-4"}
-        runner = ExecutionRunner(config=config)
+        runner = ExecutionRunner(config=config, session_id="test-session")
 
         assert runner.config == config
         assert runner._session is None
@@ -26,7 +26,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_execute_adds_user_message(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test execute adds user message to session state."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         await runner.execute(sample_session, "Hello")
 
@@ -38,7 +38,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_execute_adds_assistant_response(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test execute adds assistant response to session state."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         response = await runner.execute(sample_session, "Test prompt")
 
@@ -54,7 +54,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_execute_returns_response(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test execute returns the assistant's response."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         response = await runner.execute(sample_session, "Test")
 
@@ -63,7 +63,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_execute_creates_amplifier_session_once(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test execute creates AmplifierSession only once."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         assert runner._session is None
 
@@ -97,7 +97,7 @@ class TestExecutionRunner:
 
         monkeypatch.setattr("builtins.__import__", mock_import)
 
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         with pytest.raises(RuntimeError, match="amplifier-core is required"):
             await runner.execute(sample_session, "Test")
@@ -115,7 +115,7 @@ class TestExecutionRunner:
             async def execute(self, prompt):
                 raise ValueError("Simulated execution error")
 
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
         runner._session = FailingSession()  # type: ignore[assignment]
 
         response = await runner.execute(sample_session, "Test")
@@ -130,7 +130,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_cleanup_clears_session(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test cleanup clears the internal AmplifierSession."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         await runner.execute(sample_session, "Test")
         assert runner._session is not None
@@ -141,7 +141,7 @@ class TestExecutionRunner:
     @pytest.mark.asyncio
     async def test_multiple_executions_update_transcript(self, sample_session: Session, mock_amplifier_module) -> None:
         """Test multiple executions build up the transcript."""
-        runner = ExecutionRunner(config={})
+        runner = ExecutionRunner(config={}, session_id="test-session")
 
         await runner.execute(sample_session, "First question")
         await runner.execute(sample_session, "Second question")

@@ -123,9 +123,12 @@ class AmplifiedDirectoryService:
             now = datetime.now(UTC)
             amplified_dir = AmplifiedDirectory(
                 relative_path=create_req.relative_path,
+                default_profile=metadata.get("default_profile"),
                 metadata=metadata,
                 created_at=now,
                 last_used_at=None,
+                path=str(dir_path),
+                is_amplified=True,
             )
 
             logger.info(f"Created amplified directory: {create_req.relative_path} with profile: {default_profile}")
@@ -163,12 +166,18 @@ class AmplifiedDirectoryService:
             if "default_profile" not in metadata:
                 logger.warning(f"Amplified directory {relative_path} missing default_profile in metadata")
 
+            # Extract default_profile from metadata for top-level field
+            default_profile = metadata.get("default_profile")
+
             now = datetime.now(UTC)
             return AmplifiedDirectory(
                 relative_path=relative_path,
+                default_profile=default_profile,
                 metadata=metadata,
                 created_at=now,
                 last_used_at=None,
+                path=str(dir_path),
+                is_amplified=True,
             )
 
         except ValueError:
@@ -206,9 +215,12 @@ class AmplifiedDirectoryService:
                 directories.append(
                     AmplifiedDirectory(
                         relative_path=relative_path,
+                        default_profile=metadata.get("default_profile"),
                         metadata=metadata,
                         created_at=datetime.now(UTC),
                         last_used_at=None,
+                        path=str(dir_path),
+                        is_amplified=True,
                     )
                 )
 
@@ -248,9 +260,19 @@ class AmplifiedDirectoryService:
             return None
 
         try:
-            # Write new metadata
+            # Read existing metadata
+            existing_metadata = self._read_metadata(dir_path) or {}
+
+            # Merge default_profile if provided
+            if update_req.default_profile is not None:
+                existing_metadata["default_profile"] = update_req.default_profile
+
+            # Merge metadata if provided
             if update_req.metadata is not None:
-                self._write_metadata(dir_path, update_req.metadata)
+                existing_metadata.update(update_req.metadata)
+
+            # Write merged metadata
+            self._write_metadata(dir_path, existing_metadata)
 
             # Return updated directory
             return self.get(relative_path)

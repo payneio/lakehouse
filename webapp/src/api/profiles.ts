@@ -26,3 +26,9 @@ export const deleteProfile = (name: string) =>
   fetchApi<void>(`/api/v1/profiles/${name}`, {
     method: 'DELETE',
   });
+
+export const copyProfile = (sourceName: string, newName: string) =>
+  fetchApi<ProfileDetails>(`/api/v1/profiles/${encodeURIComponent(sourceName)}/copy`, {
+    method: 'POST',
+    body: JSON.stringify({ new_name: newName }),
+  });

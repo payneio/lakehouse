@@ -3,6 +3,7 @@
 Provides utilities for Server-Sent Events (SSE) streaming.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -83,3 +84,49 @@ async def wrap_execution_stream(
     except Exception as e:
         logger.error(f"Execution error: {e}")
         yield {"event": "error", "data": {"type": "error", "error": str(e)}}
+
+
+class EventQueueEmitter:
+    """SSE emitter that queues events for async consumption.
+
+    Allows multiple subscribers to receive events emitted during execution.
+    Each subscriber gets their own queue to prevent blocking.
+    """
+
+    def __init__(self: "EventQueueEmitter") -> None:
+        self.queues: list[asyncio.Queue[dict[str, Any]]] = []
+        self._lock = asyncio.Lock()
+
+    def subscribe(self: "EventQueueEmitter") -> asyncio.Queue[dict[str, Any]]:
+        """Create new subscriber queue.
+
+        Returns:
+            asyncio.Queue that will receive all emitted events
+        """
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self.queues.append(queue)
+        return queue
+
+    async def emit(self: "EventQueueEmitter", event_type: str, data: dict[str, Any]) -> None:
+        """Emit event to all subscriber queues.
+
+        Args:
+            event_type: Event type identifier (e.g., "hook:tool:pre")
+            data: Event payload
+        """
+        event = {"event": event_type, "data": data}
+        async with self._lock:
+            for queue in self.queues:
+                try:
+                    await queue.put(event)
+                except Exception as e:
+                    logger.error(f"Failed to emit event to queue: {e}")
+
+    def unsubscribe(self: "EventQueueEmitter", queue: asyncio.Queue[dict[str, Any]]) -> None:
+        """Remove subscriber queue.
+
+        Args:
+            queue: Queue to remove
+        """
+        if queue in self.queues:
+            self.queues.remove(queue)

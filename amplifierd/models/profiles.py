@@ -28,6 +28,9 @@ class UpdateProfileRequest(CamelCaseModel):
     hooks: list["ModuleConfig"] | None = Field(default=None, description="Hook modules")
     orchestrator: "ModuleConfig | None" = Field(default=None, description="Orchestrator module")
     context: "ModuleConfig | None" = Field(default=None, description="Context manager module")
+    agents: dict[str, str] | None = Field(default=None, description="Agent file references (name -> ref)")
+    contexts: dict[str, str] | None = Field(default=None, description="Context directory references (name -> ref)")
+    instruction: str | None = Field(default=None, description="Profile system instruction (markdown body)")
 
 
 class ProfileInfo(CamelCaseModel):
@@ -72,3 +75,4 @@ class ProfileDetails(CamelCaseModel):
     session: SessionConfig | None = Field(default=None, description="Session configuration (schema v2)")
     agents: list[str] = Field(default_factory=list, description="Agent file references")
     context: dict[str, str] = Field(default_factory=dict, description="Context directory references (name -> ref)")
+    instruction: str | None = Field(default=None, description="Profile system instruction from markdown body")

@@ -25,6 +25,7 @@ from amplifierd.models.profiles import CreateProfileRequest
 from amplifierd.models.profiles import ModuleConfig
 from amplifierd.models.profiles import ProfileDetails
 from amplifierd.models.profiles import ProfileInfo
+from amplifierd.models.profiles import SessionConfig
 from amplifierd.models.profiles import UpdateProfileRequest
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,10 @@ class ProfileData:
     tools: list[dict[str, object]] | None = None
     hooks: list[dict[str, object]] | None = None
     orchestrator: dict[str, object] | None = None
-    context: dict[str, object] | None = None
+    context_manager: dict[str, object] | None = None
+    agents: dict[str, str] | None = None
+    context_refs: dict[str, str] | None = None
+    instruction: str | None = None
 
     def __post_init__(self) -> None:
         """Initialize default values."""
@@ -253,6 +257,40 @@ class ProfileService:
         source = self._get_profile_source(profile_file)
         collection_id = _get_collection_from_source(source)
 
+        # Build SessionConfig if we have orchestrator or context_manager
+        session = None
+        if profile_data.orchestrator or profile_data.context_manager:
+            # Convert orchestrator dict to ModuleConfig
+            orchestrator_config = None
+            if profile_data.orchestrator:
+                module_val = profile_data.orchestrator.get("module", "")
+                source_val = profile_data.orchestrator.get("source")
+                config_val = profile_data.orchestrator.get("config")
+                orchestrator_config = ModuleConfig(
+                    module=str(module_val) if module_val else "",
+                    source=str(source_val) if source_val and isinstance(source_val, str) else None,
+                    config=config_val if isinstance(config_val, dict) else None,
+                )
+
+            # Convert context_manager dict to ModuleConfig
+            context_manager_config = None
+            if profile_data.context_manager:
+                module_val = profile_data.context_manager.get("module", "")
+                source_val = profile_data.context_manager.get("source")
+                config_val = profile_data.context_manager.get("config")
+                context_manager_config = ModuleConfig(
+                    module=str(module_val) if module_val else "",
+                    source=str(source_val) if source_val and isinstance(source_val, str) else None,
+                    config=config_val if isinstance(config_val, dict) else None,
+                )
+
+            # Only create SessionConfig if we have at least orchestrator
+            if orchestrator_config:
+                session = SessionConfig(
+                    orchestrator=orchestrator_config,
+                    context_manager=context_manager_config,
+                )
+
         return ProfileDetails(
             name=profile_data.name,
             schema_version=profile_data.schema_version,
@@ -264,6 +302,10 @@ class ProfileService:
             providers=self._convert_module_configs(profile_data.providers or []),
             tools=self._convert_module_configs(profile_data.tools or []),
             hooks=self._convert_module_configs(profile_data.hooks or []),
+            session=session,
+            agents=list(profile_data.agents.keys()) if profile_data.agents else [],
+            context=profile_data.context_refs or {},
+            instruction=profile_data.instruction,
         )
 
     def get_active_profile(self) -> ProfileDetails | None:
@@ -352,17 +394,20 @@ class ProfileService:
             with open(profile_file) as f:
                 content = f.read()
 
-            # Check if it's a markdown file with frontmatter
+            # Extract markdown body if present
+            markdown_body = None
             if profile_file.suffix == ".md" and content.startswith("---\n"):
                 # Extract YAML frontmatter from markdown
                 parts = content.split("---\n", 2)
                 if len(parts) >= 3:
                     yaml_content = parts[1]
+                    markdown_body = parts[2].strip() if len(parts) > 2 else None
                     data = yaml.safe_load(yaml_content)
                 else:
                     raise ValueError(f"Invalid markdown frontmatter in {profile_file}")
             else:
-                # Pure YAML file
+                # Pure YAML file - no instruction
+                markdown_body = None
                 data = yaml.safe_load(content)
 
             if not data or not isinstance(data, dict):
@@ -378,17 +423,26 @@ class ProfileService:
             # Extract schema_version from profile section
             schema_version = profile.get("schema_version", 1)
 
-            # For schema v2, orchestrator and context are in session section
+            # For schema v2, orchestrator and context_manager are in session section
             orchestrator = None
-            context = None
+            context_manager = None
             if schema_version == 2 and "session" in data:
                 session = data["session"]
                 orchestrator = session.get("orchestrator")
-                context = session.get("context")
+                context_manager = session.get("context")  # This is the MODULE, not context refs
             else:
                 # Schema v1 or legacy: orchestrator/context at root level
                 orchestrator = data.get("orchestrator")
-                context = data.get("context")
+                context_manager = data.get("context")
+
+            # Extract agents and context_refs from root level
+            agents = data.get("agents")  # Dict of name -> file ref
+            context_refs = data.get("context")  # Dict of name -> directory ref
+
+            # Handle schema v2 case where root-level context exists
+            if schema_version == 2 and "context" in data:
+                # Root-level context is the context REFS, not the context manager
+                context_refs = data.get("context")
 
             return ProfileData(
                 name=profile["name"],
@@ -400,7 +454,10 @@ class ProfileService:
                 tools=data.get("tools", []),
                 hooks=data.get("hooks", []),
                 orchestrator=orchestrator,
-                context=context,
+                context_manager=context_manager,
+                agents=agents,
+                context_refs=context_refs,
+                instruction=markdown_body,
             )
         except yaml.YAMLError as e:
             raise ValueError(f"Failed to parse YAML file {profile_file}: {e}")
@@ -431,7 +488,10 @@ class ProfileService:
             tools=base_tools + derived_tools,
             hooks=base_hooks + derived_hooks,
             orchestrator=derived.orchestrator or base.orchestrator,
-            context={**(base.context or {}), **(derived.context or {})},
+            context_manager=derived.context_manager or base.context_manager,
+            agents={**(base.agents or {}), **(derived.agents or {})},
+            context_refs={**(base.context_refs or {}), **(derived.context_refs or {})},
+            instruction=derived.instruction or base.instruction,
         )
 
     def _convert_module_configs(self, configs: list[dict[str, object]]) -> list[ModuleConfig]:
@@ -603,12 +663,98 @@ class ProfileService:
             hooks=request.hooks,
         )
 
-        manifest_content = self._generate_profile_manifest(profile_details, request.orchestrator, request.context)
+        manifest_content = self._generate_profile_manifest(
+            profile_details,
+            request.orchestrator,
+            request.context,
+            None,  # agents (not supported in CreateProfileRequest yet)
+            None,  # contexts (not supported in CreateProfileRequest yet)
+            None,  # instruction (not supported in CreateProfileRequest yet)
+        )
         manifest_file = local_profile_dir / "profile.md"
         manifest_file.write_text(manifest_content)
 
         logger.info(f"Created local profile: {request.name}")
         return profile_details
+
+    def copy_profile(self, source_name: str, new_name: str) -> ProfileDetails:
+        """Copy profile from any collection to local collection with new name.
+
+        Creates a copy of an existing profile in the local collection with all
+        fields preserved except the name. The source profile can be from any
+        collection (local, discovered, etc).
+
+        Args:
+            source_name: Name of profile to copy from
+            new_name: Name for the copied profile (kebab-case)
+
+        Returns:
+            ProfileDetails of the newly created profile
+
+        Raises:
+            FileNotFoundError: If source profile doesn't exist
+            ValueError: If new_name format invalid or already exists
+        """
+        import re
+
+        # 1. Validate new_name format (kebab-case pattern)
+        if not re.match(r"^[a-z0-9-]+$", new_name):
+            raise ValueError(
+                f"Invalid profile name '{new_name}'. Name must contain only lowercase letters, numbers, and hyphens."
+            )
+
+        # 2. Check if new_name already exists in local collection
+        existing_profiles = self.list_profiles()
+        local_profiles = [p for p in existing_profiles if p.source.startswith("local/")]
+        if any(p.name == new_name for p in local_profiles):
+            raise ValueError(f"Profile '{new_name}' already exists in local collection")
+
+        # 3. Get source profile (from any collection)
+        source_profile = self.get_profile(source_name)
+
+        # 4. Create copy request with all fields from source
+        orchestrator = None
+        context = None
+        if source_profile.session:
+            orchestrator = source_profile.session.orchestrator
+            context = source_profile.session.context_manager
+
+        copy_request = CreateProfileRequest(
+            name=new_name,
+            version=source_profile.version,
+            description=source_profile.description,
+            providers=source_profile.providers,
+            tools=source_profile.tools,
+            hooks=source_profile.hooks,
+            orchestrator=orchestrator,
+            context=context,
+        )
+
+        # 5. Create the new profile using existing create_profile method
+        new_profile = self.create_profile(copy_request)
+
+        # 6. If source has instruction, agents, or contexts, update the profile
+        if source_profile.instruction or source_profile.agents or source_profile.context:
+            local_profile_dir = self.profiles_dir / "local" / new_name
+
+            # Build agents dict from list
+            agents = {agent: agent for agent in source_profile.agents} if source_profile.agents else None
+
+            manifest_content = self._generate_profile_manifest(
+                new_profile,
+                orchestrator,
+                context,
+                agents,
+                source_profile.context,  # context refs
+                source_profile.instruction,
+            )
+
+            manifest_file = local_profile_dir / "profile.md"
+            manifest_file.write_text(manifest_content)
+            logger.info(f"Updated copied profile with instruction/agents/contexts: {new_name}")
+
+        # 7. Re-read the profile to get complete ProfileDetails with instruction
+        return self.get_profile(new_name)
 
     def update_profile(self, name: str, request: UpdateProfileRequest) -> ProfileDetails:
         """Update existing local profile.
@@ -644,13 +790,26 @@ class ProfileService:
             providers=request.providers if request.providers is not None else current.providers,
             tools=request.tools if request.tools is not None else current.tools,
             hooks=request.hooks if request.hooks is not None else current.hooks,
+            agents=list(request.agents.keys()) if request.agents is not None else current.agents,
+            context=request.contexts if request.contexts is not None else current.context,
+            instruction=request.instruction if request.instruction is not None else current.instruction,
         )
 
         orchestrator = request.orchestrator if request.orchestrator is not None else None
         context = request.context if request.context is not None else None
 
+        agents = (
+            request.agents
+            if request.agents is not None
+            else ({agent: agent for agent in current.agents} if current.agents else None)
+        )
+        contexts = request.contexts if request.contexts is not None else current.context
+        instruction = request.instruction if request.instruction is not None else current.instruction
+
         local_profile_dir = self.profiles_dir / "local" / name
-        manifest_content = self._generate_profile_manifest(updated, orchestrator, context)
+        manifest_content = self._generate_profile_manifest(
+            updated, orchestrator, context, agents, contexts, instruction
+        )
         manifest_file = local_profile_dir / "profile.md"
         manifest_file.write_text(manifest_content)
 
@@ -706,7 +865,13 @@ class ProfileService:
         return None
 
     def _generate_profile_manifest(
-        self, profile: ProfileDetails, orchestrator: ModuleConfig | None = None, context: ModuleConfig | None = None
+        self,
+        profile: ProfileDetails,
+        orchestrator: ModuleConfig | None = None,
+        context: ModuleConfig | None = None,
+        agents: dict[str, str] | None = None,
+        contexts: dict[str, str] | None = None,
+        instruction: str | None = None,
     ) -> str:
         """Generate .md file content with YAML frontmatter.
 
@@ -714,6 +879,9 @@ class ProfileService:
             profile: Profile details
             orchestrator: Orchestrator module config
             context: Context module config
+            agents: Agent file references (name -> ref)
+            contexts: Context directory references (name -> ref)
+            instruction: Profile system instruction
 
         Returns:
             Markdown content with YAML frontmatter
@@ -762,8 +930,18 @@ class ProfileService:
                 for h in profile.hooks
             ]
 
+        if agents:
+            yaml_data["agents"] = agents
+
+        if contexts:
+            yaml_data["context"] = contexts
+
         yaml_content = yaml.dump(yaml_data, sort_keys=False, allow_unicode=True, default_flow_style=False)
 
-        markdown_body = f"# {profile.name}\n\n{profile.description}\n"
+        if instruction:
+            markdown_body = instruction
+        else:
+            # Default markdown body if no custom instruction
+            markdown_body = f"# {profile.name}\n\n{profile.description}\n"
 
         return f"---\n{yaml_content}---\n\n{markdown_body}"

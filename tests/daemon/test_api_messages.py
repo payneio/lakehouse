@@ -11,13 +11,13 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
+from amplifier_library.models.sessions import SessionMessage
+from amplifier_library.models.sessions import SessionMetadata
+from amplifier_library.models.sessions import SessionStatus
 from amplifierd.main import app
 from amplifierd.models.mount_plans import EmbeddedMount
 from amplifierd.models.mount_plans import MountPlan
 from amplifierd.models.mount_plans import SessionConfig
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
 from amplifierd.routers.mount_plans import get_mount_plan_service
 from amplifierd.routers.sessions import get_session_state_service
 
@@ -132,8 +132,11 @@ def mock_amplified_directory_service(monkeypatch):
 
     mock_directory = AmplifiedDirectory(
         relative_path=".",
+        default_profile="foundation/base",
         metadata={"default_profile": "foundation/base"},
         created_at=datetime.now(UTC),
+        path="/data",
+        is_amplified=True,
     )
 
     mock_service = Mock()

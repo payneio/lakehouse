@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from pydantic import Field
 
 from amplifier_library.storage import get_share_dir
 from amplifier_library.storage import get_state_dir
@@ -13,6 +14,7 @@ from amplifier_library.storage.paths import get_profiles_dir
 
 from ..models import ProfileDetails
 from ..models import ProfileInfo
+from ..models.base import CamelCaseModel
 from ..models.profiles import CreateProfileRequest
 from ..models.profiles import UpdateProfileRequest
 from ..services.profile_compilation import ProfileCompilationService
@@ -23,6 +25,12 @@ from ..services.ref_resolution import RefResolutionService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/profiles", tags=["profiles"])
+
+
+class CopyProfileRequest(CamelCaseModel):
+    """Request body for copying a profile."""
+
+    new_name: str = Field(pattern=r"^[a-z0-9-]+$", description="New profile name (kebab-case)")
 
 
 def get_profile_service() -> ProfileService:
@@ -91,6 +99,47 @@ async def create_profile(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.error(f"Failed to create profile: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@router.post("/{source_name}/copy", response_model=ProfileDetails, status_code=201)
+async def copy_profile(
+    source_name: str,
+    request: CopyProfileRequest,
+    service: Annotated[ProfileService, Depends(get_profile_service)],
+) -> ProfileDetails:
+    """Copy a profile to local collection with a new name.
+
+    Creates a copy of an existing profile in the local collection. The source
+    profile can be from any collection. All fields are copied including providers,
+    tools, hooks, session configuration, and system instruction.
+
+    Args:
+        source_name: Name of the profile to copy
+        request: Copy request with new name
+        service: Profile service instance
+
+    Returns:
+        ProfileDetails of the newly created profile
+
+    Raises:
+        HTTPException:
+            - 404 if source profile not found
+            - 400 for validation errors (invalid name format)
+            - 409 if profile with new name already exists
+            - 500 for other errors
+    """
+    try:
+        return service.copy_profile(source_name, request.new_name)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Source profile not found: {source_name}") from exc
+    except ValueError as exc:
+        # Check if it's a conflict (already exists) or validation error
+        if "already exists" in str(exc):
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(f"Failed to copy profile {source_name} to {request.new_name}: {exc}")
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 

@@ -1,22 +1,24 @@
 import { BASE_URL } from '@/api/client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export function HomePage() {
   const [apiStatus, setApiStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [apiVersion, setApiVersion] = useState<string>('');
+  const [dataPath, setDataPath] = useState<string>('');
 
   useEffect(() => {
     // Check API connection on mount
     const checkConnection = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/`, {
+        const response = await fetch(`${BASE_URL}/api/v1/status`, {
           mode: 'cors',
         });
 
         const data = await response.json();
         setApiStatus('connected');
         setApiVersion(data.version || 'unknown');
-      } catch (error) {
+        setDataPath(data.rootDir || '');
+      } catch {
         setApiStatus('error');
       }
     };
@@ -43,9 +45,6 @@ export function HomePage() {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-4">Welcome to Amplifier</h1>
-      <p className="text-muted-foreground mb-6">
-        This is the home page placeholder.
-      </p>
 
       <div className="border rounded-lg p-4 bg-muted/50">
         <h2 className="text-lg font-semibold mb-2">Connection Info</h2>
@@ -79,6 +78,12 @@ export function HomePage() {
               <div>
                 <span className="text-muted-foreground">Version: </span>
                 <span>{apiVersion}</span>
+              </div>
+            )}
+            {dataPath && (
+              <div>
+                <span className="text-muted-foreground">Data Path: </span>
+                <span className="font-mono">{dataPath}</span>
               </div>
             )}
             {apiStatus === 'error' && (

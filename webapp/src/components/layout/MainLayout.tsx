@@ -1,25 +1,28 @@
-import { useState, useEffect } from 'react'
-import { Outlet, NavLink } from 'react-router'
-import { cn } from '@/lib/utils'
-import { Home, FolderOpen, Package } from 'lucide-react'
+import { cn } from '@/lib/utils';
+import { FolderOpen, Home, Package } from 'lucide-react';
+import { useState } from 'react';
+import { NavLink, Outlet } from 'react-router';
 
 export function MainLayout() {
-  const [directoriesUrl, setDirectoriesUrl] = useState('/directories');
-
-  // Read last Directories URL from sessionStorage
-  useEffect(() => {
+  const [directoriesUrl] = useState(() => {
+    // Read last Directories URL from sessionStorage on mount
     const lastUrl = sessionStorage.getItem('lastDirectoriesUrl');
-    if (lastUrl) {
-      setDirectoriesUrl(lastUrl);
-    }
-  }, []);
+    return lastUrl || '/directories';
+  });
 
   return (
     <div className="flex h-screen">
-      <aside className={cn(
-        "w-64 border-r bg-gray-50",
-        "flex flex-col"
-      )}>
+      <aside
+        className={cn(
+          "w-64 border-r",
+          "flex flex-col"
+        )}
+        style={{
+          backgroundImage: 'url(/background.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
         <div className="p-4 border-b">
           <h1 className="text-xl font-bold">Amplifier</h1>
         </div>
@@ -50,7 +53,7 @@ export function MainLayout() {
                 }
               >
                 <Package className="h-4 w-4" />
-                <span>Collections</span>
+                <span>Profiles</span>
               </NavLink>
             </li>
             <li>
@@ -64,7 +67,7 @@ export function MainLayout() {
                 }
               >
                 <FolderOpen className="h-4 w-4" />
-                <span>Directories</span>
+                <span>Projects</span>
               </NavLink>
             </li>
           </ul>

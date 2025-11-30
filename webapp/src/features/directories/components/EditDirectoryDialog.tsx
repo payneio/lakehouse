@@ -2,41 +2,85 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { useProfiles } from '@/features/collections/hooks/useCollections';
-import type { AmplifiedDirectoryCreate } from '@/types/api';
+import type { AmplifiedDirectory } from '@/types/api';
 
-interface CreateDirectoryDialogProps {
+interface EditDirectoryDialogProps {
   open: boolean;
+  directory: AmplifiedDirectory | null;
   onClose: () => void;
-  onSubmit: (data: AmplifiedDirectoryCreate) => void;
+  onSubmit: (data: { name?: string; description?: string; default_profile?: string }) => void;
   isLoading?: boolean;
   error?: string;
 }
 
-export function CreateDirectoryDialog({
+export function EditDirectoryDialog({
   open,
+  directory,
   onClose,
   onSubmit,
   isLoading = false,
   error,
-}: CreateDirectoryDialogProps) {
+}: EditDirectoryDialogProps) {
   const { profiles } = useProfiles();
+
+  if (!directory) {
+    return null;
+  }
+
+  // Use key prop to reset form state when directory changes
+  return (
+    <EditDirectoryForm
+      key={directory.relative_path}
+      open={open}
+      directory={directory}
+      profiles={profiles}
+      onClose={onClose}
+      onSubmit={onSubmit}
+      isLoading={isLoading}
+      error={error}
+    />
+  );
+}
+
+function EditDirectoryForm({
+  open,
+  directory,
+  profiles,
+  onClose,
+  onSubmit,
+  isLoading,
+  error,
+}: {
+  open: boolean;
+  directory: AmplifiedDirectory;
+  profiles: Array<{ name: string }>;
+  onClose: () => void;
+  onSubmit: (data: { name?: string; description?: string; default_profile?: string }) => void;
+  isLoading: boolean;
+  error?: string;
+}) {
   const [formData, setFormData] = useState({
-    relative_path: '',
-    default_profile: '',
-    name: '',
-    description: '',
+    name: (directory?.metadata?.name as string) || '',
+    description: (directory?.metadata?.description as string) || '',
+    default_profile: directory?.default_profile || '',
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const validatePath = (path: string): string | null => {
-    if (!path.trim()) {
-      return 'Please enter a directory path';
+  const validateForm = (): string | null => {
+    if (formData.name.length > 100) {
+      return 'Name must be 100 characters or less';
     }
-    if (path.startsWith('/')) {
-      return 'Path must be relative (don\'t start with /)';
+    if (formData.description.length > 500) {
+      return 'Description must be 500 characters or less';
     }
-    if (path.includes('..')) {
-      return 'Path cannot contain ..';
+    if (formData.default_profile) {
+      // Build list of valid profile identifiers (collection/name format)
+      const validProfileIds = profiles.map(p =>
+        p.collectionId ? `${p.collectionId}/${p.name}` : p.name
+      );
+      if (!validProfileIds.includes(formData.default_profile)) {
+        return 'Invalid profile selection';
+      }
     }
     return null;
   };
@@ -44,32 +88,24 @@ export function CreateDirectoryDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const pathError = validatePath(formData.relative_path);
-    if (pathError) {
-      setValidationError(pathError);
+    const validationErr = validateForm();
+    if (validationErr) {
+      setValidationError(validationErr);
       return;
     }
 
     setValidationError(null);
 
-    const submitData: AmplifiedDirectoryCreate = {
-      relative_path: formData.relative_path.trim(),
-      create_marker: true,
-    };
+    const submitData: { name?: string; description?: string; default_profile?: string } = {};
 
-    if (formData.default_profile) {
-      submitData.default_profile = formData.default_profile;
-    }
-
-    const metadata: Record<string, unknown> = {};
     if (formData.name) {
-      metadata.name = formData.name;
+      submitData.name = formData.name.trim();
     }
     if (formData.description) {
-      metadata.description = formData.description;
+      submitData.description = formData.description.trim();
     }
-    if (Object.keys(metadata).length > 0) {
-      submitData.metadata = metadata;
+    if (formData.default_profile) {
+      submitData.default_profile = formData.default_profile;
     }
 
     onSubmit(submitData);
@@ -77,12 +113,6 @@ export function CreateDirectoryDialog({
 
   const handleClose = () => {
     if (!isLoading) {
-      setFormData({
-        relative_path: '',
-        default_profile: '',
-        name: '',
-        description: '',
-      });
       setValidationError(null);
       onClose();
     }
@@ -92,30 +122,20 @@ export function CreateDirectoryDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Create Amplified Directory</DialogTitle>
+          <DialogTitle>Edit Directory</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Path Field */}
+          {/* Directory Path (Read-only for context) */}
           <div>
-            <label htmlFor="relative_path" className="block text-sm font-medium mb-1">
-              Directory Path <span className="text-destructive">*</span>
+            <label className="block text-sm font-medium mb-1">
+              Directory Path
             </label>
-            <input
-              id="relative_path"
-              type="text"
-              value={formData.relative_path}
-              onChange={(e) => {
-                setFormData({ ...formData, relative_path: e.target.value });
-                setValidationError(null);
-              }}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="projects/myapp"
-              required
-              disabled={isLoading}
-            />
+            <div className="w-full px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+              {directory.relative_path}
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Relative path from workspace root
+              Path cannot be changed
             </p>
           </div>
 
@@ -128,23 +148,34 @@ export function CreateDirectoryDialog({
               <select
                 id="default_profile"
                 value={formData.default_profile}
-                onChange={(e) => setFormData({ ...formData, default_profile: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, default_profile: e.target.value });
+                  setValidationError(null);
+                }}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => (
-                  <option key={profile.name} value={profile.name}>
-                    {profile.name}
-                  </option>
-                ))}
+                {profiles.map((profile) => {
+                  const fullName = profile.collectionId
+                    ? `${profile.collectionId}/${profile.name}`
+                    : profile.name;
+                  return (
+                    <option key={fullName} value={fullName}>
+                      {fullName}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <input
                 id="default_profile"
                 type="text"
                 value={formData.default_profile}
-                onChange={(e) => setFormData({ ...formData, default_profile: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, default_profile: e.target.value });
+                  setValidationError(null);
+                }}
                 className="w-full px-3 py-2 border rounded-md"
                 placeholder="profile-name"
                 disabled={isLoading}
@@ -164,13 +195,17 @@ export function CreateDirectoryDialog({
               id="name"
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                setValidationError(null);
+              }}
               className="w-full px-3 py-2 border rounded-md"
               placeholder="My Application"
+              maxLength={100}
               disabled={isLoading}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Optional human-readable name
+              Optional human-readable name (max 100 characters)
             </p>
           </div>
 
@@ -182,11 +217,18 @@ export function CreateDirectoryDialog({
             <textarea
               id="description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, description: e.target.value });
+                setValidationError(null);
+              }}
               className="w-full px-3 py-2 border rounded-md min-h-[80px]"
               placeholder="Describe this directory..."
+              maxLength={500}
               disabled={isLoading}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Optional description (max 500 characters)
+            </p>
           </div>
 
           {/* Error Messages */}
@@ -212,7 +254,7 @@ export function CreateDirectoryDialog({
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
               disabled={isLoading}
             >
-              {isLoading ? 'Creating...' : 'Create Directory'}
+              {isLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </DialogFooter>
         </form>

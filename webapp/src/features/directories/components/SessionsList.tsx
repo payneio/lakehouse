@@ -1,8 +1,8 @@
-import { Plus, MessageSquare, Trash2 } from 'lucide-react';
-import { useSessions } from '../hooks/useDirectories';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { useSessions } from '../hooks/useDirectories';
 
 interface SessionsListProps {
   directoryPath: string;
@@ -14,8 +14,8 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   const navigate = useNavigate();
 
   const createSession = useMutation({
-    mutationFn: (profileName: string) =>
-      api.createSession({ profile_name: profileName }),
+    mutationFn: (data: { profile_name?: string; amplified_dir?: string }) =>
+      api.createSession(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
@@ -29,8 +29,11 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   });
 
   const handleCreateSession = () => {
-    // For now, use a default profile - in real app would show profile selector
-    createSession.mutate('foundation/base');
+    // Create session in the current directory
+    // No profile_name - backend will use directory's default_profile
+    createSession.mutate({
+      amplified_dir: directoryPath,
+    });
   };
 
   if (isLoading) {
@@ -40,7 +43,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Sessions</h2>
+        <h2 className="text-xl font-bold">Chat Sessions</h2>
         <button
           onClick={handleCreateSession}
           disabled={createSession.isPending}

@@ -215,10 +215,12 @@ class CollectionService:
     # High-level collection operations
 
     def list_collections(self) -> list[CollectionInfo]:
-        """List all collections from registry.
+        """List all collections from registry plus local collection if it exists.
 
         Returns:
-            List of CollectionInfo objects
+            List of CollectionInfo objects including:
+            - All collections from registry
+            - Local collection if it has profiles
         """
         collections = []
 
@@ -233,7 +235,24 @@ class CollectionService:
                 )
             )
 
-        logger.info(f"Found {len(collections)} collections")
+        # Check if local collection exists and has profiles
+        local_collection_dir = self.collections_cache_dir / "local"
+        if local_collection_dir.exists():
+            # Count profiles (directories with profile.md files)
+            profile_count = sum(1 for p in local_collection_dir.iterdir() if p.is_dir() and (p / "profile.md").exists())
+
+            # Add local collection if not already in registry and has profiles
+            if profile_count > 0 and "local" not in self._collections:
+                logger.info(f"Found local collection with {profile_count} profiles")
+                collections.append(
+                    CollectionInfo(
+                        identifier="local",
+                        source="local",
+                        profiles=[],
+                    )
+                )
+
+        logger.info(f"Found {len(collections)} collections (including local if present)")
         return collections
 
     def get_collection_info(self, identifier: str) -> CollectionInfo:

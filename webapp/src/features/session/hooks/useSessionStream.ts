@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export interface StreamEvent {
   type: string;
-  data: any;
+  data: unknown;
 }
 
 export function useSessionStream(sessionId: string, enabled: boolean) {

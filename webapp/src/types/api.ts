@@ -46,7 +46,8 @@ export interface ProfileDetails {
   hooks: ModuleConfig[];
   session?: SessionConfig;
   agents?: string[];
-  context?: string[];
+  context?: Record<string, string>;
+  instruction?: string;
 }
 
 export interface AmplifiedDirectory {
@@ -58,7 +59,7 @@ export interface AmplifiedDirectory {
 }
 
 export interface AmplifiedDirectoryCreate {
-  path: string;
+  relative_path: string;
   default_profile?: string;
   metadata?: Record<string, unknown>;
   create_marker?: boolean;
@@ -91,7 +92,8 @@ export interface SessionMessage {
 }
 
 export interface CreateSessionRequest {
-  profile_name: string;  // API expects snake_case for POST body
+  profile_name?: string;  // API expects snake_case for POST body - optional, uses directory default if not provided
+  amplified_dir?: string;  // API expects snake_case for POST body
   parent_session_id?: string;  // API expects snake_case for POST body
   settings_overrides?: Record<string, unknown>;
 }
@@ -115,6 +117,9 @@ export interface CreateProfileRequest {
   hooks?: ModuleConfig[];
   orchestrator?: ModuleConfig;
   context?: ModuleConfig;
+  agents?: Record<string, string>;
+  contexts?: Record<string, string>;
+  instruction?: string;
 }
 
 export interface UpdateProfileRequest {
@@ -125,4 +130,7 @@ export interface UpdateProfileRequest {
   hooks?: ModuleConfig[];
   orchestrator?: ModuleConfig;
   context?: ModuleConfig;
+  agents?: Record<string, string>;
+  contexts?: Record<string, string>;
+  instruction?: string;
 }

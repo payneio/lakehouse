@@ -25,19 +25,28 @@ export function useDirectories() {
     },
   });
 
+  const updateDirectory = useMutation({
+    mutationFn: ({ relativePath, data }: { relativePath: string; data: Partial<AmplifiedDirectoryCreate> }) =>
+      api.updateDirectory(relativePath, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['directories'] });
+    },
+  });
+
   return {
     directories: directories.data?.directories ?? [],
     isLoading: directories.isLoading,
     error: directories.error,
     createDirectory,
     deleteDirectory,
+    updateDirectory,
   };
 }
 
 export function useSessions(directoryPath?: string) {
   const sessions = useQuery({
     queryKey: ['sessions', directoryPath],
-    queryFn: () => api.listSessions(),
+    queryFn: () => api.listSessions({ amplified_dir: directoryPath }),
     enabled: !!directoryPath,
   });
 

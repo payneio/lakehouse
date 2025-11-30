@@ -215,6 +215,13 @@ async def complete_session(
     try:
         service.complete_session(session_id)
         logger.info(f"Completed session {session_id}")
+
+        # Clean up session stream manager
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        await registry.cleanup_session(session_id)
+
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -266,6 +273,13 @@ async def fail_session(
             error_details=error_details,
         )
         logger.warning(f"Failed session {session_id}: {error_message}")
+
+        # Clean up session stream manager
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        await registry.cleanup_session(session_id)
+
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -298,6 +312,13 @@ async def terminate_session(
     try:
         service.terminate_session(session_id)
         logger.info(f"Terminated session {session_id}")
+
+        # Clean up session stream manager
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        await registry.cleanup_session(session_id)
+
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -349,6 +370,7 @@ async def list_sessions(
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
     status: SessionStatus | None = None,
     profile_name: str | None = None,
+    amplified_dir: str | None = None,
     limit: int | None = None,
 ) -> list[SessionMetadata]:
     """List sessions with optional filters.
@@ -359,6 +381,7 @@ async def list_sessions(
     Args:
         status: Optional filter by session status
         profile_name: Optional filter by profile name
+        amplified_dir: Optional filter by amplified directory path
         limit: Optional maximum number of results
         service: Session state service dependency
 
@@ -371,13 +394,14 @@ async def list_sessions(
 
     Example:
         ```
-        GET /api/v1/sessions?status=active&profile_name=foundation/base&limit=10
+        GET /api/v1/sessions?status=active&profile_name=foundation/base&amplified_dir=projects/my-project&limit=10
         ```
     """
     try:
         return service.list_sessions(
             status=status,
             profile_name=profile_name,
+            amplified_dir=amplified_dir,
             limit=limit,
         )
     except Exception as exc:
@@ -631,4 +655,89 @@ async def get_session_mount_plan(
         raise
     except Exception as exc:
         logger.error(f"Failed to get mount plan for {session_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@router.post("/{session_id}/change-profile", response_model=SessionMetadata)
+async def change_session_profile(
+    session_id: str,
+    mount_plan_service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
+    session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
+    profile_name: str = Body(..., embed=True),
+) -> SessionMetadata:
+    """Change profile for active session.
+
+    Waits for any in-flight execution to complete before switching.
+    Session transcript and state are preserved.
+
+    Args:
+        session_id: Session identifier
+        profile_name: New profile to use (e.g., "foundation/base")
+        mount_plan_service: Mount plan service dependency
+        session_service: Session state service dependency
+
+    Returns:
+        Updated session metadata
+
+    Raises:
+        HTTPException:
+            - 400 if session not ACTIVE or profile invalid
+            - 404 if session or profile not found
+            - 500 for profile change failures
+
+    Example:
+        ```json
+        {
+            "profile_name": "foundation/production"
+        }
+        ```
+    """
+    try:
+        # 1. Validate session exists and is ACTIVE
+        metadata = session_service.get_session(session_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        if metadata.status != SessionStatus.ACTIVE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Can only change profile for ACTIVE sessions, this session is {metadata.status}",
+            )
+
+        # 2. Generate new mount plan
+        try:
+            new_mount_plan = mount_plan_service.generate_mount_plan(profile_name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid profile '{profile_name}': {e}")
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=f"Profile '{profile_name}' not found: {e}")
+
+        # 3. Change profile in ExecutionRunner (blocks if execution in progress)
+        from ..services.session_stream_registry import change_session_profile as do_change
+
+        try:
+            await do_change(session_id, new_mount_plan)
+        except ValueError:
+            # No active runner - that's okay, profile will be used when session starts
+            logger.info(f"No active runner for {session_id}, profile will take effect on next message")
+        except Exception as e:
+            logger.error(f"Profile change failed for {session_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Profile change failed: {str(e)}")
+
+        # 4. Update session metadata
+        def update(meta: SessionMetadata) -> None:
+            meta.profile_name = profile_name
+
+        session_service._update_session(session_id, update)
+
+        logger.info(f"Changed session {session_id} profile to {profile_name}")
+        updated = session_service.get_session(session_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found after update")
+        return updated
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Unexpected error changing profile for {session_id}: {exc}")
         raise HTTPException(status_code=500, detail="Internal server error") from exc

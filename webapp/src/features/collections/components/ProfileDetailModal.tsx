@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Edit, Trash2 } from 'lucide-react';
+import { Copy, Edit, Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import * as api from '@/api';
 import type { ModuleConfig, ProfileDetails } from '@/types/api';
+import { CopyProfileDialog } from './CopyProfileDialog';
 
 interface ProfileDetailModalProps {
   profileName: string | null;
@@ -12,11 +14,17 @@ interface ProfileDetailModalProps {
 }
 
 export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: ProfileDetailModalProps) {
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile-detail', profileName],
     queryFn: () => api.getProfileDetails(profileName!),
     enabled: !!profileName,
   });
+
+  const handleCopySuccess = () => {
+    onClose();
+  };
 
   if (!profileName) return null;
 
@@ -28,9 +36,16 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Profile Details</DialogTitle>
-            {profile && isLocal && (onEdit || onDelete) && (
+            {profile && (onEdit || onDelete) && (
               <div className="flex gap-2">
-                {onEdit && (
+                <button
+                  onClick={() => setShowCopyDialog(true)}
+                  className="p-2 hover:bg-accent rounded-md"
+                  title="Copy profile"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                {isLocal && onEdit && (
                   <button
                     onClick={() => onEdit(profile)}
                     className="p-2 hover:bg-accent rounded-md"
@@ -39,7 +54,7 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
                     <Edit className="h-4 w-4" />
                   </button>
                 )}
-                {onDelete && (
+                {isLocal && onDelete && (
                   <button
                     onClick={() => onDelete(profile.name, profile.source)}
                     className="p-2 hover:bg-accent rounded-md text-destructive"
@@ -139,14 +154,28 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
               </div>
             )}
 
-            {profile.context && profile.context.length > 0 && (
+            {profile.context && Object.keys(profile.context).length > 0 && (
               <div>
-                <h4 className="font-semibold mb-2">Context ({profile.context.length})</h4>
-                <ul className="list-disc list-inside space-y-1">
-                  {profile.context.map((ctx, i) => (
-                    <li key={i} className="text-sm font-mono">{ctx}</li>
+                <h4 className="font-semibold mb-2">Context ({Object.keys(profile.context).length})</h4>
+                <div className="space-y-2">
+                  {Object.entries(profile.context).map(([name, ref]) => (
+                    <div key={name} className="border rounded-lg p-3 bg-muted/50">
+                      <div className="font-mono text-sm font-semibold">{name}</div>
+                      <div className="text-xs text-muted-foreground mt-1 break-all">{ref}</div>
+                    </div>
                   ))}
-                </ul>
+                </div>
+              </div>
+            )}
+
+            {profile.instruction && (
+              <div>
+                <h4 className="font-semibold mb-2">System Instruction</h4>
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <pre className="text-sm whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
+                    {profile.instruction}
+                  </pre>
+                </div>
               </div>
             )}
 
@@ -170,6 +199,15 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
           <div className="text-muted-foreground">Profile not found</div>
         )}
       </DialogContent>
+
+      {profile && (
+        <CopyProfileDialog
+          sourceProfile={profile}
+          open={showCopyDialog}
+          onClose={() => setShowCopyDialog(false)}
+          onSuccess={handleCopySuccess}
+        />
+      )}
     </Dialog>
   );
 }
