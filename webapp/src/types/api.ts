@@ -134,3 +134,18 @@ export interface UpdateProfileRequest {
   contexts?: Record<string, string>;
   instruction?: string;
 }
+
+export interface DirectoryListResponse {
+  current_path: string;
+  parent_path: string | null;
+  directories: string[];
+}
+
+export interface DirectoryCreateRequest {
+  relative_path: string;
+}
+
+export interface DirectoryCreateResponse {
+  created_path: string;
+  absolute_path: string;
+}

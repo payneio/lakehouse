@@ -1,8 +1,24 @@
 import { fetchApi } from './client';
-import type { AmplifiedDirectory, AmplifiedDirectoryCreate, ListDirectoriesResponse } from '@/types/api';
+import type {
+  AmplifiedDirectory,
+  AmplifiedDirectoryCreate,
+  ListDirectoriesResponse,
+  DirectoryListResponse,
+  DirectoryCreateRequest,
+  DirectoryCreateResponse,
+} from '@/types/api';
 
 export const listDirectories = () =>
   fetchApi<ListDirectoriesResponse>('/api/v1/amplified-directories/');
+
+export const listDirectoryContents = (path: string = '') =>
+  fetchApi<DirectoryListResponse>(`/api/v1/directories/list?path=${encodeURIComponent(path)}`);
+
+export const createDirectoryPath = (data: DirectoryCreateRequest) =>
+  fetchApi<DirectoryCreateResponse>('/api/v1/directories/create', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 
 export const getDirectory = (relativePath: string) =>
   fetchApi<AmplifiedDirectory>(`/api/v1/amplified-directories/${relativePath}`);

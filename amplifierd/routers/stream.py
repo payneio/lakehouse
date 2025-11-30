@@ -13,8 +13,8 @@ from typing import Annotated
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
-from sse_starlette.sse import ServerSentEvent
 
 from amplifier_library.sessions.manager import SessionManager as SessionStateService
 from amplifier_library.storage import get_state_dir

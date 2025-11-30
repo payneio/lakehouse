@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { useProfiles } from '@/features/collections/hooks/useCollections';
+import { DirectoryBrowser } from './DirectoryBrowser';
 import type { AmplifiedDirectoryCreate } from '@/types/api';
 
 interface CreateDirectoryDialogProps {
@@ -98,24 +99,19 @@ export function CreateDirectoryDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Path Field */}
           <div>
-            <label htmlFor="relative_path" className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium mb-1">
               Directory Path <span className="text-destructive">*</span>
             </label>
-            <input
-              id="relative_path"
-              type="text"
-              value={formData.relative_path}
-              onChange={(e) => {
-                setFormData({ ...formData, relative_path: e.target.value });
+            <DirectoryBrowser
+              initialPath=""
+              onSelect={(path) => {
+                setFormData({ ...formData, relative_path: path });
                 setValidationError(null);
               }}
-              className="w-full px-3 py-2 border rounded-md"
-              placeholder="projects/myapp"
-              required
-              disabled={isLoading}
+              allowCreate={true}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Relative path from workspace root
+              Browse or create a directory in your workspace
             </p>
           </div>
 
@@ -133,11 +129,16 @@ export function CreateDirectoryDialog({
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => (
-                  <option key={profile.name} value={profile.name}>
-                    {profile.name}
-                  </option>
-                ))}
+                {profiles.map((profile) => {
+                  const fullName = profile.collectionId
+                    ? `${profile.collectionId}/${profile.name}`
+                    : profile.name;
+                  return (
+                    <option key={fullName} value={fullName}>
+                      {fullName}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <input
