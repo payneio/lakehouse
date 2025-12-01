@@ -3,9 +3,11 @@
 import json
 import logging
 import os
+import time
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
 from amplifierd.models.amplified_directories import AmplifiedDirectory
 from amplifierd.models.amplified_directories import AmplifiedDirectoryCreate
@@ -23,13 +25,22 @@ class AmplifiedDirectoryService:
     Security-critical: All paths are validated to prevent directory traversal.
     """
 
-    def __init__(self, data_path: Path) -> None:
+    def __init__(self, data_path: Path, cache_ttl: int = 30, max_scan_depth: int = 10) -> None:
         """Initialize with root working directory.
 
         Args:
             data_path: Root directory (AMPLIFIERD_DATA_PATH)
+            cache_ttl: Cache time-to-live in seconds (default: 30)
+            max_scan_depth: Maximum directory depth to scan (default: 10)
         """
         self.root = Path(data_path).resolve()
+
+        # Performance: Cache for list_all()
+        self._cache: list[AmplifiedDirectory] | None = None
+        self._cache_time: float = 0
+        self._cache_ttl: float = cache_ttl
+        self._cache_lock = Lock()
+        self._max_scan_depth: int = max_scan_depth
 
     def _resolve_default_profile(self, relative_path: str, provided_profile: str | None) -> str:
         """Resolve default profile for directory.
@@ -132,6 +143,10 @@ class AmplifiedDirectoryService:
             )
 
             logger.info(f"Created amplified directory: {create_req.relative_path} with profile: {default_profile}")
+
+            # Invalidate cache so new directory appears in list
+            self.invalidate_cache()
+
             return amplified_dir
 
         except Exception as e:
@@ -183,19 +198,63 @@ class AmplifiedDirectoryService:
         except ValueError:
             return None
 
-    def list_all(self) -> list[AmplifiedDirectory]:
-        """Discover all amplified directories under root.
+    def list_all(self, force_refresh: bool = False) -> list[AmplifiedDirectory]:
+        """Discover all amplified directories under root (cached).
+
+        Args:
+            force_refresh: If True, bypass cache and rescan filesystem
+
+        Returns:
+            List of AmplifiedDirectory instances
+
+        Implementation:
+            Uses in-memory cache with TTL for performance.
+            First request or cache expiration triggers filesystem scan.
+            Cache invalidated automatically on create/update/delete.
+        """
+        now = time.time()
+
+        # Check cache (thread-safe)
+        with self._cache_lock:
+            if not force_refresh and self._cache and (now - self._cache_time) < self._cache_ttl:
+                logger.debug(f"Returning cached directories ({len(self._cache)} entries)")
+                return self._cache
+
+        # Scan filesystem (outside lock to allow other reads)
+        logger.info("Scanning for amplified directories...")
+        directories = self._scan_filesystem()
+
+        # Update cache (thread-safe)
+        with self._cache_lock:
+            self._cache = directories
+            self._cache_time = now
+
+        logger.info(f"Found {len(directories)} amplified directories (cached for {self._cache_ttl}s)")
+        return directories
+
+    def _scan_filesystem(self) -> list[AmplifiedDirectory]:
+        """Scan filesystem for amplified directories.
 
         Returns:
             List of AmplifiedDirectory instances
 
         Implementation:
             Uses Path.rglob(".amplified") to find all markers,
-            then constructs AmplifiedDirectory for each.
+            respects max_scan_depth to prevent runaway scans.
         """
         directories: list[AmplifiedDirectory] = []
 
         for marker_path in self.root.rglob(".amplified"):
+            # Depth check (prevent excessive scanning)
+            try:
+                depth = len(marker_path.relative_to(self.root).parts)
+                if depth > self._max_scan_depth:
+                    logger.warning(f"Skipping {marker_path} - exceeds max depth {self._max_scan_depth}")
+                    continue
+            except ValueError:
+                # Path not relative to root (shouldn't happen but be safe)
+                continue
+
             if not marker_path.is_dir():
                 continue
 
@@ -228,8 +287,14 @@ class AmplifiedDirectoryService:
                 logger.warning(f"Failed to process amplified directory {dir_path}: {e}")
                 continue
 
-        logger.debug(f"Found {len(directories)} amplified directories")
         return directories
+
+    def invalidate_cache(self) -> None:
+        """Invalidate cache, forcing next list_all() to rescan filesystem."""
+        with self._cache_lock:
+            self._cache = None
+            self._cache_time = 0
+        logger.debug("Directory cache invalidated")
 
     def update(
         self,
@@ -274,6 +339,9 @@ class AmplifiedDirectoryService:
             # Write merged metadata
             self._write_metadata(dir_path, existing_metadata)
 
+            # Invalidate cache to reflect updated metadata
+            self.invalidate_cache()
+
             # Return updated directory
             return self.get(relative_path)
 
@@ -313,6 +381,9 @@ class AmplifiedDirectoryService:
 
                 shutil.rmtree(marker_path)
                 logger.info(f"Removed amplified marker: {relative_path}")
+
+            # Invalidate cache so deleted directory no longer appears
+            self.invalidate_cache()
 
             return True
 
