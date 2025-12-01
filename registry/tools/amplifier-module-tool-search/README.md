@@ -55,7 +55,7 @@ Add to your Amplifier configuration:
 modules:
   search:
     module: "amplifier-module-tool-search"
-    source: "git+https://github.com/payneio/amplifierd@main#subdirectory=tools/module-tool-search"
+    source: "git+https://github.com/payneio/amplifierd@main#subdirectory=registry/tools/amplifier-module-tool-search"
     config: {}  # No config required - ripgrep handles everything
 ```
 

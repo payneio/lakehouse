@@ -35,7 +35,7 @@ tools:
 - module: tool-web
   source: git+https://github.com/microsoft/amplifier-module-tool-web@main
 - module: tool-search
-  source: git+https://github.com/payneio/amplifierd@main#subdirectory=tools/module-tool-search
+  source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/tools/amplifier-module-tool-search
 - module: tool-task
   source: git+https://github.com/microsoft/amplifier-module-tool-task@main
 - module: tool-todo
