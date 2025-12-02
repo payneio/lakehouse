@@ -139,6 +139,16 @@ async def create_session(
         mount_plan["session"]["settings"]["session_cwd"] = absolute_amplified_dir  # Starts same
         mount_plan["session"]["settings"]["profile_name"] = profile_name
 
+        # Inject working_dir into all tool configs
+        # This ensures tools resolve relative paths against the session's working directory
+        if "tools" in mount_plan:
+            for tool in mount_plan["tools"]:
+                if "config" not in tool:
+                    tool["config"] = {}
+                # Only set if not explicitly configured in profile
+                if "working_dir" not in tool["config"]:
+                    tool["config"]["working_dir"] = absolute_amplified_dir
+
         # Create session with mount plan
         metadata = session_service.create_session(
             session_id=session_id,
@@ -751,7 +761,18 @@ async def change_session_profile(
             logger.error(f"Failed to persist mount plan for {session_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to persist profile change to disk: {str(e)}")
 
-        # 5. Update session metadata
+        # 5. Update SessionStreamManager with new mount plan
+        from ..services.session_stream_registry import get_stream_registry
+
+        stream_registry = get_stream_registry()
+        try:
+            await stream_registry.update_mount_plan(session_id, new_mount_plan)
+            logger.debug(f"Updated SessionStreamManager mount plan for {session_id}")
+        except Exception as e:
+            logger.warning(f"Failed to update SessionStreamManager mount plan: {e}")
+            # Non-fatal - new mount plan will be used when manager is recreated
+
+        # 6. Update session metadata
         def update(meta: SessionMetadata) -> None:
             meta.profile_name = profile_name
 
