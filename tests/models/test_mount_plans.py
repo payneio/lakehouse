@@ -322,9 +322,10 @@ class TestMountPlanRequest:
 
     def test_minimal_request(self) -> None:
         """Test request with only required fields."""
-        request = MountPlanRequest(profile_id="foundation.base")
+        request = MountPlanRequest(profile_id="foundation.base", amplified_dir="/tmp/test")
 
         assert request.profile_id == "foundation.base"
+        assert request.amplified_dir == "/tmp/test"
         assert request.session_id is None
         assert request.parent_session_id is None
         assert request.settings_overrides == {}
@@ -334,6 +335,7 @@ class TestMountPlanRequest:
         """Test request with all fields."""
         request = MountPlanRequest(
             profile_id="foundation.base",
+            amplified_dir="/tmp/test",
             session_id="sess_custom",
             parent_session_id="sess_parent",
             settings_overrides={"max_turns": 20, "streaming": False},
@@ -341,6 +343,7 @@ class TestMountPlanRequest:
         )
 
         assert request.profile_id == "foundation.base"
+        assert request.amplified_dir == "/tmp/test"
         assert request.session_id == "sess_custom"
         assert request.parent_session_id == "sess_parent"
         assert request.settings_overrides["max_turns"] == 20

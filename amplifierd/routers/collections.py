@@ -95,24 +95,6 @@ async def get_collection(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/sync", deprecated=True, status_code=410)
-async def sync_collections_deprecated() -> dict[str, str]:
-    """DEPRECATED: Use POST /api/v1/cache/update instead.
-
-    This endpoint has been removed. Use the new cache management API:
-    - GET /api/v1/cache/status - Check cache status
-    - POST /api/v1/cache/update - Update all collections
-    - POST /api/v1/cache/update/collections/{id} - Update specific collection
-
-    Raises:
-        HTTPException: 410 Gone - endpoint removed
-    """
-    raise HTTPException(
-        status_code=410,
-        detail="This endpoint is deprecated and has been removed. Use POST /api/v1/cache/update instead.",
-    )
-
-
 @router.post("/", status_code=201)
 async def mount_collection(
     request: MountCollectionRequest,

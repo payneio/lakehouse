@@ -199,8 +199,10 @@ class TestSessionsAPI:
         # Assert response
         assert response.status_code == 201
 
-        # Verify mount plan service was called with profile_name
-        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base")
+        # Verify mount plan service was called with profile_name and amplified_dir
+        from pathlib import Path
+
+        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base", Path("/data"))
 
     def test_create_session_invalid_profile(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
         """Test POST /api/v1/sessions/ returns 404 for invalid profile."""

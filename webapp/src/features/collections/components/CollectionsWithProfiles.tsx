@@ -1,25 +1,35 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react';
-import { useCollections, useProfiles } from '../hooks/useCollections';
+import { useCollections, useProfiles, useCacheStatus, useUpdateAllCollections, useUpdateCollection, useUpdateProfile, useMountCollection, useUnmountCollection } from '../hooks/useCollections';
 import { ProfileDetailModal } from './ProfileDetailModal';
 import { ProfileForm } from './ProfileForm';
+import { CollectionForm } from './CollectionForm';
+import { StatusBadge } from './StatusBadge';
+import { UpdateButton } from './UpdateButton';
 import { cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/api';
 import type { CreateProfileRequest, UpdateProfileRequest, ProfileDetails } from '@/types/api';
 
 export function CollectionsWithProfiles() {
-  const { collections, isLoading: collectionsLoading, syncCollections } = useCollections();
+  const { collections, isLoading: collectionsLoading } = useCollections();
   const { profiles, isLoading: profilesLoading } = useProfiles();
+  const { data: cacheStatus, isLoading: cacheStatusLoading } = useCacheStatus();
+  const updateAllMutation = useUpdateAllCollections();
+  const updateCollectionMutation = useUpdateCollection();
+  const updateProfileMutation = useUpdateProfile();
+  const mountCollectionMutation = useMountCollection();
+  const unmountCollectionMutation = useUnmountCollection();
   const queryClient = useQueryClient();
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
     new Set(collections.map(c => c.identifier))
   );
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isAddingCollection, setIsAddingCollection] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ProfileDetails | null>(null);
 
-  const isLoading = collectionsLoading || profilesLoading;
+  const isLoading = collectionsLoading || profilesLoading || cacheStatusLoading;
 
   const createMutation = useMutation({
     mutationFn: api.createProfile,
@@ -64,6 +74,27 @@ export function CollectionsWithProfiles() {
     }
   };
 
+  const handleMountCollection = (data: { identifier: string; source: string }) => {
+    mountCollectionMutation.mutate(data, {
+      onSuccess: () => {
+        setIsAddingCollection(false);
+      },
+      onError: (error) => {
+        alert(`Failed to mount collection: ${error.message}`);
+      },
+    });
+  };
+
+  const handleUnmountCollection = (identifier: string) => {
+    if (confirm(`Unmount collection "${identifier}"? This will make its profiles unavailable.`)) {
+      unmountCollectionMutation.mutate(identifier, {
+        onError: (error) => {
+          alert(`Failed to unmount collection: ${error.message}`);
+        },
+      });
+    }
+  };
+
   const toggleCollection = (identifier: string) => {
     setExpandedCollections(prev => {
       const next = new Set(prev);
@@ -96,22 +127,43 @@ export function CollectionsWithProfiles() {
     <>
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Collections & Profiles</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Collections & Profiles</h2>
+            {cacheStatus && (
+              <StatusBadge status={cacheStatus.overallStatus} />
+            )}
+          </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setIsCreating(true)}
+              onClick={() => setIsAddingCollection(true)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Add Collection
+            </button>
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent"
             >
               <Plus className="h-4 w-4" />
               Create Profile
             </button>
             <button
-              onClick={() => syncCollections.mutate(undefined)}
-              disabled={syncCollections.isPending}
+              onClick={() => updateAllMutation.mutate({ checkOnly: true })}
+              disabled={updateAllMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent disabled:opacity-50"
+              title="Check for updates without downloading"
+            >
+              <RefreshCw className={cn("h-4 w-4", updateAllMutation.isPending && "animate-spin")} />
+              Check for Updates
+            </button>
+            <button
+              onClick={() => updateAllMutation.mutate()}
+              disabled={updateAllMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent disabled:opacity-50"
             >
-              <RefreshCw className={cn("h-4 w-4", syncCollections.isPending && "animate-spin")} />
-              {syncCollections.isPending ? 'Syncing...' : 'Sync'}
+              <RefreshCw className={cn("h-4 w-4", updateAllMutation.isPending && "animate-spin")} />
+              {updateAllMutation.isPending ? 'Updating...' : 'Update All'}
             </button>
           </div>
         </div>
@@ -125,71 +177,121 @@ export function CollectionsWithProfiles() {
             {collections.map((collection) => {
               const collectionProfiles = profilesByCollection.get(collection.identifier) || [];
               const isExpanded = expandedCollections.has(collection.identifier);
+              const collectionStatus = cacheStatus?.collections.find(
+                c => c.collectionId === collection.identifier
+              );
 
               return (
                 <div
                   key={collection.identifier}
                   className="border rounded-lg overflow-hidden"
                 >
-                  <button
-                    onClick={() => toggleCollection(collection.identifier)}
-                    className="w-full flex items-center gap-2 p-4 hover:bg-accent transition-colors text-left"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-5 w-5 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold">{collection.identifier}</h3>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {collection.source}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {collectionProfiles.length} profile{collectionProfiles.length !== 1 ? 's' : ''}
-                      </p>
+                  <div className="flex items-center group">
+                    <button
+                      onClick={() => toggleCollection(collection.identifier)}
+                      className="flex-1 flex items-center gap-2 p-4 hover:bg-accent transition-colors text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="h-5 w-5 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-5 w-5 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{collection.identifier}</h3>
+                          {collectionStatus && (
+                            <StatusBadge status={collectionStatus.status} />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {collection.source}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {collectionProfiles.length} profile{collectionProfiles.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2 px-4">
+                      {collectionStatus && (
+                        <UpdateButton
+                          status={collectionStatus.status}
+                          onUpdate={() => updateCollectionMutation.mutate({ identifier: collection.identifier })}
+                          isUpdating={updateCollectionMutation.isPending}
+                        />
+                      )}
+                      <button
+                        onClick={() => handleUnmountCollection(collection.identifier)}
+                        disabled={unmountCollectionMutation.isPending}
+                        className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-background rounded-md text-destructive transition-opacity disabled:opacity-50"
+                        title="Unmount collection"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                  </button>
+                  </div>
 
                   {isExpanded && collectionProfiles.length > 0 && (
                     <div className="border-t bg-muted/30">
                       <div className="p-2 space-y-1">
-                        {collectionProfiles.map((profile) => (
-                          <div
-                            key={profile.name}
-                            className="flex items-start gap-2 px-4 py-3 rounded-md hover:bg-accent transition-colors group"
-                          >
-                            <button
-                              onClick={() => setSelectedProfile(profile.name)}
-                              className="flex-1 text-left"
+                        {collectionProfiles.map((profile) => {
+                          const profileStatus = collectionStatus?.profiles.find(
+                            p => p.profileId === profile.name
+                          );
+
+                          return (
+                            <div
+                              key={profile.name}
+                              className="flex items-start gap-2 px-4 py-3 rounded-md hover:bg-accent transition-colors group"
                             >
-                              <div className="font-medium text-sm">{profile.name}</div>
-                              {profile.description && (
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  {profile.description}
+                              <button
+                                onClick={() => setSelectedProfile(profile.name)}
+                                className="flex-1 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium text-sm">{profile.name}</div>
+                                  {profileStatus && (
+                                    <StatusBadge status={profileStatus.status} />
+                                  )}
                                 </div>
-                              )}
-                            </button>
-                            {profile.source.startsWith('local/') && (
+                                {profile.description && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {profile.description}
+                                  </div>
+                                )}
+                              </button>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => handleEdit(profile.name)}
-                                  className="p-1.5 hover:bg-background rounded-md"
-                                  title="Edit profile"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(profile.name, profile.source)}
-                                  className="p-1.5 hover:bg-background rounded-md text-destructive"
-                                  title="Delete profile"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
+                                {profileStatus && (
+                                  <UpdateButton
+                                    status={profileStatus.status}
+                                    onUpdate={() => updateProfileMutation.mutate({
+                                      collectionId: collection.identifier,
+                                      profileName: profile.name
+                                    })}
+                                    isUpdating={updateProfileMutation.isPending}
+                                  />
+                                )}
+                                {profile.source.startsWith('local/') && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEdit(profile.name)}
+                                      className="p-1.5 hover:bg-background rounded-md"
+                                      title="Edit profile"
+                                    >
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDelete(profile.name, profile.source)}
+                                      className="p-1.5 hover:bg-background rounded-md text-destructive"
+                                      title="Delete profile"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -247,6 +349,14 @@ export function CollectionsWithProfiles() {
             hooks: editingProfile.hooks,
           }}
           mode="edit"
+        />
+      )}
+
+      {isAddingCollection && (
+        <CollectionForm
+          isOpen={isAddingCollection}
+          onClose={() => setIsAddingCollection(false)}
+          onSuccess={handleMountCollection}
         />
       )}
     </>

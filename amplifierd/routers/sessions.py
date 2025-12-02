@@ -9,6 +9,7 @@ Manages complete session lifecycle:
 
 import json
 import logging
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter
@@ -117,8 +118,11 @@ async def create_session(
                     detail=f"No profile specified and directory '{amplified_dir}' has no default_profile in metadata",
                 )
 
+        # Resolve absolute paths for session metadata
+        absolute_amplified_dir = str((Path(data_path) / amplified_dir).resolve())
+
         # Generate mount plan
-        mount_plan = mount_plan_service.generate_mount_plan(profile_name)
+        mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
 
         # Generate session ID
         import uuid
@@ -130,9 +134,6 @@ async def create_session(
             mount_plan["session"] = {}
         if "settings" not in mount_plan["session"]:
             mount_plan["session"]["settings"] = {}
-
-        # Resolve absolute paths for session metadata
-        absolute_amplified_dir = str((Path(data_path) / amplified_dir).resolve())
 
         mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
         mount_plan["session"]["settings"]["session_cwd"] = absolute_amplified_dir  # Starts same
@@ -706,8 +707,15 @@ async def change_session_profile(
             )
 
         # 2. Generate new mount plan
+        # Get absolute amplified_dir path from session metadata
+        from amplifier_library.config.loader import load_config
+
+        config = load_config()
+        data_path = Path(config.data_path)
+        absolute_amplified_dir = (data_path / metadata.amplified_dir).resolve()
+
         try:
-            new_mount_plan = mount_plan_service.generate_mount_plan(profile_name)
+            new_mount_plan = mount_plan_service.generate_mount_plan(profile_name, absolute_amplified_dir)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid profile '{profile_name}': {e}")
         except FileNotFoundError as e:

@@ -95,7 +95,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.return_value = mock_mount_plan
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "foundation/base"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "foundation/base", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert response
         assert response.status_code == 201
@@ -124,7 +126,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.side_effect = FileNotFoundError("Profile not found: nonexistent")
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "nonexistent"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "nonexistent", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert
         assert response.status_code == 404
@@ -136,7 +140,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.side_effect = ValueError("Invalid profile ID format")
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "invalid//format"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "invalid//format", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert
         assert response.status_code == 400
@@ -154,6 +160,7 @@ class TestMountPlansAPI:
             "/api/v1/mount-plans/generate",
             json={
                 "profile_id": "foundation/base",
+                "amplified_dir": "/tmp/test",
                 "settings_overrides": {"llm": {"model": "gpt-4", "temperature": 0.7}},
             },
         )
@@ -161,8 +168,10 @@ class TestMountPlansAPI:
         # Assert response
         assert response.status_code == 201
 
-        # Verify service was called with profile_id
-        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base")
+        # Verify service was called with profile_id and amplified_dir
+        from pathlib import Path
+
+        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base", Path("/tmp/test"))
 
     def test_generate_mount_plan_with_custom_session_id(
         self, client: TestClient, mock_mount_plan_service: Mock
@@ -186,7 +195,11 @@ class TestMountPlansAPI:
         # Make request with custom session ID
         response = client.post(
             "/api/v1/mount-plans/generate",
-            json={"profile_id": "foundation/base", "session_id": "my-custom-session-123"},
+            json={
+                "profile_id": "foundation/base",
+                "amplified_dir": "/tmp/test",
+                "session_id": "my-custom-session-123",
+            },
         )
 
         # Assert response
@@ -194,8 +207,10 @@ class TestMountPlansAPI:
         data = response.json()
         assert data["session"]["sessionId"] == "my-custom-session-123"
 
-        # Verify service was called with profile_id
-        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base")
+        # Verify service was called with profile_id and amplified_dir
+        from pathlib import Path
+
+        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base", Path("/tmp/test"))
 
     def test_generate_mount_plan_internal_error(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
         """Test POST /api/v1/mount-plans/generate returns 500 for unexpected errors."""
@@ -203,7 +218,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.side_effect = RuntimeError("Unexpected error")
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "foundation/base"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "foundation/base", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert
         assert response.status_code == 500
@@ -238,7 +255,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.return_value = empty_mount_plan
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "foundation/minimal"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "foundation/minimal", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert response
         assert response.status_code == 201
@@ -289,7 +308,9 @@ class TestMountPlansAPI:
         mock_mount_plan_service.generate_mount_plan.return_value = diverse_mount_plan
 
         # Make request
-        response = client.post("/api/v1/mount-plans/generate", json={"profile_id": "foundation/full"})
+        response = client.post(
+            "/api/v1/mount-plans/generate", json={"profile_id": "foundation/full", "amplified_dir": "/tmp/test"}
+        )
 
         # Assert response
         assert response.status_code == 201

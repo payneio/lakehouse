@@ -32,7 +32,13 @@ async def test_full_flow_from_mount_plan_to_session():
         pytest.skip("foundation/base profile not compiled - run collection sync first")
 
     service = MountPlanService(share_dir=share_dir)
-    mount_plan = service.generate_mount_plan("foundation/base")
+
+    # Create temporary amplified directory for testing
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        amplified_dir = Path(tmp_dir) / "test_amplified"
+        amplified_dir.mkdir()
+        mount_plan = service.generate_mount_plan("foundation/base", amplified_dir)
 
     print("\n1. Generated mount plan:")
     print(json.dumps(mount_plan, indent=2))
@@ -112,47 +118,53 @@ async def test_mount_plan_service_integration():
     # Generate mount plan for foundation/base profile
     profile_id = "foundation/base"
 
-    try:
-        mount_plan = service.generate_mount_plan(profile_id)
+    # Create temporary amplified directory for testing
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        amplified_dir = Path(tmp_dir) / "test_amplified"
+        amplified_dir.mkdir()
 
-        print("\n1. Mount plan generated successfully")
-        print(f"   Mount plan keys: {mount_plan.keys()}")
+        try:
+            mount_plan = service.generate_mount_plan(profile_id, amplified_dir)
 
-        # mount_plan is now a dict
-        if "session" in mount_plan:
-            print("   Session config present")
+            print("\n1. Mount plan generated successfully")
+            print(f"   Mount plan keys: {mount_plan.keys()}")
 
-        # Check orchestrator
-        orchestrator = mount_plan.get("session", {}).get("orchestrator")
-        if orchestrator:
-            print("\n2. Orchestrator config:")
-            print(f"   Module: {orchestrator.get('module')}")
-            print(f"   Source: {orchestrator.get('source')}")
-            # Source is now a profile hint like "foundation/base", not a file:// URL
+            # mount_plan is now a dict
+            if "session" in mount_plan:
+                print("   Session config present")
 
-        # Note: With the new resolver-based system, mount plans use profile hints
-        # (e.g., "foundation/base") instead of file:// URLs. The DaemonModuleSourceResolver
-        # handles resolving these to actual file paths at session creation time.
+            # Check orchestrator
+            orchestrator = mount_plan.get("session", {}).get("orchestrator")
+            if orchestrator:
+                print("\n2. Orchestrator config:")
+                print(f"   Module: {orchestrator.get('module')}")
+                print(f"   Source: {orchestrator.get('source')}")
+                # Source is now a profile hint like "foundation/base", not a file:// URL
 
-        print("\n3. New mount plan format uses profile hints, not file:// URLs")
-        print("   Module resolution happens via DaemonModuleSourceResolver at session creation")
+            # Note: With the new resolver-based system, mount plans use profile hints
+            # (e.g., "foundation/base") instead of file:// URLs. The DaemonModuleSourceResolver
+            # handles resolving these to actual file paths at session creation time.
 
-        # This test verified the old file:// URL system, which is being replaced
-        print("\n✓ Mount plan generation successful with new dict-based format")
+            print("\n3. New mount plan format uses profile hints, not file:// URLs")
+            print("   Module resolution happens via DaemonModuleSourceResolver at session creation")
 
-        if not orchestrator:
-            pytest.fail("No orchestrator in mount plan")
+            # This test verified the old file:// URL system, which is being replaced
+            print("\n✓ Mount plan generation successful with new dict-based format")
 
-        module_id = orchestrator.get("module")
-        if not module_id:
-            pytest.fail("No module ID in orchestrator config")
+            if not orchestrator:
+                pytest.fail("No orchestrator in mount plan")
 
-        print("\n4. Module loading is now handled by AmplifierSession with resolver")
-        print(f"   Module ID: {module_id}")
-        print(f"   Source hint: {orchestrator.get('source')}")
+            module_id = orchestrator.get("module")
+            if not module_id:
+                pytest.fail("No module ID in orchestrator config")
 
-    except Exception as e:
-        pytest.fail(f"Test failed: {e}")
+            print("\n4. Module loading is now handled by AmplifierSession with resolver")
+            print(f"   Module ID: {module_id}")
+            print(f"   Source hint: {orchestrator.get('source')}")
+
+        except Exception as e:
+            pytest.fail(f"Test failed: {e}")
 
 
 if __name__ == "__main__":

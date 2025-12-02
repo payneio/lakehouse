@@ -61,7 +61,9 @@ async def generate_mount_plan(
         ```
     """
     try:
-        mount_plan_dict = service.generate_mount_plan(request.profile_id)
+        from pathlib import Path
+
+        mount_plan_dict = service.generate_mount_plan(request.profile_id, Path(request.amplified_dir))
         # Convert dict to MountPlan model for API response
         # For now, return the dict directly since we're transitioning to dict-based plans
         return mount_plan_dict  # type: ignore[return-value]

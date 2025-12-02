@@ -279,6 +279,7 @@ class MountPlanRequest(CamelCaseModel):
 
     Attributes:
         profile_id: ID of the cached profile to use
+        amplified_dir: Absolute path to amplified directory (for @mention resolution)
         session_id: Optional explicit session ID (generated if not provided)
         parent_session_id: Parent session for sub-sessions/delegation
         settings_overrides: Session-specific settings that override profile defaults
@@ -287,12 +288,14 @@ class MountPlanRequest(CamelCaseModel):
     Example:
         >>> request = MountPlanRequest(
         ...     profile_id="foundation.base",
+        ...     amplified_dir="/data/projects/my-project",
         ...     session_id="sess_abc123",
         ...     settings_overrides={"max_turns": 20, "streaming": False}
         ... )
     """
 
     profile_id: str = Field(description="Profile ID to generate mount plan from")
+    amplified_dir: str = Field(description="Absolute path to amplified directory (for @mention resolution)")
     session_id: str | None = Field(
         default=None,
         description="Explicit session ID (auto-generated if not provided)",

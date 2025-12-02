@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from amplifierd.services.mention_loader import MentionLoader
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +31,7 @@ class MountPlanService:
         self.share_dir = Path(share_dir)
         logger.info(f"MountPlanService initialized with share_dir={self.share_dir}")
 
-    def generate_mount_plan(self, profile_id: str) -> dict[str, Any]:
+    def generate_mount_plan(self, profile_id: str, amplified_dir: Path) -> dict[str, Any]:
         """Generate mount plan from profile frontmatter.
 
         Reads profile.md YAML frontmatter and transforms it into dict-based mount plan
@@ -37,9 +39,10 @@ class MountPlanService:
 
         Args:
             profile_id: Profile ID in format "collection/profile" (e.g., "foundation/base")
+            amplified_dir: Absolute path to amplified directory (for AGENTS.md and @path resolution)
 
         Returns:
-            Dict mount plan with session, providers, tools, hooks, agents sections
+            Dict mount plan with session, providers, tools, hooks, agents, context_messages sections
 
         Raises:
             ValueError: If profile_id format is invalid
@@ -83,11 +86,78 @@ class MountPlanService:
         # Parse YAML frontmatter from profile.md
         frontmatter = self._parse_frontmatter(registry_profile_path)
 
+        # Load context messages with @mention resolution
+        context_messages = self._load_context_messages(profile_id, amplified_dir)
+
         # Transform to mount plan dict
         mount_plan = self._transform_to_mount_plan(frontmatter, profile_id, agents_dict)
 
+        # Add context messages to mount plan
+        if context_messages:
+            mount_plan["context_messages"] = context_messages
+            logger.info(f"Added {len(context_messages)} context messages to mount plan")
+
         logger.info(f"Generated mount plan for {profile_id} with {len(agents_dict)} agents")
         return mount_plan
+
+    def _load_context_messages(self, profile_id: str, amplified_dir: Path) -> list[dict[str, Any]]:
+        """Load and resolve @mentions from profile instruction and AGENTS.md.
+
+        Args:
+            profile_id: Profile ID (collection/profile)
+            amplified_dir: Absolute path to amplified directory
+
+        Returns:
+            List of message dicts with role="developer" and resolved content
+
+        Process:
+        1. Load profile instruction (markdown body)
+        2. Resolve @mentions in instruction (relative to profile dir)
+        3. Load .amplified/AGENTS.md if exists
+        4. Resolve @mentions in AGENTS.md (relative to .amplified/)
+        5. Return combined list of ContextMessage dicts
+        """
+        collection_id, profile_name = profile_id.split("/")
+        profile_dir = self.share_dir / "profiles" / collection_id / profile_name
+
+        # Create mention loader
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=amplified_dir)
+
+        context_messages = []
+
+        # Load profile instruction
+        profile_md = profile_dir / f"{profile_name}.md"
+        if profile_md.exists():
+            content = profile_md.read_text(encoding="utf-8")
+
+            # Extract body after frontmatter
+            if content.startswith("---\n"):
+                end_idx = content.find("\n---\n", 4)
+                if end_idx != -1:
+                    body = content[end_idx + 5 :].strip()
+
+                    if body:
+                        # Resolve @mentions recursively
+                        messages = loader.load_mentions(text=body, relative_to=profile_md.parent)
+                        context_messages.extend(messages)
+                        logger.info(f"Loaded {len(messages)} context messages from profile instruction")
+        else:
+            logger.warning(f"Profile markdown not found: {profile_md}")
+
+        # Load .amplified/AGENTS.md if exists
+        agents_md = amplified_dir / ".amplified" / "AGENTS.md"
+        if agents_md.exists():
+            content = agents_md.read_text(encoding="utf-8")
+
+            # Resolve @mentions recursively
+            messages = loader.load_mentions(text=content, relative_to=agents_md.parent)
+            context_messages.extend(messages)
+            logger.info(f"Loaded {len(messages)} context messages from AGENTS.md")
+        else:
+            logger.debug(f"AGENTS.md not found at {agents_md}")
+
+        # Convert ContextMessage objects to dicts for JSON serialization
+        return [msg.model_dump() for msg in context_messages]
 
     def _parse_frontmatter(self, profile_path: Path) -> dict[str, Any]:
         """Parse YAML frontmatter from profile.md.
