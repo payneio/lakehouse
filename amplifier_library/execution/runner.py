@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from ..models import Session
+from ..sessions.manager import SessionManager
 from ..sessions.state import add_message
 
 if TYPE_CHECKING:
@@ -46,24 +47,58 @@ class ExecutionRunner:
 
     def __init__(
         self: "ExecutionRunner",
+        session_manager: SessionManager,
         config: dict[str, Any],
         session_id: str,
     ) -> None:
         """Initialize execution runner.
 
         Args:
+            session_manager: Session manager for loading transcript history
             config: Amplifier configuration dictionary
             session_id: Session identifier (stored separately for continuity)
         """
+        self.session_manager = session_manager
         self.config = config
         self._session_id = session_id
         self._session: AmplifierSession | None = None
         self._execution_lock = asyncio.Lock()
 
+    async def _load_transcript_history(self: "ExecutionRunner") -> list[dict[str, Any]]:
+        """Load historical messages from transcript, excluding current message.
+
+        Returns:
+            List of message dicts in format {"role": str, "content": str}
+            Empty list if no transcript exists or on error.
+
+        Notes:
+            Excludes the most recent message (already added to session state in execute_stream).
+        """
+        try:
+            # Get all messages from storage
+            messages = self.session_manager.get_transcript(self._session_id)
+
+            # Convert SessionMessage objects to dict format for context
+            # Exclude the last message (current user message already in state)
+            if messages and len(messages) > 1:
+                # Return all but the last message
+                return [{"role": msg.role, "content": msg.content} for msg in messages[:-1]]
+            return []
+
+        except FileNotFoundError:
+            # Fresh session, no history
+            logger.debug(f"No transcript found for session {self._session_id} (fresh session)")
+            return []
+        except Exception as e:
+            # Log but don't fail - continue with empty context
+            logger.warning(f"Failed to load transcript for session {self._session_id}: {e}")
+            return []
+
     async def _ensure_session(self: "ExecutionRunner") -> None:
         """Ensure AmplifierSession exists and is initialized.
 
         Creates and initializes the AmplifierSession if it doesn't exist.
+        Loads conversation history from transcript into context.
         Idempotent - safe to call multiple times.
         """
         if self._session is not None:
@@ -91,6 +126,20 @@ class ExecutionRunner:
         # Initialize
         await self._session.initialize()
         logger.info(f"Initialized AmplifierSession for {self._session_id}")
+
+        # Load transcript history into context
+        historical_messages = await self._load_transcript_history()
+        if historical_messages:
+            context = self._session.coordinator.get("context")
+            if context:
+                logger.info(f"Loading {len(historical_messages)} historical messages into context")
+                for msg in historical_messages:
+                    await context.add_message(msg)
+                logger.debug(f"Context initialized with {len(historical_messages)} historical messages")
+            else:
+                logger.warning("No context module found - cannot load transcript history")
+        else:
+            logger.debug("No historical messages to load (fresh session or empty transcript)")
 
     async def execute(
         self: "ExecutionRunner",
