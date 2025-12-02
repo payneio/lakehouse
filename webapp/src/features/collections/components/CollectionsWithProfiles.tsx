@@ -136,7 +136,7 @@ export function CollectionsWithProfiles() {
           <div className="flex gap-2">
             <button
               onClick={() => setIsAddingCollection(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent"
             >
               <Plus className="h-4 w-4" />
               Add Collection
@@ -219,14 +219,16 @@ export function CollectionsWithProfiles() {
                           isUpdating={updateCollectionMutation.isPending}
                         />
                       )}
-                      <button
-                        onClick={() => handleUnmountCollection(collection.identifier)}
-                        disabled={unmountCollectionMutation.isPending}
-                        className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-background rounded-md text-destructive transition-opacity disabled:opacity-50"
-                        title="Unmount collection"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {collection.identifier !== 'local' && (
+                        <button
+                          onClick={() => handleUnmountCollection(collection.identifier)}
+                          disabled={unmountCollectionMutation.isPending}
+                          className="p-1.5 hover:bg-accent rounded-md text-destructive disabled:opacity-50"
+                          title="Unmount collection"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -259,7 +261,7 @@ export function CollectionsWithProfiles() {
                                   </div>
                                 )}
                               </button>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-1">
                                 {profileStatus && (
                                   <UpdateButton
                                     status={profileStatus.status}
