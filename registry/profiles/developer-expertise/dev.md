@@ -48,8 +48,13 @@ hooks:
 - module: hooks-status-context
   source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/hooks/hooks-status-context
   config:
-    include_datetime: true
     datetime_include_timezone: false
+    git_include_branch: true
+    git_include_commits: 5
+    git_include_main_branch: true
+    git_include_status: true
+    include_datetime: true
+    include_git: true
 - module: hooks-redaction
   source: git+https://github.com/microsoft/amplifier-module-hooks-redaction@main
   config:
@@ -70,13 +75,6 @@ hooks:
     priority: 10
 - module: hooks-streaming-ui
   source: git+https://github.com/microsoft/amplifier-module-hooks-streaming-ui@main
-- module: hooks-status-context
-  config:
-    include_git: true
-    git_include_status: true
-    git_include_commits: 5
-    git_include_branch: true
-    git_include_main_branch: true
 agents:
   bug-hunter: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/bug-hunter.md
   explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
