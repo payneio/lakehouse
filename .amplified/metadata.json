@@ -1,4 +1,5 @@
 {
   "name": "amplifierd",
-  "default_profile": "developer-expertise/dev"
+  "default_profile": "developer-expertise/dev",
+  "description": "The Amplifier UX"
 }
