@@ -1,15 +1,9 @@
 import { cn } from '@/lib/utils';
 import { FolderOpen, Home, Package } from 'lucide-react';
-import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
+import { DirectoryTreeSidebar } from '@/features/directories/components/DirectoryTreeSidebar';
 
 export function MainLayout() {
-  const [directoriesUrl] = useState(() => {
-    // Read last Directories URL from sessionStorage on mount
-    const lastUrl = sessionStorage.getItem('lastDirectoriesUrl');
-    return lastUrl || '/directories';
-  });
-
   return (
     <div className="flex h-screen">
       <aside
@@ -26,7 +20,7 @@ export function MainLayout() {
         <div className="p-4">
           <h1 className="text-xl font-bold">Amplifier</h1>
         </div>
-        <nav className="flex-1 p-4">
+        <nav className="p-4">
           <ul className="space-y-2">
             <li>
               <NavLink
@@ -58,7 +52,7 @@ export function MainLayout() {
             </li>
             <li>
               <NavLink
-                to={directoriesUrl}
+                to="/directories"
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
@@ -72,6 +66,7 @@ export function MainLayout() {
             </li>
           </ul>
         </nav>
+        <DirectoryTreeSidebar />
       </aside>
 
       <main className="flex-1 overflow-auto">

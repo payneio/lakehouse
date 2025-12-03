@@ -1,22 +1,48 @@
 import type { AmplifiedDirectoryCreate } from '@/types/api';
 import { Plus } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDirectories } from '../hooks/useDirectories';
 import { CreateDirectoryDialog } from './CreateDirectoryDialog';
 import { TreeNode } from './TreeNode';
 import { buildDirectoryTree } from '../utils/treeUtils';
 import type { TreeNode as TreeNodeType } from '../utils/treeUtils';
 
+const STORAGE_KEY = 'amplifier_expanded_directories';
+
 interface DirectoriesListProps {
   onSelectDirectory: (path: string) => void;
   selectedPath?: string;
+  compact?: boolean;
 }
 
-export function DirectoriesList({ onSelectDirectory, selectedPath }: DirectoriesListProps) {
+export function DirectoriesList({ onSelectDirectory, selectedPath, compact = false }: DirectoriesListProps) {
   const { directories, isLoading, createDirectory } = useDirectories();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+
+  // Initialize expandedPaths from sessionStorage
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const pathsArray = JSON.parse(stored) as string[];
+        return new Set(pathsArray);
+      }
+    } catch (err) {
+      console.error('Failed to load expanded paths from sessionStorage:', err);
+    }
+    return new Set();
+  });
+
+  // Save expandedPaths to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      const pathsArray = Array.from(expandedPaths);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pathsArray));
+    } catch (err) {
+      console.error('Failed to save expanded paths to sessionStorage:', err);
+    }
+  }, [expandedPaths]);
 
   const tree = useMemo(() => {
     const baseTree = buildDirectoryTree(directories);
@@ -61,6 +87,32 @@ export function DirectoriesList({ onSelectDirectory, selectedPath }: Directories
     return <div className="text-muted-foreground">Loading projects...</div>;
   }
 
+  // Compact mode: just render the tree without header
+  if (compact) {
+    return (
+      <>
+        {directories.length === 0 ? (
+          <div className="text-muted-foreground text-center py-4 text-sm">
+            No projects found
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {tree.map((node) => (
+              <TreeNode
+                key={node.fullPath}
+                node={node}
+                selectedPath={selectedPath || null}
+                onToggle={handleToggle}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Full mode: render with header and create button
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

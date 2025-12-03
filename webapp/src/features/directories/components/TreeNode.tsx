@@ -71,13 +71,6 @@ export function TreeNode({ node, selectedPath, onToggle, onSelect }: TreeNodePro
         <span className={`flex-1 ${isIntermediate ? "font-normal" : "font-medium"}`}>
           {node.name}
         </span>
-
-        {/* Profile badge for amplified directories */}
-        {isAmplified && node.directory?.default_profile && (
-          <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
-            {node.directory.default_profile}
-          </span>
-        )}
       </div>
 
       {/* Render children if expanded */}

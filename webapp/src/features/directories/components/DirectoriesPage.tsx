@@ -1,34 +1,29 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
-import { DirectoriesList } from './DirectoriesList';
+import { useSearchParams } from 'react-router-dom';
+import { ChevronLeft, Plus } from 'lucide-react';
 import { SessionsList } from './SessionsList';
 import { DirectoryDetailsPanel } from './DirectoryDetailsPanel';
 import { EditDirectoryDialog } from './EditDirectoryDialog';
+import { CreateDirectoryDialog } from './CreateDirectoryDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useDirectories } from '../hooks/useDirectories';
 import * as api from '@/api';
-import type { AmplifiedDirectory } from '@/types/api';
+import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from '@/types/api';
 
 export function DirectoriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
   const selectedPath = searchParams.get('path') || undefined;
 
   const [showDetails, setShowDetails] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedDirectory, setSelectedDirectory] = useState<AmplifiedDirectory | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
-  const { updateDirectory, deleteDirectory } = useDirectories();
-
-  // Save current URL to sessionStorage for nav link persistence
-  useEffect(() => {
-    const fullPath = location.pathname + location.search;
-    sessionStorage.setItem('lastDirectoriesUrl', fullPath);
-  }, [location]);
+  const { updateDirectory, deleteDirectory, createDirectory } = useDirectories();
 
   // Fetch directory details when showing details
   useEffect(() => {
@@ -62,10 +57,6 @@ export function DirectoriesPage() {
     };
   }, [selectedPath, showDetails]);
 
-  const handleSelectDirectory = (path: string) => {
-    setSearchParams({ path });
-    setShowDetails(false);
-  };
 
   const handleViewDetails = () => {
     setSelectedDirectory(null); // Clear stale data before fetching fresh details
@@ -136,61 +127,88 @@ export function DirectoriesPage() {
     }
   };
 
+  const handleCreateDirectory = async (data: AmplifiedDirectoryCreate) => {
+    setCreateError(null);
+    try {
+      await createDirectory.mutateAsync(data);
+      setShowCreateDialog(false);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create directory');
+    }
+  };
+
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Projects</h1>
-        <p className="text-muted-foreground">
-          Projects are "amplified directories". Browse projects and manage chat sessions
-        </p>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-8">
-        <DirectoriesList
-          onSelectDirectory={handleSelectDirectory}
-          selectedPath={selectedPath}
-        />
-
-        {selectedPath && (
-          <div className="space-y-4">
-            {showDetails ? (
-              isFetchingDetails ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="text-muted-foreground">Loading details...</div>
-                </div>
-              ) : selectedDirectory ? (
-                <>
-                  <button
-                    onClick={handleBackToSessions}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Back to Sessions
-                  </button>
-                  <DirectoryDetailsPanel
-                    directory={selectedDirectory}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                </>
-              ) : null
-            ) : (
+    <div className="container mx-auto p-6">
+      {selectedPath ? (
+        <div className="space-y-4">
+          {showDetails ? (
+            isFetchingDetails ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="text-muted-foreground">Loading details...</div>
+              </div>
+            ) : selectedDirectory ? (
               <>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-bold">Sessions</h2>
-                  <button
-                    onClick={handleViewDetails}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    View Details
-                  </button>
-                </div>
-                <SessionsList directoryPath={selectedPath} />
+                <button
+                  onClick={handleBackToSessions}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back to Sessions
+                </button>
+                <DirectoryDetailsPanel
+                  directory={selectedDirectory}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
               </>
-            )}
+            ) : null
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold">Sessions</h2>
+                <button
+                  onClick={handleViewDetails}
+                  className="text-sm text-primary hover:underline"
+                >
+                  View Details
+                </button>
+              </div>
+              <SessionsList directoryPath={selectedPath} />
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center py-12 space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Projects Dashboard</h1>
+              <p className="text-muted-foreground">
+                Manage your amplified directories and chat sessions
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowCreateDialog(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 font-medium"
+              >
+                <Plus className="h-5 w-5" />
+                Add Project
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      <CreateDirectoryDialog
+        open={showCreateDialog}
+        onClose={() => {
+          setShowCreateDialog(false);
+          setCreateError(null);
+        }}
+        onSubmit={handleCreateDirectory}
+        isLoading={createDirectory.isPending}
+        error={createError || undefined}
+      />
 
       <EditDirectoryDialog
         open={showEditDialog}

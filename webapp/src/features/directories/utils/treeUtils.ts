@@ -48,11 +48,20 @@ export function buildDirectoryTree(directories: AmplifiedDirectory[]): TreeNode[
     }
   }
 
-  // Sort children alphabetically
+  // Sort children by display name (metadata.name or path segment)
   function sortChildren(node: TreeNode): void {
-    node.children.sort((a, b) => a.name.localeCompare(b.name));
+    node.children.sort((a, b) => {
+      const aName = (a.directory?.metadata?.name as string) || a.name;
+      const bName = (b.directory?.metadata?.name as string) || b.name;
+      return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+    });
     node.children.forEach(sortChildren);
   }
+  roots.sort((a, b) => {
+    const aName = (a.directory?.metadata?.name as string) || a.name;
+    const bName = (b.directory?.metadata?.name as string) || b.name;
+    return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+  });
   roots.forEach(sortChildren);
 
   return roots;
