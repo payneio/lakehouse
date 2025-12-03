@@ -45,7 +45,7 @@ hooks:
     source: "git+https://github.com/example/hook1.git"
 
 agents:
-  - "git+https://github.com/example/agent1.git"
+  agent1: "git+https://github.com/example/agent1.git"
 
 context:
   ctx1: "git+https://github.com/example/context1.git"
@@ -81,7 +81,7 @@ version: "1.0.0"
 providers: []
 tools: []
 hooks: []
-agents: []
+agents: {}
 context: {}
 ---
 
@@ -139,8 +139,8 @@ tools:
     source: "git+https://github.com/example/tool2.git"
 
 agents:
-  - "git+https://github.com/example/agent1.git"
-  - "git+https://github.com/example/agent2.git"
+  agent1: "git+https://github.com/example/agent1.git"
+  agent2: "git+https://github.com/example/agent2.git"
 
 context:
   ctx1: "git+https://github.com/example/context1.git"

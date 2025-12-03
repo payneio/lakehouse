@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
-
 from amplifier_library.storage.paths import get_cache_dir
 from amplifier_library.storage.paths import get_state_dir
+
 from amplifierd.models.collections import CollectionInfo
 from amplifierd.models.collections import ComponentRefsResponse
 
@@ -776,23 +776,37 @@ class CollectionService:
                             name = hook.get("module", "hook")
                             refs["hooks"].append(ComponentRef(profile=profile_identifier, name=name, uri=source))
 
-                    # Extract agents (dict of name -> uri)
-                    agents_dict = data.get("agents", {})
-                    if isinstance(agents_dict, dict):
-                        for agent_name, agent_uri in agents_dict.items():
-                            if isinstance(agent_uri, str):
-                                refs["agents"].append(
-                                    ComponentRef(profile=profile_identifier, name=agent_name, uri=agent_uri)
-                                )
+                    # Extract agents (dict format only: {name: uri})
+                    agents_data = data.get("agents", {})
+                    if not isinstance(agents_data, dict):
+                        logger.error(
+                            f"Invalid agents format in {profile_identifier}: "
+                            f"expected dict {{name: uri}}, got {type(agents_data).__name__}. "
+                            "See docs/01-concepts/profiles.md for correct format."
+                        )
+                        agents_data = {}
 
-                    # Extract contexts (dict of name -> uri)
-                    context_dict = data.get("context", {})
-                    if isinstance(context_dict, dict):
-                        for context_name, context_uri in context_dict.items():
-                            if isinstance(context_uri, str):
-                                refs["contexts"].append(
-                                    ComponentRef(profile=profile_identifier, name=context_name, uri=context_uri)
-                                )
+                    for agent_name, agent_uri in agents_data.items():
+                        if isinstance(agent_uri, str):
+                            refs["agents"].append(
+                                ComponentRef(profile=profile_identifier, name=agent_name, uri=agent_uri)
+                            )
+
+                    # Extract contexts (dict format only: {name: uri})
+                    contexts_data = data.get("context", {})
+                    if not isinstance(contexts_data, dict):
+                        logger.error(
+                            f"Invalid context format in {profile_identifier}: "
+                            f"expected dict {{name: uri}}, got {type(contexts_data).__name__}. "
+                            "See docs/01-concepts/profiles.md for correct format."
+                        )
+                        contexts_data = {}
+
+                    for context_name, context_uri in contexts_data.items():
+                        if isinstance(context_uri, str):
+                            refs["contexts"].append(
+                                ComponentRef(profile=profile_identifier, name=context_name, uri=context_uri)
+                            )
 
                 except Exception as e:
                     logger.warning(f"Failed to parse profile {profile_identifier}: {e}")
