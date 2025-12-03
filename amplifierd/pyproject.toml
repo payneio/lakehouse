@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "amplifierd"
 version = "0.1.0"
@@ -20,6 +24,9 @@ dependencies = [
     "aiohttp>=3.13.2",
     "anthropic>=0.75.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["amplifierd*", "amplifier_library*"]
 
 [tool.uv.workspace]
 # Add all projects in the workspace

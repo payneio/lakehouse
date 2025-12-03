@@ -1,6 +1,7 @@
 .PHONY: help dev test lint typecheck check build clean install
 .PHONY: daemon-dev daemon-test daemon-lint daemon-typecheck daemon-check daemon-install daemon-clean
 .PHONY: webapp-dev webapp-test webapp-lint webapp-typecheck webapp-check webapp-build webapp-install webapp-clean
+.PHONY: notebooks-install notebooks-run notebooks-clean
 
 # Default target
 help:
@@ -34,6 +35,11 @@ help:
 	@echo "  webapp-build     - Build webapp for production"
 	@echo "  webapp-install   - Install webapp dependencies"
 	@echo "  webapp-clean     - Clean webapp build artifacts"
+	@echo ""
+	@echo "Notebooks-specific targets:"
+	@echo "  notebooks-install - Install notebook dependencies"
+	@echo "  notebooks-run     - Start Jupyter notebook server"
+	@echo "  notebooks-clean   - Clean notebook build artifacts"
 
 #
 # Combined targets
@@ -63,10 +69,10 @@ check: lint typecheck test
 build: webapp-build
 	@echo "All build artifacts created"
 
-clean: daemon-clean webapp-clean
+clean: daemon-clean webapp-clean notebooks-clean
 	@echo "All build artifacts cleaned"
 
-install: daemon-install webapp-install
+install: daemon-install webapp-install notebooks-install
 	@echo "All dependencies installed"
 
 #
@@ -143,3 +149,24 @@ webapp-install:
 webapp-clean:
 	@echo "Cleaning webapp build artifacts..."
 	cd webapp && rm -rf dist build .next node_modules/.cache
+
+#
+# Notebooks-specific targets
+#
+
+notebooks-install:
+	@echo "Installing notebook dependencies..."
+	cd notebooks && uv sync
+
+notebooks-run:
+	@echo "Starting Jupyter notebook server..."
+	@echo "Make sure to activate the notebook environment first:"
+	@echo "  cd notebooks && source .venv/bin/activate && jupyter notebook"
+	@echo "Or run from project root:"
+	cd notebooks && source .venv/bin/activate && jupyter notebook
+
+notebooks-clean:
+	@echo "Cleaning notebook build artifacts..."
+	cd notebooks && rm -rf __pycache__ .ipynb_checkpoints .pytest_cache
+	cd notebooks && find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	cd notebooks && find . -type d -name ".ipynb_checkpoints" -exec rm -rf {} + 2>/dev/null || true
