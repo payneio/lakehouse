@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { SessionsList } from './SessionsList';
 import { DirectoryDetailsPanel } from './DirectoryDetailsPanel';
 import { EditDirectoryDialog } from './EditDirectoryDialog';
@@ -14,7 +14,6 @@ export function DirectoriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedPath = searchParams.get('path') || undefined;
 
-  const [showDetails, setShowDetails] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -25,11 +24,11 @@ export function DirectoriesPage() {
 
   const { updateDirectory, deleteDirectory, createDirectory } = useDirectories();
 
-  // Fetch directory details when showing details
+  // Fetch directory details when path is selected
   useEffect(() => {
     let cancelled = false;
 
-    if (selectedPath && showDetails) {
+    if (selectedPath) {
       const fetchDetails = async () => {
         setIsFetchingDetails(true);
         try {
@@ -40,7 +39,6 @@ export function DirectoriesPage() {
         } catch (err) {
           if (!cancelled) {
             console.error('Failed to fetch directory details:', err);
-            setShowDetails(false);
           }
         } finally {
           if (!cancelled) {
@@ -50,22 +48,14 @@ export function DirectoriesPage() {
       };
 
       void fetchDetails();
+    } else {
+      setSelectedDirectory(null);
     }
 
     return () => {
       cancelled = true;
     };
-  }, [selectedPath, showDetails]);
-
-
-  const handleViewDetails = () => {
-    setSelectedDirectory(null); // Clear stale data before fetching fresh details
-    setShowDetails(true);
-  };
-
-  const handleBackToSessions = () => {
-    setShowDetails(false);
-  };
+  }, [selectedPath]);
 
   const handleEdit = () => {
     setShowEditDialog(true);
@@ -140,42 +130,29 @@ export function DirectoriesPage() {
   return (
     <div className="container mx-auto p-6">
       {selectedPath ? (
-        <div className="space-y-4">
-          {showDetails ? (
-            isFetchingDetails ? (
-              <div className="flex items-center justify-center p-8">
-                <div className="text-muted-foreground">Loading details...</div>
-              </div>
-            ) : selectedDirectory ? (
-              <>
-                <button
-                  onClick={handleBackToSessions}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Back to Sessions
-                </button>
+        <div className="space-y-8">
+          {isFetchingDetails ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="text-muted-foreground">Loading project details...</div>
+            </div>
+          ) : selectedDirectory ? (
+            <>
+              {/* Project Details Section */}
+              <div>
                 <DirectoryDetailsPanel
                   directory={selectedDirectory}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
-              </>
-            ) : null
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold">Sessions</h2>
-                <button
-                  onClick={handleViewDetails}
-                  className="text-sm text-primary hover:underline"
-                >
-                  View Details
-                </button>
               </div>
-              <SessionsList directoryPath={selectedPath} />
+
+              {/* Sessions Section */}
+              <div>
+                <h2 className="text-xl font-bold mb-4">Sessions</h2>
+                <SessionsList directoryPath={selectedPath} />
+              </div>
             </>
-          )}
+          ) : null}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto">
