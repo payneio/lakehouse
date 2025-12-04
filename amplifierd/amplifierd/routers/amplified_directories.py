@@ -4,11 +4,11 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
+from amplifier_library.config.loader import load_config
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 
-from amplifier_library.config.loader import load_config
 from amplifierd.models.amplified_directories import AgentsContentResponse
 from amplifierd.models.amplified_directories import AgentsContentUpdate
 from amplifierd.models.amplified_directories import AmplifiedDirectory
@@ -180,6 +180,56 @@ async def update_amplified_directory(
     except Exception as e:
         logger.error(f"Failed to update amplified directory {relative_path}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.put("/root/agents", response_model=AgentsContentResponse)
+async def update_root_agents_content(
+    update_req: AgentsContentUpdate,
+    service: AmplifiedDirectoryService = Depends(get_service),
+) -> AgentsContentResponse:
+    """Update AGENTS.md file for root amplified directory (special endpoint for path '.').
+
+    FastAPI has issues routing '.' in paths, so we provide /root/agents as an explicit route.
+
+    Args:
+        update_req: New content for AGENTS.md
+        service: Injected service instance
+
+    Returns:
+        Success status and message
+
+    Raises:
+        404: Root directory not amplified
+        400: Invalid content (empty)
+        500: File write failed
+    """
+    try:
+        # Basic validation
+        if not update_req.content.strip():
+            raise HTTPException(status_code=400, detail="AGENTS.md content cannot be empty")
+
+        # Update agents file for root directory
+        success = service.update_agents_content(".", update_req.content)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Root directory not amplified",
+            )
+
+        return AgentsContentResponse(
+            success=True,
+            message="AGENTS.md updated successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update AGENTS.md for root directory: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update AGENTS.md: {str(e)}",
+        ) from e
 
 
 @router.put("/{relative_path:path}/agents", response_model=AgentsContentResponse)

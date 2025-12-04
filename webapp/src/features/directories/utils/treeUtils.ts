@@ -11,6 +11,12 @@ export interface TreeNode {
 
 export function buildDirectoryTree(directories: AmplifiedDirectory[]): TreeNode[] {
   const nodeMap = new Map<string, TreeNode>();
+  const dirMap = new Map<string, AmplifiedDirectory>();
+
+  // Index directories by path for lookup
+  for (const dir of directories) {
+    dirMap.set(dir.relative_path, dir);
+  }
 
   // Create all nodes first
   for (const dir of directories) {
@@ -20,8 +26,12 @@ export function buildDirectoryTree(directories: AmplifiedDirectory[]): TreeNode[
       const path = segments.slice(0, i + 1).join("/");
 
       if (!nodeMap.has(path)) {
+        const matchingDir = dirMap.get(path);
+        const segment = segments[i];
+        const displayName = matchingDir?.metadata?.name || (segment === "." ? "Root" : segment);
+
         nodeMap.set(path, {
-          name: segments[i],
+          name: displayName,
           fullPath: path,
           directory: i === segments.length - 1 ? dir : null,
           children: [],
@@ -48,20 +58,25 @@ export function buildDirectoryTree(directories: AmplifiedDirectory[]): TreeNode[
     }
   }
 
-  // Sort children by display name (metadata.name or path segment)
+  // Sort with root projects first, then alphabetically
+  function sortNodes(a: TreeNode, b: TreeNode): number {
+    const aIsRoot = a.directory?.relative_path === ".";
+    const bIsRoot = b.directory?.relative_path === ".";
+
+    // Root always comes first
+    if (aIsRoot && !bIsRoot) return -1;
+    if (!aIsRoot && bIsRoot) return 1;
+
+    // Otherwise alphabetical by display name
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  }
+
   function sortChildren(node: TreeNode): void {
-    node.children.sort((a, b) => {
-      const aName = (a.directory?.metadata?.name as string) || a.name;
-      const bName = (b.directory?.metadata?.name as string) || b.name;
-      return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
-    });
+    node.children.sort(sortNodes);
     node.children.forEach(sortChildren);
   }
-  roots.sort((a, b) => {
-    const aName = (a.directory?.metadata?.name as string) || a.name;
-    const bName = (b.directory?.metadata?.name as string) || b.name;
-    return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
-  });
+
+  roots.sort(sortNodes);
   roots.forEach(sortChildren);
 
   return roots;
