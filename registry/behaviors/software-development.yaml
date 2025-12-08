@@ -3,16 +3,10 @@ behavior:
   version: 1.2.0
   description: Software development
   requires:
+    - command-line
+    - filesystem
     - task-management
-tools:
-- module: tool-web
-  source: git+https://github.com/microsoft/amplifier-module-tool-web@main
-- module: tool-search
-  source: git+https://github.com/microsoft/amplifier-module-tool-search@main
-- module: tool-filesystem
-  source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
-- module: tool-bash
-  source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
+    - web
 hooks:
 - module: hooks-status-context
   source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/hooks/hooks-status-context

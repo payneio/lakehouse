@@ -1,0 +1,9 @@
+behavior:
+  name: command-line
+  version: 1.2.0
+  description: Interacting with a computer command line
+  requires:
+    - filesystem
+tools:
+- module: tool-bash
+  source: git+https://github.com/microsoft/amplifier-module-tool-bash@main

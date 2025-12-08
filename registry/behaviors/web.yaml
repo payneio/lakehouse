@@ -1,0 +1,11 @@
+behavior:
+  name: web
+  version: 1.2.0
+  description: World Wide Web interaction and browsing
+  requires:
+    - task-management
+tools:
+- module: tool-web
+  source: git+https://github.com/microsoft/amplifier-module-tool-web@main
+- module: tool-search
+  source: git+https://github.com/microsoft/amplifier-module-tool-search@main
