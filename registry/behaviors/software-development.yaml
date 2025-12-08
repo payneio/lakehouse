@@ -1,0 +1,81 @@
+behavior:
+  name: software-development
+  version: 1.2.0
+  description: Software development
+  requires:
+    - task-management
+tools:
+- module: tool-web
+  source: git+https://github.com/microsoft/amplifier-module-tool-web@main
+- module: tool-search
+  source: git+https://github.com/microsoft/amplifier-module-tool-search@main
+- module: tool-filesystem
+  source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
+- module: tool-bash
+  source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
+hooks:
+- module: hooks-status-context
+  source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/hooks/hooks-status-context
+  config:
+    datetime_include_timezone: false
+    git_include_branch: true
+    git_include_commits: 5
+    git_include_main_branch: true
+    git_include_status: true
+    include_datetime: true
+    include_git: true
+- module: hooks-redaction
+  source: git+https://github.com/microsoft/amplifier-module-hooks-redaction@main
+  config:
+    allowlist:
+    - session_id
+    - turn_id
+    - span_id
+    - parent_span_id
+agents:
+  bug-hunter: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/bug-hunter.md
+  explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
+  modular-builder: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/modular-builder.md
+  researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
+  zen-architect: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/zen-architect.md
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+instructions: |
+  # Software Development Instructions
+
+  Key agents you should ALWAYS use:
+
+  - zen-architect - analyzes problems, designs architecture, and reviews code quality.
+  - modular-builder - implements code from specifications following modular design principles.
+  - bug-hunter - identifies and fixes bugs in the codebase.
+  - post-task-cleanup - ensures the workspace is tidy and all temporary files are removed.
+
+  Additional specialized agents available based on task needs, based upon availability:
+
+  - test-coverage - ensures comprehensive test coverage.
+  - database-architect - for database design and optimization.
+  - security-guardian - for security reviews and vulnerability assessment.
+  - api-contract-designer - for API design and specification.
+  - performance-optimizer - for performance analysis and optimization.
+  - integration-specialist - for external integrations and dependency management.
+
+  - Adhere to the @foundation:context/IMPLEMENTATION_PHILOSOPHY.md and @foundation:context/MODULAR_DESIGN_PHILOSOPHY.md files.
+
+  ## Agent Review and Validation Cycles
+
+  ### **Architecture-Implementation-Review Pattern**
+
+  For complex tasks, use this three-phase cycle:
+
+  1. **Architecture Phase**: zen-architect or tool-builder designs the approach
+  2. **Implementation Phase**: modular-builder, api-contract-designer, etc. implement
+  3. **Validation Phase**: Return to architectural agents for compliance review
+  4. **Testing Phase**: Run it like a user, if any issues discovered then leverage bug-hunter
+
+  ### **When to Loop Back for Validation**
+
+  - After modular-builder completes implementation → zen-architect reviews for philosophy compliance
+  - After multiple agents complete work → tool-builder reviews overall approach
+  - After api-contract-designer creates contracts → zen-architect validates modular design
+  - Before post-task-cleanup → architectural agents confirm no compromises were made
+
