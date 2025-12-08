@@ -11,13 +11,34 @@ hooks:
 - module: hooks-status-context
   source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/hooks/hooks-status-context
   config:
-    datetime_include_timezone: false
-    git_include_branch: true
-    git_include_commits: 5
-    git_include_main_branch: true
-    git_include_status: true
-    include_datetime: true
-    include_git: true
+    datetime_include_timezone:
+      description: Include timezone in date-times?
+      type: boolean
+      default: false
+    git_include_branch:
+      description: Include git branch?
+      type: boolean
+      default: true
+    git_include_commits:
+      description: Number of recent git commits to include.
+      type: integer
+      default: 5
+    git_include_main_branch:
+      description: Include main branch name?
+      type: boolean
+      default: true
+    git_include_status:
+      description: Include git status?
+      type: boolean
+      default: true
+    include_datetime:
+      description: Include date-time information?
+      type: boolean
+      default: true
+    include_git:
+      description: Include git information?
+      type: boolean
+      default: true
 - module: hooks-redaction
   source: git+https://github.com/microsoft/amplifier-module-hooks-redaction@main
   config:
