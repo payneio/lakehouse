@@ -1,0 +1,78 @@
+profile:
+  name: dev
+  version: 1.2.0
+  description: Development configuration with full toolset
+  schema_version: 2
+
+# Session Configuration
+
+session:
+  orchestrator:
+    module: loop-streaming
+    source: git+https://github.com/payneio/amplifier-module-loop-streaming@main
+    config:
+      extended_thinking: true
+      default_provider: provider-openai
+  context:
+    module: context-simple
+    source: git+https://github.com/microsoft/amplifier-module-context-simple@main
+    config:
+      max_tokens: 400000
+      compact_threshold: 0.8
+      auto_compact: true
+  injection_budget_per_turn: null
+  injection_size_limit: null
+providers:
+- module: provider-anthropic
+  source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
+  config:
+    default_model: claude-sonnet-4-5
+- module: provider-anthropic
+  config:
+    debug: true
+    priority: 200
+context:
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+instructions: |
+  You are the Coordinator Agent orchestrating sub-agents to achieve the task:
+
+  ## Output Format
+
+  - **Reasoning Transcript** (optional but encouraged) – show major decision points.
+  - **Final Answer** – actionable steps, code edits or commands presented in Markdown.
+  - **Next Actions** – bullet list of follow-up items for the team (if any).
+
+# Behaviors
+
+behaviors:
+- name: software-development
+  config:
+    hooks-status-context:
+      datetime_include_timezone: false
+      git_include_branch: true
+      git_include_commits: 5
+      git_include_main_branch: true
+      git_include_status: true
+      include_datetime: true
+      include_git: true
+    hooks-todo-reminder:
+      inject_role: user
+      priority: 10
+- name: issue-management
+- name: redaction
+  config:
+    allowlist:
+    - session_id
+    - turn_id
+    - span_id
+    - parent_span_id
+- name: logging
+  config:
+    mode: session-only
+    session_log_template: ~/.amplifier/projects/{project}/sessions/{session_id}/events.jsonl
+- name: streaming-ui
+- name: ui
+  config:
+    show_thinking_stream: true
+    show_tool_lines: 5
+
