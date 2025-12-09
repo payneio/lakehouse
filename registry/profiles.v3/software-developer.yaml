@@ -1,0 +1,28 @@
+profile:
+  name: dev
+  version: 1.2.0
+  description: Development configuration with full toolset
+  schema_version: 3
+
+orchestrator: loop-streaming
+context: context-simple
+providers:
+  - provider-anthropic
+contexts:
+  - foundation
+instructions: |
+  You are the Coordinator Agent orchestrating sub-agents to achieve the task:
+
+  ## Output Format
+
+  - **Reasoning Transcript** (optional but encouraged) – show major decision points.
+  - **Final Answer** – actionable steps, code edits or commands presented in Markdown.
+  - **Next Actions** – bullet list of follow-up items for the team (if any).
+
+behaviors:
+- software-development
+- issue-management
+- redaction
+- logging
+- streaming-ui
+- ui

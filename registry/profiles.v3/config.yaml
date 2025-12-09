@@ -1,0 +1,47 @@
+session:
+  injection_budget_per_turn: null
+  injection_size_limit: null
+  data_dir: /data/repos/msft/payneio/amplifierd
+  working_dir: /data/repos/lakehouse/projects/sample-project
+  orchestrator:
+    extended_thinking: true
+    default_provider: provider-openai
+  context:
+    max_tokens: 400000
+    compact_threshold: 0.8
+    auto_compact: true
+providers:
+- provider-anthropic:
+    default_model: claude-sonnet-4-5
+    debug: true
+    priority: 200
+hook.hooks-status-context:
+  include_datetime: true
+  datetime_include_timezone: false
+  include_git: true,
+  git_include_status: true,
+  git_include_commits: 5,
+  git_include_branch: true,
+  git_include_main_branch: true
+hook.hooks-redaction:
+  allowlist:
+  - session_id
+  - turn_id
+  - span_id
+  - parent_span_id
+hook.hooks-logging:
+  mode: session-only
+  session_log_template: ~/.amplifier/projects/{project}/sessions/{session_id}/events.jsonl
+hook.hooks-todo-reminder:
+  inject_role: user
+  priority: 10
+ui:
+  show_thinking_stream: true
+  show_tool_lines: 5
+
+# Example of a config at the behavior level
+behaviors:
+  web-development:
+    hook.hooks-todo-reminder:
+    inject_role: user
+    priority: 10
