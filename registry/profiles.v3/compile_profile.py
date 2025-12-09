@@ -58,39 +58,36 @@ def load_behavior_definitions(
         ProfileCompilationError: If behavior definition not found or invalid
     """
     behavior_defs = {}
-    to_process = list(behavior_ids)  # Queue of behaviors to load
-    processed = set()  # Track what we've already loaded
+    to_process = list(behavior_ids)
+    processed = set()
 
     while to_process:
         behavior_id = to_process.pop(0)
 
-        # Skip if already processed
         if behavior_id in processed:
             continue
 
         processed.add(behavior_id)
-        # Try to find behavior in sources with prefix
+
         source_ref = None
         if behavior_id in sources:
             source_ref = sources[behavior_id]
-        elif f"behavior.{behavior_id}" in sources:
-            source_ref = sources[f"behavior.{behavior_id}"]
+        elif f"behaviors.{behavior_id}" in sources:
+            source_ref = sources[f"behaviors.{behavior_id}"]
 
         if not source_ref:
             raise ProfileCompilationError(
                 f"Behavior '{behavior_id}' not found in SOURCES.txt. "
-                f"Please add an entry like: behavior.{behavior_id} <path>"
+                f"Please add an entry like: behaviors.{behavior_id} <path>"
             )
 
         try:
             logger.info(f"Loading behavior definition for '{behavior_id}' from {source_ref}")
             resolved_path = resolver.resolve_ref(source_ref)
 
-            # Read and parse behavior YAML
             if resolved_path.is_file():
                 behavior_content = resolved_path.read_text()
             elif resolved_path.is_dir():
-                # Look for behavior.yaml or {behavior_id}.yaml
                 possible_files = [
                     resolved_path / f"{behavior_id}.yaml",
                     resolved_path / "behavior.yaml",
@@ -106,19 +103,16 @@ def load_behavior_definitions(
 
             behavior_def = yaml.safe_load(behavior_content)
 
-            # Extract the behavior section if it's wrapped
             if "behavior" in behavior_def:
-                # Merge behavior metadata with the rest of the definition
                 behavior_metadata = behavior_def["behavior"]
                 behavior_defs[behavior_id] = {
-                    **behavior_def,  # Include hooks, agents, tools, contexts, etc.
-                    "behavior": behavior_metadata,  # Keep metadata
-                    "requires": behavior_metadata.get("requires", []),  # Pull requires to top level for topo sort
+                    **behavior_def,
+                    "behavior": behavior_metadata,
+                    "requires": behavior_metadata.get("requires", []),
                 }
             else:
                 behavior_defs[behavior_id] = behavior_def
 
-            # Recursively load required behaviors
             requires = behavior_defs[behavior_id].get("requires", [])
             if isinstance(requires, list):
                 for required_behavior in requires:
@@ -148,19 +142,15 @@ def topological_sort_behaviors(behaviors: list[str], behavior_defs: dict[str, An
     if not behaviors:
         return []
 
-    # Build dependency graph
     graph = {}
     in_degree = {}
 
     for behavior_id in behaviors:
-        # Get behavior definition (might not have requires)
         behavior_def = behavior_defs.get(behavior_id, {})
         requires = behavior_def.get("requires", [])
         graph[behavior_id] = requires if isinstance(requires, list) else [requires] if requires else []
         in_degree[behavior_id] = 0
 
-    # Calculate in-degrees
-    # If A requires B, then B→A (B must come before A), so A has incoming edge from B
     for behavior_id in behaviors:
         for dep in graph[behavior_id]:
             if dep not in in_degree:
@@ -168,11 +158,8 @@ def topological_sort_behaviors(behaviors: list[str], behavior_defs: dict[str, An
                     f"Behavior '{behavior_id}' requires unknown behavior '{dep}'. "
                     f"Available behaviors: {', '.join(behaviors)}"
                 )
-            # behavior_id depends on dep, so behavior_id has an incoming edge
             in_degree[behavior_id] += 1
 
-    # Kahn's algorithm
-    # Start with behaviors that have no dependencies (in_degree == 0)
     queue = [bid for bid in behaviors if in_degree[bid] == 0]
     sorted_ids = []
 
@@ -180,15 +167,13 @@ def topological_sort_behaviors(behaviors: list[str], behavior_defs: dict[str, An
         bid = queue.pop(0)
         sorted_ids.append(bid)
 
-        # For each behavior that depends on 'bid', reduce its in-degree
         for other_bid in behaviors:
-            if bid in graph[other_bid]:  # other_bid requires bid
+            if bid in graph[other_bid]:
                 in_degree[other_bid] -= 1
                 if in_degree[other_bid] == 0:
                     queue.append(other_bid)
 
     if len(sorted_ids) != len(behaviors):
-        # Circular dependency detected
         remaining = set(behaviors) - set(sorted_ids)
         raise ProfileCompilationError(
             f"Circular dependency detected in behaviors: {', '.join(remaining)}. " f"Check the 'requires' fields."
@@ -209,18 +194,15 @@ def collect_components(profile: dict, behavior_defs: dict[str, Any]) -> list[Com
     """
     refs = []
 
-    # Direct components
     if orch := profile.get("orchestrator"):
         refs.append(ComponentRef(orch, "orchestrator"))
     if ctx := profile.get("context"):
         refs.append(ComponentRef(ctx, "context"))
     if provs := profile.get("providers"):
-        refs.extend(ComponentRef(p, "provider") for p in provs)
+        refs.extend(ComponentRef(p, "providers") for p in provs)
     if ctxs := profile.get("contexts"):
-        refs.extend(ComponentRef(c, "context") for c in ctxs)
+        refs.extend(ComponentRef(c, "contexts") for c in ctxs)
 
-    # Behaviors (topologically sorted)
-    # Use all loaded behavior definitions (including recursive dependencies)
     all_behavior_ids = list(behavior_defs.keys())
     if all_behavior_ids:
         sorted_behaviors = topological_sort_behaviors(all_behavior_ids, behavior_defs)
@@ -228,15 +210,14 @@ def collect_components(profile: dict, behavior_defs: dict[str, Any]) -> list[Com
         for behavior_id in sorted_behaviors:
             behavior_def = behavior_defs.get(behavior_id, {})
 
-            # Extract components from behavior definition
             for hook in behavior_def.get("hooks", []):
-                refs.append(ComponentRef(hook, "hook", behavior_id))
+                refs.append(ComponentRef(hook, "hooks", behavior_id))
             for agent in behavior_def.get("agents", []):
-                refs.append(ComponentRef(agent, "agent", behavior_id))
+                refs.append(ComponentRef(agent, "agents", behavior_id))
             for ctx in behavior_def.get("contexts", []):
-                refs.append(ComponentRef(ctx, "context", behavior_id))
+                refs.append(ComponentRef(ctx, "contexts", behavior_id))
             for tool in behavior_def.get("tools", []):
-                refs.append(ComponentRef(tool, "tool", behavior_id))
+                refs.append(ComponentRef(tool, "tools", behavior_id))
 
     return refs
 
@@ -290,36 +271,20 @@ def resolve_assets(refs: list[ComponentRef], sources: dict[str, str], resolver: 
     """
     asset_map = {}
 
-    # Map component types to their prefixes in SOURCES.txt
-    type_prefixes = {
-        "orchestrator": ["orchestrator"],
-        "context": ["context", "contexts"],
-        "provider": ["provider"],
-        "tool": ["tool"],
-        "agent": ["agents"],
-        "hook": ["hook"],
-    }
-
     for ref in refs:
-        # Try to find the component in sources with various prefix patterns
         source_ref = None
 
-        # Try direct match first
         if ref.id in sources:
             source_ref = sources[ref.id]
         else:
-            # Try with type-specific prefixes
-            prefixes = type_prefixes.get(ref.type, [ref.type])
-            for prefix in prefixes:
-                prefixed_id = f"{prefix}.{ref.id}"
-                if prefixed_id in sources:
-                    source_ref = sources[prefixed_id]
-                    break
+            prefixed_id = f"{ref.type}.{ref.id}"
+            if prefixed_id in sources:
+                source_ref = sources[prefixed_id]
 
         if not source_ref:
             raise ProfileCompilationError(
                 f"Component '{ref.id}' (type: {ref.type}) not found in SOURCES.txt. "
-                f"Tried: {ref.id}, {', '.join(f'{p}.{ref.id}' for p in type_prefixes.get(ref.type, [ref.type]))}. "
+                f"Tried: {ref.id}, {ref.type}.{ref.id}. "
                 f"Please add a source entry for this component."
             )
 
