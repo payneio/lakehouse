@@ -66,12 +66,12 @@ hooks:
 agents:
   researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/contexts/foundation
 ---
 
 # Core Instructions
 
-@foundation:context/shared/common-profile-base.md
+@foundation:shared/common-profile-base.md
 
 ---
 

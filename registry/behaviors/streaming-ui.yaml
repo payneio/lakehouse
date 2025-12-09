@@ -1,0 +1,6 @@
+behavior:
+  name: streaming-ui
+  version: 1.0.0
+  description: Streaming UI hooks for progressive display
+hooks:
+  - hooks-streaming-ui

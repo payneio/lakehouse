@@ -47,12 +47,6 @@ tools:
   source: git+https://github.com/microsoft/amplifier-module-tool-task@main
 - module: tool-todo
   source: git+https://github.com/microsoft/amplifier-module-tool-todo@main
-- module: tool-web
-  source: git+https://github.com/microsoft/amplifier-module-tool-web@main
-- module: tool-search
-  source: git+https://github.com/microsoft/amplifier-module-tool-search@main
-- module: tool-task
-  source: git+https://github.com/microsoft/amplifier-module-tool-task@main
 hooks:
 - module: hooks-status-context
   source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/hooks/hooks-status-context
@@ -111,11 +105,11 @@ agents:
   researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
   zen-architect: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/zen-architect.md
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/contexts/foundation
 ---
 # Core Instructions
 
-@foundation:context/shared/common-profile-base.md
+@foundation:shared/common-profile-base.md
 
 ---
 

@@ -5,18 +5,4 @@ behavior:
   requires:
     - issue-management
 hooks:
-  - module: hook-issue-auto-work
-    source: git+https://github.com/microsoft/amplifier-collection-issues@main#subdirectory=modules/hook-issue-auto-work
-    config:
-      priority:
-        description: Priority of this hook.
-        type: integer
-        default: 100
-      max_auto_iterations:
-        description: Maximum number of auto work iterations per turn.
-        type: integer
-        default: 10
-      inject_role:
-        description: Role to use when injecting auto work messages.
-        type: string
-        default: system
+  - hook-issue-auto-work

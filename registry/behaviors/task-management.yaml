@@ -3,17 +3,12 @@ behavior:
   version: 0.1.0
   description: Task management profile
 tools:
-- module: tool-task
-  source: git+https://github.com/microsoft/amplifier-module-tool-task@main
-- module: tool-todo
-  source: git+https://github.com/microsoft/amplifier-module-tool-todo@main
-- module: hooks-todo-reminder
-  source: git+https://github.com/microsoft/amplifier-module-hooks-todo-reminder@main
-  config:
-    inject_role: user
-    priority: 10
+- tool-task
+- tool-todo
+hooks:
+- hooks-todo-reminder
 agents:
-  post-task-cleanup: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/post-task-cleanup.md
+  - post-task-cleanup
 
 instructions: |
   ## Your Role

@@ -85,7 +85,7 @@ context:
 
 # Core Instructions
 
-@foundation:context/shared/common-profile-base.md
+@foundation:shared/common-profile-base.md
 
 ---
 

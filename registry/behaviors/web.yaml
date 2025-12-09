@@ -5,7 +5,5 @@ behavior:
   requires:
     - task-management
 tools:
-- module: tool-web
-  source: git+https://github.com/microsoft/amplifier-module-tool-web@main
-- module: tool-search
-  source: git+https://github.com/microsoft/amplifier-module-tool-search@main
+- tool-web
+- tool-search

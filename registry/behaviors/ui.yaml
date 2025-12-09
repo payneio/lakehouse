@@ -1,0 +1,4 @@
+behavior:
+  name: ui
+  version: 1.0.0
+  description: UI-related configuration and settings

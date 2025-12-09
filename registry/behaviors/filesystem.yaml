@@ -3,5 +3,4 @@ behavior:
   version: 1.2.0
   description: Interacting with the filesystem
 tools:
-- module: tool-filesystem
-  source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
+- tool-filesystem

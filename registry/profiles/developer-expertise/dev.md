@@ -83,7 +83,7 @@ agents:
   researcher: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/researcher.md
   zen-architect: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/developer-expertise/zen-architect.md
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/contexts/foundation
 ui:
   show_thinking_stream: true
   show_tool_lines: 5
@@ -91,7 +91,7 @@ ui:
 
 # Core Instructions
 
-@foundation:context/shared/common-profile-base.md
+@foundation:shared/common-profile-base.md
 
 ---
 

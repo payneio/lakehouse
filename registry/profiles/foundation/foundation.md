@@ -17,7 +17,7 @@ providers:
   config:
     default_model: claude-sonnet-4-5
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/contexts/foundation
 ---
 
 You are an AI assistant powered by Amplifier.

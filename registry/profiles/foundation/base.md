@@ -64,7 +64,7 @@ hooks:
 agents:
   explorer: https://raw.githubusercontent.com/payneio/amplifierd/refs/heads/main/registry/agents/foundation/explorer.md
 context:
-  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/context/foundation
+  foundation: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/contexts/foundation
 ---
 
-@foundation:context/shared/common-agent-base.md
+@foundation:shared/common-agent-base.md
