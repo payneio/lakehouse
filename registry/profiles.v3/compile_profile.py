@@ -237,12 +237,9 @@ def parse_sources(sources_file: Path) -> dict[str, str]:
         if not line or line.startswith("#"):
             continue
 
-        # Handle different formats:
-        # - "id ref" (space-separated)
-        # - "id:ref" (colon-separated) - old format
         if " " in line:
             parts = line.split(" ", 1)
-        elif ":" in line and not line.startswith("http"):  # Avoid splitting URLs
+        elif ":" in line and not line.startswith("http"):
             parts = line.split(":", 1)
         else:
             logger.warning(f"Skipping malformed line in SOURCES.txt: {line}")
@@ -366,50 +363,35 @@ def generate_mount_plan(
         Mount plan dictionary ready for JSON serialization
     """
     mount_plan: dict[str, Any] = {}
-
-    # Extract working_dir for later use
     working_dir = config.get("session", {}).get("working_dir")
 
-    # Build session section
     session: dict[str, Any] = {}
     session_config = config.get("session", {})
 
-    # Orchestrator config
     if orch_id := profile.get("orchestrator"):
-        orch_config = session_config.get("orchestrator", {})
-
         session["orchestrator"] = {
             "module": orch_id,
             "source": profile["profile"]["name"],
-            "config": orch_config,
+            "config": session_config.get("orchestrator", {}),
         }
 
-    # Context config
     if ctx_id := profile.get("context"):
-        ctx_config = session_config.get("context", {})
-
         session["context"] = {
             "module": ctx_id,
             "source": profile["profile"]["name"],
-            "config": ctx_config,
+            "config": session_config.get("context", {}),
         }
 
-    # Settings (non-namespaced session config, excluding orchestrator and context)
-    settings = {}
-    for key, value in session_config.items():
-        if key not in ["orchestrator", "context"]:
-            settings[key] = value
+    settings = {k: v for k, v in session_config.items() if k not in ["orchestrator", "context"]}
     if settings:
         session["settings"] = settings
 
     mount_plan["session"] = session
 
-    # Providers
     if provs := profile.get("providers"):
         providers = []
         providers_config = config.get("providers", [])
 
-        # Convert providers config list to dict for easier lookup
         provider_config_map = {}
         if isinstance(providers_config, list):
             for prov_conf in providers_config:
@@ -418,35 +400,28 @@ def generate_mount_plan(
                         provider_config_map[prov_id] = prov_settings
 
         for prov_id in provs:
-            # Get config for this provider
-            prov_config = provider_config_map.get(prov_id, {})
-
             providers.append(
                 {
                     "module": prov_id,
                     "source": profile["profile"]["name"],
-                    "config": prov_config,
+                    "config": provider_config_map.get(prov_id, {}),
                 }
             )
         mount_plan["providers"] = providers
 
-    # Collect all tools from behaviors (deduplicated)
     seen_tools = set()
     all_tools = []
     for behavior_id in sorted_behavior_ids:
         behavior_def = behavior_defs.get(behavior_id, {})
         for tool_id in behavior_def.get("tools", []):
             if tool_id in seen_tools:
-                continue  # Skip duplicates
+                continue
             seen_tools.add(tool_id)
 
             tool_config = {"working_dir": working_dir} if working_dir else {}
-
-            # Add any tool-specific config from the merged config
             for key, value in config.items():
                 if key.startswith(f"{tool_id}."):
-                    config_key = key.split(".", 1)[1]
-                    tool_config[config_key] = value
+                    tool_config[key.split(".", 1)[1]] = value
 
             all_tools.append(
                 {
@@ -459,24 +434,19 @@ def generate_mount_plan(
     if all_tools:
         mount_plan["tools"] = all_tools
 
-    # Collect all hooks from behaviors (deduplicated)
     seen_hooks = set()
     all_hooks = []
     for behavior_id in sorted_behavior_ids:
         behavior_def = behavior_defs.get(behavior_id, {})
         for hook_id in behavior_def.get("hooks", []):
             if hook_id in seen_hooks:
-                continue  # Skip duplicates
+                continue
             seen_hooks.add(hook_id)
 
             hook_config = {}
-
-            # Add any hook-specific config from the merged config
             for key, value in config.items():
                 if key.startswith(f"hook.{hook_id}."):
-                    # Remove 'hook.hook-id.' prefix
-                    config_key = key.split(".", 2)[2]
-                    hook_config[config_key] = value
+                    hook_config[key.split(".", 2)[2]] = value
 
             all_hooks.append(
                 {
@@ -489,18 +459,15 @@ def generate_mount_plan(
     if all_hooks:
         mount_plan["hooks"] = all_hooks
 
-    # Collect all agents from behaviors
     agents_obj = {}
     for behavior_id in sorted_behavior_ids:
         behavior_def = behavior_defs.get(behavior_id, {})
         for agent_id in behavior_def.get("agents", []):
             agent_path = asset_map[agent_id]
 
-            # Read agent content
             if agent_path.is_file():
                 agent_content = agent_path.read_text()
             else:
-                # If it's a directory, look for common agent file names
                 possible_files = [agent_path / f"{agent_id}.md", agent_path / "agent.md", agent_path / "README.md"]
                 agent_file = next((f for f in possible_files if f.exists()), None)
                 if not agent_file:
