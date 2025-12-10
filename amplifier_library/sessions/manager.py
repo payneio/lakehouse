@@ -95,7 +95,6 @@ class SessionManager:
             metadata = SessionMetadata(
                 session_id=session_id,
                 amplified_dir=amplified_dir,
-                session_cwd=amplified_dir,  # Start CWD at amplified_dir
                 profile_name=profile_name,
                 status=SessionStatus.CREATED,
                 created_at=now,
@@ -325,28 +324,6 @@ class SessionManager:
     def get_active_sessions(self) -> list[SessionMetadata]:
         """Get all ACTIVE sessions."""
         return self.list_sessions(status=SessionStatus.ACTIVE)
-
-    def get_session_cwd(self, session_id: str) -> Path:
-        """Get the working directory for a session.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            Absolute path to the session's current working directory
-
-        Raises:
-            ValueError: If session not found
-
-        Example:
-            >>> cwd = service.get_session_cwd("session-123")
-            >>> print(cwd)
-            /data/projects/my-project
-        """
-        metadata = self.get_session(session_id)
-        if metadata is None:
-            raise ValueError(f"Cannot get CWD: session not found: {session_id}")
-        return metadata.cwd
 
     # --- Management ---
 

@@ -12,17 +12,18 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
-from amplifier_library.sessions.manager import SessionManager as SessionStateService
-from amplifier_library.storage import get_state_dir
 from fastapi import APIRouter
 from fastapi import Body
 from fastapi import Depends
 from fastapi import HTTPException
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
+
+from amplifier_library.models.sessions import SessionMessage
+from amplifier_library.models.sessions import SessionMetadata
+from amplifier_library.models.sessions import SessionStatus
+from amplifier_library.sessions.manager import SessionManager as SessionStateService
+from amplifier_library.storage import get_state_dir
 
 from ..models.mount_plans import MountPlan
 from ..services.amplified_directory_service import AmplifiedDirectoryService
@@ -146,10 +147,9 @@ async def create_session(
             mount_plan["session"]["settings"] = {}
 
         mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
-        mount_plan["session"]["settings"]["session_cwd"] = absolute_amplified_dir  # Starts same
         mount_plan["session"]["settings"]["profile_name"] = profile_name
 
-        # Inject working_dir into all tool configs
+        # Inject working_dir into tool configs (derived from amplified_dir)
         # This ensures tools resolve relative paths against the session's working directory
         if "tools" in mount_plan:
             for tool in mount_plan["tools"]:

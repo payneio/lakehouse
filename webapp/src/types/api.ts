@@ -82,7 +82,6 @@ export interface Session {
   endedAt?: string;
   parentSessionId?: string;
   amplifiedDir?: string;
-  sessionCwd?: string;
   mountPlanPath?: string;
   messageCount?: number;
   agentInvocations?: number;

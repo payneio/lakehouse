@@ -361,14 +361,14 @@ export function SessionView() {
                   <RefreshCw className="h-4 w-4 animate-spin" />
                 )}
 
-                {/* Current working directory */}
-                {session.sessionCwd && (
+                {/* Amplified directory */}
+                {session.amplifiedDir && (
                   <span
-                    aria-label={`Current working directory: ${session.sessionCwd}`}
-                    title={session.sessionCwd}
+                    aria-label={`Amplified directory: ${session.amplifiedDir}`}
+                    title={session.amplifiedDir}
                     className="hidden sm:inline"
                   >
-                    cwd: /{session.sessionCwd}
+                    dir: /{session.amplifiedDir}
                   </span>
                 )}
               </div>

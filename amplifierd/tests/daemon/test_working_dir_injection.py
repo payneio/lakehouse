@@ -1,11 +1,11 @@
-"""Test that session CWD is correctly injected into tool configs."""
+"""Test that session working directory is correctly injected into tool configs."""
 from pathlib import Path
 
 
 def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:
     """Test that working_dir is injected into all tool configs when creating mount plans."""
     # This test verifies the fix in amplifierd/routers/sessions.py
-    # that injects session_cwd as working_dir into all tool configs
+    # that injects working_dir into all tool configs
 
     data_root = tmp_path / "data"
     data_root.mkdir()
@@ -26,9 +26,9 @@ def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:
     amplified_dir = "test_project"
     absolute_amplified_dir = str(test_dir.resolve())
 
-    # Apply the session CWD injection logic
+    # Apply the session working directory injection logic
     mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
-    mount_plan["session"]["settings"]["session_cwd"] = absolute_amplified_dir
+    mount_plan["session"]["settings"]["working_dir"] = absolute_amplified_dir
 
     # Inject working_dir into all tool configs (this is the fix we're testing)
     if "tools" in mount_plan:
@@ -37,11 +37,11 @@ def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:
                 tool["config"] = {}
             tool["config"]["working_dir"] = absolute_amplified_dir
 
-    # Verify session_cwd is set correctly
+    # Verify working_dir is set correctly
     assert "session" in mount_plan
     assert "settings" in mount_plan["session"]
-    assert "session_cwd" in mount_plan["session"]["settings"]
-    assert mount_plan["session"]["settings"]["session_cwd"] == absolute_amplified_dir
+    assert "working_dir" in mount_plan["session"]["settings"]
+    assert mount_plan["session"]["settings"]["working_dir"] == absolute_amplified_dir
 
     # Verify all tools have working_dir injected
     tools = mount_plan.get("tools", [])
