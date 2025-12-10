@@ -368,7 +368,7 @@ export function SessionView() {
                     title={session.sessionCwd}
                     className="hidden sm:inline"
                   >
-                    cwd: /{session.sessionCwd.split("/").slice(-2).join("/")}
+                    cwd: /{session.sessionCwd}
                   </span>
                 )}
               </div>

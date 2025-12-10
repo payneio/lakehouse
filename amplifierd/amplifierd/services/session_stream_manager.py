@@ -94,7 +94,8 @@ class SessionStreamManager:
         if not self._runner_initialized:
             # Initialize runner's session so hooks can be mounted
             logger.info(f"Initializing AmplifierSession for session {self.session_id}")
-            await self._runner._ensure_session()
+            if self._runner is not None:  # Type narrowing for pyright
+                await self._runner._ensure_session()
             logger.info(f"AmplifierSession initialized for session {self.session_id}")
             self._runner_initialized = True
 
