@@ -7,7 +7,6 @@ import logging
 import sys
 
 import uvicorn
-
 from amplifier_library.config.loader import load_config
 
 logger = logging.getLogger(__name__)

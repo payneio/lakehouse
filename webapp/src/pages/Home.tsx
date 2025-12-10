@@ -143,7 +143,7 @@ export function HomePage() {
             <ResourceLink
               icon={<BookOpen className="h-5 w-5" />}
               title="Vision Document"
-              href="https://github.com/payneio/amplifierd/blob/main/amplifierd/docs/the-amplifier-computation-platform.md"
+              href="https://github.com/payneio/lakehouse/blob/main/amplifierd/docs/the-amplifier-computation-platform.md"
             />
             <ResourceLink
               icon={<BookOpen className="h-5 w-5" />}

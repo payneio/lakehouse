@@ -3,14 +3,13 @@
 import logging
 from typing import Annotated
 
+from amplifier_library.storage import get_share_dir
+from amplifier_library.storage import get_state_dir
+from amplifier_library.storage.paths import get_profiles_dir
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from pydantic import Field
-
-from amplifier_library.storage import get_share_dir
-from amplifier_library.storage import get_state_dir
-from amplifier_library.storage.paths import get_profiles_dir
 
 from ..models import ProfileDetails
 from ..models import ProfileInfo

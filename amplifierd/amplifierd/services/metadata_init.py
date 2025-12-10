@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-
 from amplifier_library.storage import get_share_dir
 from amplifier_library.storage.paths import get_profiles_dir
+
 from amplifierd.models.metadata import CollectionMetadata
 from amplifierd.models.metadata import ProfileMetadata
 from amplifierd.services.metadata_store import MetadataStore

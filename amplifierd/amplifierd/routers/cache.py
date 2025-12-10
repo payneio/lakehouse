@@ -7,11 +7,6 @@ All business logic is in amplifier_library.cache.
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter
-from fastapi import Depends
-from fastapi import HTTPException
-from fastapi import Query
-
 from amplifier_library.cache import AllCacheStatus
 from amplifier_library.cache import AllUpdateResult
 from amplifier_library.cache import CollectionCacheStatus
@@ -20,6 +15,10 @@ from amplifier_library.cache import ProfileCacheStatus
 from amplifier_library.cache import ProfileUpdateResult
 from amplifier_library.cache import StatusService
 from amplifier_library.cache import UpdateService
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import HTTPException
+from fastapi import Query
 
 from ..dependencies import get_status_service
 from ..dependencies import get_update_service

@@ -15,7 +15,7 @@ export function MainLayout() {
         }}
       >
         <div className="p-4">
-          <h1 className="text-xl font-bold">Amplifier: Lakehouse</h1>
+          <h1 className="text-xl font-bold">Lakehouse</h1>
         </div>
         <nav className="p-4">
           <ul className="space-y-2">

@@ -6,9 +6,8 @@ Provides health check and status information.
 import logging
 import time
 
-from fastapi import APIRouter
-
 from amplifier_library.config.loader import load_config
+from fastapi import APIRouter
 
 from ..models import StatusResponse
 

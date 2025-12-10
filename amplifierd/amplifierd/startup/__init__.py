@@ -43,6 +43,7 @@ async def handle_startup_updates(config: StartupConfig) -> None:
 
         from amplifier_library.cache.models import CollectionMetadata
         from amplifier_library.storage.paths import get_profiles_dir
+
         from amplifierd.dependencies import get_collection_service
         from amplifierd.dependencies import get_metadata_store
 

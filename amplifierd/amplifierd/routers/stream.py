@@ -10,14 +10,13 @@ from datetime import UTC
 from datetime import datetime
 from typing import Annotated
 
+from amplifier_library.sessions.manager import SessionManager as SessionStateService
+from amplifier_library.storage import get_state_dir
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
-
-from amplifier_library.sessions.manager import SessionManager as SessionStateService
-from amplifier_library.storage import get_state_dir
 
 from ..services.session_stream_registry import get_stream_registry
 

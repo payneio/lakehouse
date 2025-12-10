@@ -8,10 +8,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from amplifier_library.config.loader import load_config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-from amplifier_library.config.loader import load_config
 
 from .routers import amplified_directories_router
 from .routers import cache_router

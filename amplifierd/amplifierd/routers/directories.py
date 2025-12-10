@@ -4,12 +4,12 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 
+from amplifier_library.config.loader import load_config
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import Query
 
-from amplifier_library.config.loader import load_config
 from amplifierd.models.directories import DirectoryCreateRequest
 from amplifierd.models.directories import DirectoryCreateResponse
 from amplifierd.models.directories import DirectoryListResponse

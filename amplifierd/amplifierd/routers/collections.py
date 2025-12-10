@@ -2,13 +2,12 @@
 
 from typing import Annotated
 
+from amplifier_library.storage import get_share_dir
+from amplifier_library.storage import get_state_dir
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from pydantic import BaseModel
-
-from amplifier_library.storage import get_share_dir
-from amplifier_library.storage import get_state_dir
 
 from ..models import CollectionInfo
 from ..models import ComponentRefsResponse

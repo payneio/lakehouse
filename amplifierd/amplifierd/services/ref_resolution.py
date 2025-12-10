@@ -13,10 +13,9 @@ import urllib.parse
 import uuid
 from pathlib import Path
 
-from git import Repo
-
 from amplifier_library.storage.paths import get_cache_dir
 from amplifier_library.utils.git_url import parse_git_url
+from git import Repo
 
 logger = logging.getLogger(__name__)
 
