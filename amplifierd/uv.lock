@@ -139,12 +139,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "amplifier-library"
+version = "0.1.0"
+source = { editable = "../amplifier_library" }
+dependencies = [
+    { name = "amplifier-core" },
+    { name = "gitpython" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
+    { name = "gitpython", specifier = ">=3.1.45" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "ruff", specifier = ">=0.11.10" },
+    { name = "setuptools", specifier = ">=80.9.0" },
+]
+
+[[package]]
 name = "amplifierd"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "amplifier-core" },
+    { name = "amplifier-library" },
     { name = "anthropic" },
     { name = "bs4" },
     { name = "claude-code-sdk" },
@@ -178,6 +209,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
+    { name = "amplifier-library", editable = "../amplifier_library" },
     { name = "anthropic", specifier = ">=0.75.0" },
     { name = "bs4", specifier = ">=0.0.2" },
     { name = "claude-code-sdk", specifier = ">=0.0.25" },

@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amplifier-library"
+version = "0.1.0"
+description = "Library layer for Amplifier daemon - business logic between transport and execution"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.10.0",
+    "pyyaml>=6.0.2",
+    "amplifier-core",
+    "gitpython>=3.1.45",
+    "pydantic-settings>=2.12.0",
+]
+
+[tool.setuptools]
+packages = ["amplifier_library"]
+package-dir = {"amplifier_library" = "."}
+
+[tool.uv.sources]
+amplifier-core = { git = "https://github.com/microsoft/amplifier-core" }
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.11.10",
+    "setuptools>=80.9.0",
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+exclude = [
+    "**/__pycache__",
+    "**/.venv/**",
+    ".git/**",
+    ".ruff_cache/**",
+    ".pytest_cache/**",
+]
+typeCheckingMode = "basic"
+reportMissingImports = false
+pythonVersion = "3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"

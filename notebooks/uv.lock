@@ -144,13 +144,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "amplifier-library"
+version = "0.1.0"
+source = { editable = "../amplifier_library" }
+dependencies = [
+    { name = "amplifier-core" },
+    { name = "gitpython" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
+    { name = "gitpython", specifier = ">=3.1.45" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pyyaml", specifier = ">=6.0.2" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=8.3.5" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "ruff", specifier = ">=0.11.10" },
+]
+
+[[package]]
 name = "amplifierd"
 version = "0.1.0"
 source = { editable = "../amplifierd" }
 dependencies = [
     { name = "aiohttp" },
     { name = "amplifier-core" },
+    { name = "amplifier-library" },
     { name = "anthropic" },
+    { name = "bs4" },
     { name = "claude-code-sdk" },
     { name = "fastapi" },
     { name = "fsspec" },
@@ -168,7 +197,9 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
+    { name = "amplifier-library", editable = "../amplifier_library" },
     { name = "anthropic", specifier = ">=0.75.0" },
+    { name = "bs4", specifier = ">=0.0.2" },
     { name = "claude-code-sdk", specifier = ">=0.0.25" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fsspec", specifier = ">=2025.10.0" },
@@ -203,6 +234,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "amplifier-core" },
+    { name = "amplifier-library" },
     { name = "amplifierd" },
     { name = "anthropic" },
     { name = "gitpython" },
@@ -219,6 +251,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
+    { name = "amplifier-library", editable = "../amplifier_library" },
     { name = "amplifierd", editable = "../amplifierd" },
     { name = "anthropic", specifier = ">=0.75.0" },
     { name = "gitpython", specifier = ">=3.1.0" },
@@ -410,6 +443,18 @@ wheels = [
 [package.optional-dependencies]
 css = [
     { name = "tinycss2" },
+]
+
+[[package]]
+name = "bs4"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/aa/4acaf814ff901145da37332e05bb510452ebed97bc9602695059dd46ef39/bs4-0.0.2.tar.gz", hash = "sha256:a48685c58f50fe127722417bae83fe6badf500d54b55f7e39ffe43b798653925", size = 698, upload-time = "2024-01-17T18:15:47.371Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/bb/bf7aab772a159614954d84aa832c129624ba6c32faa559dfb200a534e50b/bs4-0.0.2-py2.py3-none-any.whl", hash = "sha256:abf8742c0805ef7f662dce4b51cca104cffe52b835238afc169142ab9b3fbccc", size = 1189, upload-time = "2024-01-17T18:15:48.613Z" },
 ]
 
 [[package]]

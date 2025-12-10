@@ -15,21 +15,26 @@ This repository is an experimental exploration of building an **Intelligent Comp
    - Always-running daemon enabling reactive and scheduled workflows
    - See @amplifierd/README.md for details
 
-2. **amplifier/** - Amplifier Library (formerly amplifier_library)
+2. **amplifier_library/** - Amplifier Library
    - Python library providing higher-level abstractions over Microsoft's Amplifier Core
+   - Business logic layer between daemon transport and Amplifier Core execution
+   - See @amplifier_library/README.md for architecture details
+
+3. **amplifier/** - Memory System
    - Modular memory system following "bricks and studs" philosophy
+   - Independent from daemon and library
    - See @amplifier/README.md for architecture details
 
-3. **webapp/** - React Web Application
+4. **webapp/** - React Web Application
    - Modern React + TypeScript UI for interacting with the daemon
    - Tech stack: React 19, TypeScript, Vite, TanStack Query, Tailwind CSS
    - See @webapp/README.md for development details
 
-4. **notebooks/** - Jupyter Notebooks
+5. **notebooks/** - Jupyter Notebooks
    - Demonstrations of amplifier-core and amplifierd usage
    - Learning resources and examples
 
-5. **guides/** - Documentation
+6. **guides/** - Documentation
    - Guides about Amplifier v2 concepts and usage
 
 ## Key Concepts

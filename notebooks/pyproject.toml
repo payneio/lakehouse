@@ -13,6 +13,7 @@ dependencies = [
 
     # Access to amplifier code
     "amplifier-core",
+    "amplifier-library",
     "amplifierd",
 
     # Common notebook needs (subset from daemon)
@@ -28,4 +29,5 @@ dependencies = [
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core" }
+amplifier-library = { path = "../amplifier_library", editable = true }
 amplifierd = { path = "../amplifierd", editable = true }

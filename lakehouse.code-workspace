@@ -5,6 +5,10 @@
       "path": "."
     },
     {
+      "name": "amplifier-library",
+      "path": "amplifier_library"
+    },
+    {
       "name": "daemon",
       "path": "amplifierd"
     },
