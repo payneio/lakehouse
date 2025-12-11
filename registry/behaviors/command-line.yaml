@@ -1,8 +1,0 @@
-behavior:
-  name: command-line
-  version: 1.2.0
-  description: Interacting with a computer command line
-  requires:
-    - filesystem
-tools:
-- tool-bash

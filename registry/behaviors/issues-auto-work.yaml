@@ -1,8 +1,0 @@
-behavior:
-  name: issues-auto-work
-  version: 0.1.0
-  description: A behavior to allow autonomous issue management with persistent tracking.
-  requires:
-    - issue-management
-hooks:
-  - hook-issue-auto-work

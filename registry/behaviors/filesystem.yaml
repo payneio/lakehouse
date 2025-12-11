@@ -1,6 +1,0 @@
-behavior:
-  name: filesystem
-  version: 1.2.0
-  description: Interacting with the filesystem
-tools:
-- tool-filesystem

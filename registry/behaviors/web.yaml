@@ -1,9 +1,0 @@
-behavior:
-  name: web
-  version: 1.2.0
-  description: World Wide Web interaction and browsing
-  requires:
-    - task-management
-tools:
-- tool-web
-- tool-search

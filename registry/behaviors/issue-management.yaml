@@ -1,6 +1,0 @@
-behavior:
-  name: issue-management
-  version: 0.1.0
-  description: A behavior to allow autonomous issue management with persistent tracking.
-tools:
-  - tool-issue
