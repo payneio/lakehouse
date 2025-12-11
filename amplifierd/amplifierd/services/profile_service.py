@@ -64,6 +64,17 @@ class ProfileService:
             f"cache_dir={self.cache_dir}, data_dir={self.data_dir}"
         )
 
+    def _is_local_profile(self, profile_dir: Path) -> bool:
+        """Check if profile is local (user-created) vs system (registry).
+
+        Args:
+            profile_dir: Profile directory path
+
+        Returns:
+            True if profile has .local marker, False otherwise
+        """
+        return (profile_dir / ".local").exists()
+
     def list_profiles(self) -> list[ProfileInfo]:
         """List all profiles.
 
@@ -102,7 +113,7 @@ class ProfileService:
                     ProfileInfo(
                         name=profile_name,
                         source=str(profile_dir),
-                        source_type="local",
+                        source_type="local" if self._is_local_profile(profile_dir) else "registry",
                         registry_id=None,
                         source_uri=None,
                         is_active=(profile_name == active_profile),
@@ -689,6 +700,7 @@ class ProfileService:
         import yaml
 
         try:
+            profile_dir = source_path.parent
             source_data = yaml.safe_load(source_path.read_text())
             profile_info = source_data.get("profile", {})
 
@@ -767,7 +779,7 @@ class ProfileService:
                 version=profile_info.get("version", "1.0.0"),
                 description=profile_info.get("description", ""),
                 source=str(source_path),
-                source_type="local",
+                source_type="local" if self._is_local_profile(profile_dir) else "registry",
                 registry_id=None,
                 source_uri=None,
                 is_active=is_active,
@@ -798,6 +810,7 @@ class ProfileService:
             Profile details
         """
         try:
+            profile_dir = mount_plan_path.parent
             # Load mount plan
             mount_plan = json.loads(mount_plan_path.read_text())
 
@@ -876,7 +889,7 @@ class ProfileService:
                 version="1.0.0",
                 description=f"Profile: {profile_name}",
                 source=str(mount_plan_path.parent),
-                source_type="local",
+                source_type="local" if self._is_local_profile(profile_dir) else "registry",
                 registry_id=None,
                 source_uri=None,
                 is_active=is_active,
