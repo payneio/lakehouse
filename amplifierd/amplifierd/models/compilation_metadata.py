@@ -11,7 +11,7 @@ class ProfileCompilationMetadata:
     Used for change detection to prevent unnecessary recompilation.
 
     Attributes:
-        source_commit: Collection commit when compiled (future use)
+        source_commit: Source commit hash when compiled (for git-backed profiles)
         manifest_hash: SHA256 of profile manifest (for change detection)
         compiled_at: ISO timestamp of compilation
     """

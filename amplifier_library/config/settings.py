@@ -68,7 +68,6 @@ class DaemonSettings(BaseSettings):
         """
         return str(Path(v).expanduser().resolve())
 
-    # Collection sync behavior on startup
-    force_collection_refresh_on_start: bool = False
+    # Profile compilation behavior on startup
     auto_profile_build_on_start: bool = True
     force_profile_rebuild_on_start: bool = False

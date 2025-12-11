@@ -28,7 +28,7 @@ async def test_mount_plan_with_real_profile():
     # Check if foundation/base profile exists
     profile_dir = share_dir / "profiles" / "foundation" / "base"
     if not profile_dir.exists():
-        pytest.skip("foundation/base profile not compiled - run collection sync first")
+        pytest.skip("foundation/base profile not compiled - compile profile first")
 
     # Create resolver
     resolver = DaemonModuleSourceResolver(share_dir)

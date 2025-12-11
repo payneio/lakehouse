@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
-import { useProfiles } from '@/features/collections/hooks/useCollections';
+import { useQuery } from '@tanstack/react-query';
+import * as api from '@/api/profiles';
 import type { AmplifiedDirectory } from '@/types/api';
 
 interface EditDirectoryDialogProps {
@@ -21,7 +22,10 @@ export function EditDirectoryDialog({
   isLoading = false,
   error,
 }: EditDirectoryDialogProps) {
-  const { profiles } = useProfiles();
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: api.listProfiles,
+  });
 
   if (!directory) {
     return null;
@@ -74,10 +78,8 @@ function EditDirectoryForm({
       return 'Description must be 500 characters or less';
     }
     if (formData.default_profile) {
-      // Build list of valid profile identifiers (collection/name format)
-      const validProfileIds = profiles.map(p =>
-        p.collectionId ? `${p.collectionId}/${p.name}` : p.name
-      );
+      // Build list of valid profile identifiers
+      const validProfileIds = profiles.map(p => p.name);
       if (!validProfileIds.includes(formData.default_profile)) {
         return 'Invalid profile selection';
       }
@@ -156,16 +158,11 @@ function EditDirectoryForm({
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => {
-                  const fullName = profile.collectionId
-                    ? `${profile.collectionId}/${profile.name}`
-                    : profile.name;
-                  return (
-                    <option key={fullName} value={fullName}>
-                      {fullName}
-                    </option>
-                  );
-                })}
+                {profiles.map((profile) => (
+                  <option key={profile.name} value={profile.name}>
+                    {profile.name}
+                  </option>
+                ))}
               </select>
             ) : (
               <input

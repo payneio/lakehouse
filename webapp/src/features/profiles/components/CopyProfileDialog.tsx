@@ -1,21 +1,31 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
-import { useCopyProfile } from '../hooks/useCollections';
-import type { ProfileDetails } from '@/types/api';
+import { copyProfile } from '@/api/profiles';
 
 interface CopyProfileDialogProps {
-  sourceProfile: ProfileDetails;
-  open: boolean;
+  sourceName: string | null;
   onClose: () => void;
-  onSuccess: (newProfile: ProfileDetails) => void;
+  onSuccess?: () => void;
 }
 
-export function CopyProfileDialog({ sourceProfile, open, onClose, onSuccess }: CopyProfileDialogProps) {
+export function CopyProfileDialog({ sourceName, onClose, onSuccess }: CopyProfileDialogProps) {
   const [newName, setNewName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const copyMutation = useCopyProfile();
+  const queryClient = useQueryClient();
+
+  const copyMutation = useMutation({
+    mutationFn: ({ sourceName, newName }: { sourceName: string; newName: string }) =>
+      copyProfile(sourceName, newName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      if (onSuccess) onSuccess();
+    },
+  });
+
+  if (!sourceName) return null;
 
   const validateName = (name: string): string | null => {
     if (!name) {
@@ -40,11 +50,10 @@ export function CopyProfileDialog({ sourceProfile, open, onClose, onSuccess }: C
     setError(null);
 
     try {
-      const copiedProfile = await copyMutation.mutateAsync({
-        sourceName: sourceProfile.name,
+      await copyMutation.mutateAsync({
+        sourceName: sourceName,
         newName: newName.trim(),
       });
-      onSuccess(copiedProfile);
       setNewName('');
       onClose();
     } catch (err) {
@@ -63,7 +72,7 @@ export function CopyProfileDialog({ sourceProfile, open, onClose, onSuccess }: C
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={!!sourceName} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Copy Profile</DialogTitle>
@@ -75,7 +84,7 @@ export function CopyProfileDialog({ sourceProfile, open, onClose, onSuccess }: C
               Source Profile
             </label>
             <div className="w-full px-3 py-2 border rounded-md bg-muted text-muted-foreground">
-              {sourceProfile.name}
+              {sourceName}
             </div>
           </div>
 

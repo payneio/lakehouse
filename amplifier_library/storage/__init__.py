@@ -15,9 +15,11 @@ Public Interface:
     - get_log_dir: Get log directory
 """
 
+from .paths import get_cache_dir
 from .paths import get_config_dir
 from .paths import get_home_dir
 from .paths import get_log_dir
+from .paths import get_profiles_dir
 from .paths import get_share_dir
 from .paths import get_state_dir
 
@@ -26,5 +28,7 @@ __all__ = [
     "get_config_dir",
     "get_share_dir",
     "get_state_dir",
+    "get_cache_dir",
+    "get_profiles_dir",
     "get_log_dir",
 ]

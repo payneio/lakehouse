@@ -1,9 +1,0 @@
-collections:
-  developer-expertise:
-    source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/profiles/developer-expertise
-  foundation:
-    source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/profiles/foundation
-  max-payne-collection:
-    source: git+https://github.com/payneio/payne-amplifier@main#subdirectory=max_payne_collection/profiles.v2
-  recipes:
-    source: git+https://github.com/payneio/amplifierd@main#subdirectory=registry/profiles/recipes

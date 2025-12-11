@@ -13,8 +13,8 @@ from amplifierd.services.module_service import ModuleService
 @pytest.fixture
 def test_collections_dir(tmp_path: Path) -> Path:
     """Create test flat module structure (share_dir)."""
-    # Create flat structure: modules/collection-a/providers/...
-    modules_dir = tmp_path / "modules" / "collection-a"
+    # Create flat structure: modules/providers/...
+    modules_dir = tmp_path / "modules"
     (modules_dir / "providers").mkdir(parents=True)
     (modules_dir / "tools").mkdir(parents=True)
     (modules_dir / "hooks").mkdir(parents=True)
@@ -144,8 +144,8 @@ class TestModulesAPI:
         assert len(data) == 2
         assert all(m["type"] == "provider" for m in data)
         ids = {m["id"] for m in data}
-        assert "collection-a/provider/openai-provider" in ids
-        assert "collection-a/provider/anthropic-provider" in ids
+        assert "provider/openai-provider" in ids
+        assert "provider/anthropic-provider" in ids
 
     def test_list_modules_with_tool_filter(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/?type=tool filters by type."""
@@ -155,8 +155,8 @@ class TestModulesAPI:
         assert len(data) == 2
         assert all(m["type"] == "tool" for m in data)
         ids = {m["id"] for m in data}
-        assert "collection-a/tool/bash-tool" in ids
-        assert "collection-a/tool/git-tool" in ids
+        assert "tool/bash-tool" in ids
+        assert "tool/git-tool" in ids
 
     def test_list_modules_with_hook_filter(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/?type=hook filters by type."""
@@ -165,7 +165,7 @@ class TestModulesAPI:
         data = response.json()
         assert len(data) == 1
         assert data[0]["type"] == "hook"
-        assert data[0]["id"] == "collection-a/hook/pre-commit-hook"
+        assert data[0]["id"] == "hook/pre-commit-hook"
 
     def test_list_modules_with_orchestrator_filter(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/?type=orchestrator filters by type."""
@@ -174,7 +174,7 @@ class TestModulesAPI:
         data = response.json()
         assert len(data) == 1
         assert data[0]["type"] == "orchestrator"
-        assert data[0]["id"] == "collection-a/orchestrator/parallel-orchestrator"
+        assert data[0]["id"] == "orchestrator/parallel-orchestrator"
 
     def test_list_providers_returns_200(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/providers returns 200."""
@@ -219,18 +219,18 @@ class TestModulesAPI:
         This endpoint will need router update to use {module_id:path} parameter.
         For now, test accepts 404 until router is updated.
         """
-        response = client.get("/api/v1/modules/collection-a%2Fprovider%2Fopenai-provider")
+        response = client.get("/api/v1/modules/provider%2Fopenai-provider")
 
         # Currently returns 404 due to FastAPI routing limitation
         assert response.status_code in [200, 404]
 
         if response.status_code == 200:
             data = response.json()
-            assert data["id"] == "collection-a/provider/openai-provider"
+            assert data["id"] == "provider/openai-provider"
             assert data["type"] == "provider"
             assert data["name"] == "OpenAI Provider"
             assert "location" in data
-            assert data["collection"] == "collection-a"
+            assert "source" in data
 
     def test_get_module_404_for_nonexistent(self, client: TestClient) -> None:
         """Test GET /api/v1/modules/{id} returns 404 for nonexistent."""
@@ -257,7 +257,7 @@ class TestModulesAPI:
 
     def test_module_details_schema(self, client: TestClient) -> None:
         """Test ModuleDetails objects have required fields."""
-        response = client.get("/api/v1/modules/collection-a%2Fprovider%2Fopenai-provider")
+        response = client.get("/api/v1/modules/provider%2Fopenai-provider")
 
         # FastAPI routing issue - accepts 404 until router is fixed
         if response.status_code == 200:
@@ -266,19 +266,19 @@ class TestModulesAPI:
             assert "type" in data
             assert "name" in data
             assert "location" in data
-            assert "collection" in data
+            assert "source" in data
             assert "description" in data
         else:
             assert response.status_code == 404
 
     def test_module_with_minimal_details(self, client: TestClient) -> None:
         """Test module with minimal details (no config schema)."""
-        response = client.get("/api/v1/modules/collection-a%2Ftool%2Fgit-tool")
+        response = client.get("/api/v1/modules/tool%2Fgit-tool")
 
         # FastAPI routing issue - accepts 404 until router is fixed
         if response.status_code == 200:
             data = response.json()
-            assert data["id"] == "collection-a/tool/git-tool"
+            assert data["id"] == "tool/git-tool"
             assert data["type"] == "tool"
             assert "name" in data
             assert "location" in data
@@ -301,13 +301,13 @@ class TestModulesAPI:
             assert len(data) > 0
             assert all(m["type"] == expected_type for m in data)
 
-    def test_module_collection_metadata(self, client: TestClient) -> None:
-        """Test modules include collection metadata where applicable."""
+    def test_module_source_metadata(self, client: TestClient) -> None:
+        """Test modules include source metadata where applicable."""
         response = client.get("/api/v1/modules/")
 
         data = response.json()
-        core_modules = [m for m in data if m["collection"] == "collection-a"]
-        assert len(core_modules) == 6
+        local_modules = [m for m in data if m.get("source") == "local"]
+        assert len(local_modules) == 6
 
     def test_add_module_source_success(self, client: TestClient) -> None:
         """Test POST /api/v1/modules/{module_id}/sources adds source override."""

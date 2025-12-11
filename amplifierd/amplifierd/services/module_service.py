@@ -30,13 +30,13 @@ class ModuleMetadata:
 class ModuleService:
     """Simple module discovery service.
 
-    Scans flat modules directory for modules organized by collection:
-    - modules/{collection}/providers/{name}/
-    - modules/{collection}/tools/{name}/
-    - modules/{collection}/hooks/{name}/
-    - modules/{collection}/orchestrators/{name}/
+    Scans modules directory for modules organized by type:
+    - modules/providers/{name}/
+    - modules/tools/{name}/
+    - modules/hooks/{name}/
+    - modules/orchestrators/{name}/
 
-    Module ID format: {collection}/{type}/{name}
+    Module ID format: {type}/{name}
     """
 
     def __init__(self, share_dir: Path) -> None:
@@ -65,44 +65,38 @@ class ModuleService:
             logger.warning(f"Modules directory does not exist: {self.modules_dir}")
             return modules
 
-        for collection_dir in self.modules_dir.iterdir():
-            if not collection_dir.is_dir() or collection_dir.name.startswith("."):
+        for type_dir in self.modules_dir.iterdir():
+            if not type_dir.is_dir() or type_dir.name not in valid_types:
                 continue
 
-            collection_name = collection_dir.name
+            module_type = type_dir.name.rstrip("s")
+            if type_filter and module_type != type_filter:
+                continue
 
-            for type_dir in collection_dir.iterdir():
-                if not type_dir.is_dir() or type_dir.name not in valid_types:
+            for module_dir in type_dir.iterdir():
+                if not module_dir.is_dir() or module_dir.name.startswith("."):
                     continue
 
-                module_type = type_dir.name.rstrip("s")
-                if type_filter and module_type != type_filter:
+                module_yaml = module_dir / "module.yaml"
+                if not module_yaml.exists():
+                    logger.debug(f"Skipping module without module.yaml: {module_dir}")
                     continue
 
-                for module_dir in type_dir.iterdir():
-                    if not module_dir.is_dir() or module_dir.name.startswith("."):
-                        continue
+                try:
+                    metadata = self._load_module_metadata(module_yaml)
+                    module_id = f"{module_type}/{module_dir.name}"
 
-                    module_yaml = module_dir / "module.yaml"
-                    if not module_yaml.exists():
-                        logger.debug(f"Skipping module without module.yaml: {module_dir}")
-                        continue
-
-                    try:
-                        metadata = self._load_module_metadata(module_yaml)
-                        module_id = f"{collection_name}/{module_type}/{module_dir.name}"
-
-                        modules.append(
-                            ModuleInfo(
-                                id=module_id,
-                                type=module_type,
-                                name=metadata.name,
-                                location=str(module_dir),
-                                collection=collection_name,
-                            )
+                    modules.append(
+                        ModuleInfo(
+                            id=module_id,
+                            type=module_type,
+                            name=metadata.name,
+                            location=str(module_dir),
+                            source="local",
                         )
-                    except Exception as e:
-                        logger.error(f"Error loading module {module_dir}: {e}")
+                    )
+                except Exception as e:
+                    logger.error(f"Error loading module {module_dir}: {e}")
 
         logger.info(f"Found {len(modules)} modules (type_filter={type_filter})")
         return modules
@@ -111,7 +105,7 @@ class ModuleService:
         """Get detailed information about a specific module.
 
         Args:
-            module_id: Module identifier in format {collection}/{type}/{name}
+            module_id: Module identifier in format {type}/{name}
 
         Returns:
             ModuleDetails object
@@ -121,12 +115,12 @@ class ModuleService:
             FileNotFoundError: If module does not exist
         """
         parts = module_id.split("/")
-        if len(parts) != 3:
-            raise ValueError(f"Invalid module ID format: {module_id}. Expected: collection/type/name")
+        if len(parts) != 2:
+            raise ValueError(f"Invalid module ID format: {module_id}. Expected: type/name")
 
-        collection, module_type, module_name = parts
+        module_type, module_name = parts
         type_plural = f"{module_type}s"
-        module_dir = self.modules_dir / collection / type_plural / module_name
+        module_dir = self.modules_dir / type_plural / module_name
 
         if not module_dir.exists():
             raise FileNotFoundError(f"Module not found: {module_id}")
@@ -142,7 +136,7 @@ class ModuleService:
             type=module_type,
             name=metadata.name,
             location=str(module_dir),
-            collection=collection,
+            source="local",
             description=metadata.description,
             config_schema=metadata.config_schema,
         )

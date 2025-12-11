@@ -5,8 +5,6 @@ import type { CreateProfileRequest, UpdateProfileRequest, ModuleConfig, Componen
 import { KeyValueEditor } from './KeyValueEditor';
 import { ComponentSelector } from './ComponentSelector';
 import { ModuleConfigEditor } from './ModuleConfigEditor';
-import { useComponentRefs } from '../hooks/useCollections';
-
 interface ProfileFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -16,7 +14,9 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: ProfileFormProps) {
-  const { componentRefs, isLoading: loadingRefs } = useComponentRefs();
+  // For now, component refs disabled until we add registry-based component discovery
+  const componentRefs = undefined;
+  const loadingRefs = false;
   const [showSelector, setShowSelector] = useState<{
     section: 'providers' | 'tools' | 'hooks' | 'orchestrator' | 'context' | 'agents' | 'contexts' | null;
   }>({ section: null });

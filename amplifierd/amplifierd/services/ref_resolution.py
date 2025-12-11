@@ -9,13 +9,15 @@ Resolves references (git URLs, fsspec paths, local paths) to local filesystem pa
 import hashlib
 import logging
 import shutil
+import subprocess
 import urllib.parse
 import uuid
 from pathlib import Path
 
+from git import Repo
+
 from amplifier_library.storage.paths import get_cache_dir
 from amplifier_library.utils.git_url import parse_git_url
-from git import Repo
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,9 @@ class RefResolutionService:
         self.git_cache_dir.mkdir(parents=True, exist_ok=True)
         self.fsspec_cache_dir = cache_dir / "fsspec"
         self.fsspec_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        # Session cache for commit hash lookups
+        self._session_cache: dict[tuple[str, str], str] = {}
 
     def resolve_ref(self, source_ref: str) -> Path:
         """Resolve reference to local filesystem path.
@@ -181,6 +186,17 @@ class RefResolutionService:
         ref = parsed.ref
         subdirectory = parsed.subdirectory
 
+        # Try remote lookup before cloning
+        commit_hash = self._get_remote_commit_hash(repo_url, ref)
+
+        if commit_hash:
+            cache_key = self._compute_cache_key(commit_hash, subdirectory)
+            cache_dir = self.git_cache_dir / cache_key
+
+            if cache_dir.exists():
+                logger.info(f"Using cached ref (no clone needed): {cache_key}")
+                return cache_dir
+
         # Create temporary directory for clone
         temp_dir = self.git_cache_dir / f"temp_{uuid.uuid4().hex[:8]}"
 
@@ -247,6 +263,74 @@ class RefResolutionService:
                 f"  3. Check authentication (if private repo)\n"
                 f"  4. Try manual git clone: git clone {repo_url} -b {ref}"
             ) from e
+
+    def _get_remote_commit_hash(self, repo_url: str, ref: str) -> str | None:
+        """Get commit hash from remote without cloning using git ls-remote.
+
+        Args:
+            repo_url: Git repository URL (clean URL without git+ or fragments)
+            ref: Git ref (branch, tag, or commit)
+
+        Returns:
+            40-character commit hash if successful, None if command fails
+
+        Side Effects:
+            None - reads remote state only, no local operations
+
+        Performance:
+            Typically 100-300ms network call vs 2-10s clone
+            Session cache provides instant lookup for repeated references
+        """
+        # Check session cache first
+        cache_key = (repo_url, ref)
+        if cache_key in self._session_cache:
+            logger.debug(f"Session cache hit for {repo_url}@{ref}")
+            return self._session_cache[cache_key]
+
+        try:
+            # Run git ls-remote to query commit hash
+            result = subprocess.run(
+                ["git", "ls-remote", repo_url, f"refs/heads/{ref}"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+
+            # Parse output: "<hash>\trefs/heads/<ref>"
+            if result.returncode == 0 and result.stdout.strip():
+                commit_hash = result.stdout.split()[0]
+                logger.debug(f"Remote commit hash for {repo_url}@{ref}: {commit_hash}")
+
+                # Store in session cache
+                self._session_cache[cache_key] = commit_hash
+                return commit_hash
+
+            logger.debug(
+                f"git ls-remote failed for {repo_url}@{ref}: rc={result.returncode}, stderr={result.stderr.strip()}"
+            )
+            return None
+
+        except subprocess.TimeoutExpired:
+            logger.warning(f"git ls-remote timeout for {repo_url}@{ref}")
+            return None
+        except Exception as e:
+            logger.debug(f"git ls-remote error for {repo_url}@{ref}: {e}")
+            return None
+
+    def _compute_cache_key(self, commit_hash: str, subdirectory: str | None) -> str:
+        """Compute cache key from commit hash and optional subdirectory.
+
+        Args:
+            commit_hash: 40-character git commit hash
+            subdirectory: Optional subdirectory path within repo
+
+        Returns:
+            Cache key string (commit hash or commit_hash_subdir)
+        """
+        if subdirectory:
+            return f"{commit_hash}_{subdirectory.replace('/', '_')}"
+        return commit_hash
 
     def _resolve_http_url(self, url: str) -> Path:
         """Download HTTP(S) URL to cache.

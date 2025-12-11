@@ -1,137 +1,227 @@
-"""Startup handlers for amplifierd daemon.
+"""Startup handlers for amplifierd daemon (v3).
 
-Handles cache updates and initialization on daemon startup based on configuration.
+Handles registry updates and profile source syncing on daemon startup.
 """
 
 import logging
-from datetime import UTC
+import shutil
+from pathlib import Path
+
+import yaml
 
 from amplifierd.config.models import StartupConfig
-from amplifierd.dependencies import get_status_service
-from amplifierd.dependencies import get_update_service
 
 logger = logging.getLogger(__name__)
 
 
+def save_profile_source(
+    profile_id: str,
+    profile_yaml: dict,
+    config_yaml: dict,
+    source_dir: Path,
+    dest_dir: Path,
+) -> None:
+    """Save profile source YAML and copy component assets.
+
+    Args:
+        profile_id: Profile identifier
+        profile_yaml: Profile YAML dictionary
+        config_yaml: Config YAML dictionary (unused in current implementation)
+        source_dir: Source directory from registry
+        dest_dir: Destination profiles directory
+    """
+    profile_dir = dest_dir / profile_id
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save profile.yaml
+    profile_yaml_path = profile_dir / "profile.yaml"
+    profile_yaml_path.write_text(yaml.dump(profile_yaml, default_flow_style=False))
+    logger.info(f"Saved profile source: {profile_yaml_path}")
+
+    # Copy component assets if they exist in source
+    if source_dir.is_dir():
+        for item in source_dir.iterdir():
+            if item.is_dir() and item.name in [
+                "behaviors",
+                "session",
+                "contexts",
+                "agents",
+                "hooks",
+                "tools",
+                "providers",
+            ]:
+                dest_item = profile_dir / item.name
+                if dest_item.exists():
+                    shutil.rmtree(dest_item)
+                shutil.copytree(item, dest_item)
+                logger.debug(f"Copied {item.name}/ to profile")
+
+
 async def handle_startup_updates(config: StartupConfig) -> None:
-    """Handle cache updates on startup based on configuration.
+    """Handle v3 startup updates: registries + profile source syncing.
 
-    Bootstrap process:
-    1. Read collections from collections.yaml
-    2. Initialize metadata for any collections not in metadata store
-    3. Check cache status (will now find missing collections)
-    4. Update based on config.update_stale_caches
+    V3 startup process:
+    1. Refresh registries (fetch latest if git+ URIs)
+    2. Load profiles.yaml (list of profiles to keep synced)
+    3. Sync profile sources (profile.yaml + component assets) from registries
 
-    Behavior based on configuration:
-    - If check_cache_on_startup is False: Skip entirely
-    - If check_cache_on_startup is True and update_stale_caches is False:
-      Check cache status and log if outdated
-    - If both are True: Check and update stale caches
+    Note: Profile compilation happens during session creation, not startup.
 
     Args:
         config: Startup configuration
     """
     if not config.check_cache_on_startup:
-        logger.info("Cache checking on startup disabled")
+        logger.info("V3 startup updates disabled")
         return
 
-    logger.info("Checking cache status on startup...")
+    logger.info("V3 startup: Checking registries and profiles...")
 
     try:
-        # STEP 1: Bootstrap metadata from collections.yaml
-        from datetime import datetime
+        from amplifier_library.services.registry_service import RegistryService
+        from amplifier_library.storage import get_cache_dir
+        from amplifier_library.storage import get_share_dir
+        from amplifierd.services.ref_resolution import RefResolutionService
 
-        from amplifier_library.cache.models import CollectionMetadata
-        from amplifier_library.storage.paths import get_profiles_dir
+        # STEP 1: Refresh registries
+        share_dir = get_share_dir()
+        registry_service = RegistryService(share_dir=share_dir)
 
-        from amplifierd.dependencies import get_collection_service
-        from amplifierd.dependencies import get_metadata_store
+        # Ensure registries.yaml exists
+        registry_service.ensure_default_registries()
 
-        collection_service = get_collection_service()
-        metadata_store = get_metadata_store()
+        # Load registries
+        registries = registry_service.load_registries(force_reload=True)
+        logger.info(f"Loaded {len(registries)} registries: {', '.join(registries.keys())}")
 
-        # Get collections from YAML (source of truth)
-        collections_from_yaml = collection_service.list_collection_entries()
+        # TODO: Refresh git-based registries (pull latest)
+        # For now, they're cached - could add refresh logic here
 
-        # Ensure metadata exists for each collection
-        bootstrapped_count = 0
-        profiles_dir = get_profiles_dir()
+        # STEP 2: Load profiles.yaml (list of profiles to sync from registries)
+        profiles_config_path = get_share_dir() / "profiles.yaml"
 
-        for collection_id, entry in collections_from_yaml:
-            existing_meta = metadata_store.get_collection(collection_id)
-            if not existing_meta:
-                # Create initial metadata for this collection
-                logger.info(f"Bootstrapping metadata for collection: {collection_id}")
+        if not profiles_config_path.exists():
+            logger.info("No profiles.yaml found - skipping profile sync")
+            logger.info(f"Create {profiles_config_path} with 'profiles:' list to sync profiles on startup")
+            return
 
-                # Determine source type from entry
-                source_type = "git" if entry.source.startswith(("git@", "https://", "git+")) else "local"
+        # Load profiles list
+        profiles_config = yaml.safe_load(profiles_config_path.read_text())
+        profiles_to_sync = profiles_config.get("profiles", [])
 
-                # Mount path is where collection will be cached
-                mount_path = profiles_dir / collection_id
+        if not profiles_to_sync:
+            logger.info("profiles.yaml exists but has no profiles listed")
+            return
 
-                metadata_store.save_collection(
-                    CollectionMetadata(
-                        collection_id=collection_id,
-                        source_type=source_type,
-                        source_location=entry.source,
-                        mount_path=mount_path,
-                        installed_at=datetime.min.replace(tzinfo=UTC),  # Never installed
-                        last_checked=datetime.min.replace(tzinfo=UTC),  # Never checked
-                        last_updated=None,  # Never updated
-                        source_commit=None,  # No commit yet
+        logger.info(f"Found {len(profiles_to_sync)} profiles to sync")
+
+        # STEP 3: Parse profile entries (format: - profile-id: amp://registry/path)
+        profile_refs = {}
+        for item in profiles_to_sync:
+            if isinstance(item, dict):
+                # Dict format: {profile-id: amp://URI}
+                for profile_id, amp_uri in item.items():
+                    profile_refs[profile_id] = amp_uri
+
+        if not profile_refs:
+            logger.info("No valid profile references in profiles.yaml")
+            return
+
+        logger.info(f"Parsed {len(profile_refs)} profile references")
+
+        # STEP 4: Fetch and save profile sources from registry
+        ref_resolution = RefResolutionService(state_dir=get_cache_dir())
+        profiles_dir = share_dir / "profiles"
+        synced_count = 0
+        skipped_count = 0
+
+        for profile_id, amp_uri in profile_refs.items():
+            # Check if already synced
+            profile_dir = profiles_dir / profile_id
+            if profile_dir.exists() and not config.update_stale_caches:
+                logger.debug(f"Profile '{profile_id}' already synced, skipping")
+                skipped_count += 1
+                continue
+
+            # Fetch profile source from registry
+            try:
+                logger.info(f"Fetching profile '{profile_id}' from {amp_uri}")
+
+                # Resolve amp:// URI to registry path
+                resolved_uri = registry_service.resolve_amp_uri(amp_uri)
+
+                # Fetch profile directory from registry
+                profile_source_dir = ref_resolution.resolve_ref(resolved_uri)
+
+                # Detect format: single file or directory
+                if profile_source_dir.is_file():
+                    # Modern format: single YAML file contains everything
+                    logger.debug(f"Loading profile from flat file: {profile_source_dir}")
+                    profile_yaml = yaml.safe_load(profile_source_dir.read_text())
+                    config_yaml = {}  # No separate config in flat format
+
+                elif profile_source_dir.is_dir():
+                    # Legacy format: directory with profile.yaml + config.yaml
+                    logger.debug(f"Loading profile from directory: {profile_source_dir}")
+                    profile_yaml_path = profile_source_dir / "profile.yaml"
+                    config_yaml_path = profile_source_dir / "config.yaml"
+
+                    if not profile_yaml_path.exists():
+                        logger.warning(f"profile.yaml not found in {profile_source_dir}")
+                        continue
+
+                    profile_yaml = yaml.safe_load(profile_yaml_path.read_text())
+
+                    # config.yaml is optional in directory format
+                    if config_yaml_path.exists():
+                        config_yaml = yaml.safe_load(config_yaml_path.read_text())
+                    else:
+                        logger.debug(f"No config.yaml for '{profile_id}', using defaults")
+                        config_yaml = {}
+                else:
+                    logger.error(f"Profile path is neither file nor directory: {profile_source_dir}")
+                    continue
+
+                # Save profile source (no compilation yet)
+                logger.info(f"Saving profile source '{profile_id}'...")
+                save_profile_source(profile_id, profile_yaml, config_yaml, profile_source_dir, profiles_dir)
+
+                # Compile profile to fetch and resolve all assets
+                try:
+                    from amplifierd.services.profile_compilation import ProfileCompilationService
+
+                    compilation_service = ProfileCompilationService(
+                        share_dir=share_dir,
+                        cache_dir=get_cache_dir(),
+                        ref_resolution=ref_resolution,
+                        registry_service=registry_service,
                     )
-                )
-                bootstrapped_count += 1
 
-        if bootstrapped_count > 0:
-            logger.info(f"Bootstrapped metadata for {bootstrapped_count} collection(s)")
+                    logger.info(f"Compiling assets for '{profile_id}'...")
+                    compiled_path = compilation_service.compile_profile(profile_id, profile_yaml, config_yaml)
 
-        # STEP 2: Now check status (will find bootstrapped collections as "missing")
-        status_service = get_status_service()
-        all_status = status_service.get_all_status()
+                    # Remove mount_plan.json (created per-session, not part of profile source)
+                    mount_plan_path = compiled_path / "mount_plan.json"
+                    if mount_plan_path.exists():
+                        mount_plan_path.unlink()
+                        logger.debug("Removed mount_plan.json (created per-session)")
 
-        # Log overall status
-        logger.info(f"Cache status: {all_status.overall_status}")
+                    logger.info(f"✓ Profile '{profile_id}' assets compiled")
 
-        if all_status.overall_status == "fresh":
-            logger.info("All caches are fresh")
-            return
+                except Exception as e:
+                    logger.warning(f"Failed to compile profile assets for '{profile_id}': {e}")
+                    # Continue anyway - profile.yaml exists, assets can be compiled later
 
-        # Count stale/missing collections and profiles
-        stale_collections = [c for c in all_status.collections if c.status in ("stale", "missing")]
-        total_stale_profiles = sum(
-            len([p for p in c.profiles if p.status in ("stale", "missing")]) for c in stale_collections
+                logger.info(f"✓ Profile '{profile_id}' synced to {profile_dir}")
+                synced_count += 1
+
+            except Exception as e:
+                logger.error(f"Failed to sync profile '{profile_id}': {e}")
+
+        logger.info(
+            f"Startup complete: {synced_count} synced, {skipped_count} skipped, "
+            f"{len(profile_refs) - synced_count - skipped_count} failed"
         )
-
-        if not config.update_stale_caches:
-            # Just report status
-            logger.warning(
-                f"Found {len(stale_collections)} collection(s) with {total_stale_profiles} stale/missing profile(s). "
-                "Set update_stale_caches=true to auto-update on startup."
-            )
-            for collection in stale_collections:
-                stale_profiles = [p for p in collection.profiles if p.status in ("stale", "missing")]
-                logger.warning(f"  - {collection.collection_id}: {len(stale_profiles)} stale/missing profile(s)")
-            return
-
-        # Update stale caches
-        logger.info(f"Updating {len(stale_collections)} stale collection(s)...")
-        update_service = get_update_service()
-
-        result = await update_service.update_all(
-            check_only=False,
-            force=False,  # Only update what's actually stale
-        )
-
-        if result.success:
-            logger.info(f"Cache update completed: {result.successful_updates}/{result.total_profiles} profiles updated")
-        else:
-            logger.warning(
-                f"Cache update completed with errors: "
-                f"{result.successful_updates}/{result.total_profiles} succeeded, "
-                f"{result.failed_updates} failed"
-            )
 
     except Exception as e:
-        logger.error(f"Failed to handle startup cache updates: {e}", exc_info=True)
+        logger.error(f"Failed to handle startup updates: {e}", exc_info=True)
         # Don't fail startup on cache update errors

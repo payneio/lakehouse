@@ -37,9 +37,11 @@ class ProfileInfo(CamelCaseModel):
     """Basic profile information."""
 
     name: str = Field(description="Profile name")
-    source: str = Field(description="Profile source (user, project, collection)")
+    source: str = Field(description="Profile source path")
+    source_type: str = Field(default="local", description="Profile source type (local or registry)")
+    registry_id: str | None = Field(default=None, description="Registry ID if from registry")
+    source_uri: str | None = Field(default=None, description="Original source URI if from registry")
     is_active: bool = Field(description="Whether this profile is currently active")
-    collection_id: str | None = Field(default=None, description="Collection this profile belongs to")
     schema_version: int | None = Field(default=None, description="Profile schema version")
 
 
@@ -59,20 +61,38 @@ class SessionConfig(CamelCaseModel):
 
 
 class ProfileDetails(CamelCaseModel):
-    """Detailed profile information."""
+    """Detailed profile information (v3)."""
 
     name: str = Field(description="Profile name")
-    schema_version: int = Field(default=1, description="Profile schema version (1 or 2)")
+    schema_version: int = Field(default=3, description="Profile schema version (3 only)")
     version: str = Field(description="Profile version")
     description: str = Field(description="Profile description")
-    collection_id: str | None = Field(default=None, description="Collection this profile belongs to")
-    source: str = Field(description="Profile source (user, project, collection)")
+    source: str = Field(description="Profile source path")
+    source_type: str = Field(default="local", description="Profile source type (local or registry)")
+    registry_id: str | None = Field(default=None, description="Registry ID if from registry")
+    source_uri: str | None = Field(default=None, description="Original source URI if from registry")
     is_active: bool = Field(description="Whether this profile is currently active")
-    inheritance_chain: list[str] = Field(default_factory=list, description="Profile inheritance chain (schema v1 only)")
-    providers: list[ModuleConfig] = Field(description="Provider modules")
-    tools: list[ModuleConfig] = Field(description="Tool modules")
-    hooks: list[ModuleConfig] = Field(description="Hook modules")
-    session: SessionConfig | None = Field(default=None, description="Session configuration (schema v2)")
-    agents: dict[str, str] = Field(default_factory=dict, description="Agent file references (name -> ref)")
-    context: dict[str, str] = Field(default_factory=dict, description="Context directory references (name -> ref)")
-    instruction: str | None = Field(default=None, description="Profile system instruction from markdown body")
+    behaviors: list["BehaviorRef"] = Field(default_factory=list, description="Behavior references")
+    providers: list[ModuleConfig] = Field(default_factory=list, description="Provider modules")
+    tools: list[ModuleConfig] = Field(default_factory=list, description="Tool modules")
+    hooks: list[ModuleConfig] = Field(default_factory=list, description="Hook modules")
+    session: SessionConfig | None = Field(default=None, description="Session configuration")
+    agents: dict[str, str] = Field(default_factory=dict, description="Agent content (name -> markdown)")
+    contexts: dict[str, str] = Field(default_factory=dict, description="Context content (name -> ref)")
+    instruction: str | None = Field(default=None, description="Profile system instruction")
+
+
+class ComponentRef(CamelCaseModel):
+    """Component reference with inline source (v3)."""
+
+    id: str = Field(description="Component identifier")
+    type: str = Field(description="Component type (orchestrator, tool, hook, agent, context, provider)")
+    source: str | None = Field(default=None, description="Component source URI (amp://, git+, file://)")
+    config: dict[str, object] | None = Field(default=None, description="Component-specific configuration")
+
+
+class BehaviorRef(CamelCaseModel):
+    """Behavior reference (v3)."""
+
+    id: str = Field(description="Behavior identifier")
+    source: str = Field(description="Behavior source URI (amp://, git+, file://)")

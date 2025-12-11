@@ -10,10 +10,6 @@ from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionQuery
 from amplifier_library.models.sessions import SessionStatus
 
-from .collections import CollectionInfo
-from .collections import ComponentRef
-from .collections import ComponentRefsResponse
-from .collections import ProfileManifest
 from .errors import ErrorResponse
 from .errors import ValidationErrorDetail
 from .modules import ModuleDetails
@@ -51,10 +47,6 @@ __all__ = [
     "ProfileInfo",
     "ProfileDetails",
     "ModuleConfig",
-    "CollectionInfo",
-    "ComponentRef",
-    "ComponentRefsResponse",
-    "ProfileManifest",
     "ModuleInfo",
     "ModuleDetails",
     "EmbeddedMount",

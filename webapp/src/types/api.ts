@@ -1,3 +1,4 @@
+// @deprecated - Collections removed in v3, use registries instead
 export interface Collection {
   identifier: string;
   source: string;
@@ -12,8 +13,10 @@ export interface Profile {
   name: string;
   description?: string;
   source: string;
+  sourceType: 'local' | 'registry';
+  registryId?: string;
+  sourceUri?: string;
   isActive: boolean;
-  collectionId?: string;
   schemaVersion?: number;
   baseProfile?: string;
   settings?: Record<string, unknown>;
@@ -37,8 +40,10 @@ export interface ProfileDetails {
   schemaVersion: number;
   version: string;
   description: string;
-  collectionId?: string;
   source: string;
+  sourceType: 'local' | 'registry';
+  registryId?: string;
+  sourceUri?: string;
   isActive: boolean;
   inheritanceChain?: string[];
   providers: ModuleConfig[];

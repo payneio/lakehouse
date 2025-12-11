@@ -1,26 +1,21 @@
-"""Simple profile management service.
+"""V3 profile management service.
 
-Scans flat profiles directory for profiles, handles one-level inheritance,
-and manages active profile state in a simple text file.
-
-Can optionally integrate with ProfileDiscoveryService and ProfileCompilationService
-for schema v2 profile support.
+Manages v3 profiles with flat directory structure (no collections).
+Scans share/profiles/ for compiled profiles and handles compilation via ProfileCompilationService.
 """
 
 from __future__ import annotations
 
+import json
 import logging
-import shutil
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import yaml
-
 if TYPE_CHECKING:
     from amplifierd.services.profile_compilation import ProfileCompilationService
-    from amplifierd.services.profile_discovery import ProfileDiscoveryService
 
+from amplifier_library.services.registry_service import RegistryService
+from amplifierd.models.profiles import BehaviorRef
 from amplifierd.models.profiles import CreateProfileRequest
 from amplifierd.models.profiles import ModuleConfig
 from amplifierd.models.profiles import ProfileDetails
@@ -31,522 +26,123 @@ from amplifierd.models.profiles import UpdateProfileRequest
 logger = logging.getLogger(__name__)
 
 
-def _get_collection_from_source(source: str) -> str | None:
-    """Extract collection name from profile source.
-
-    Args:
-        source: Profile source string (e.g., "max-payne-collection/profiles/default.yaml")
-
-    Returns:
-        Collection name or None
-    """
-    parts = source.split("/")
-    if len(parts) >= 2 and parts[1] == "profiles":
-        return parts[0]
-    return None
-
-
-@dataclass
-class ProfileData:
-    """Internal representation of profile data."""
-
-    name: str
-    version: str
-    description: str
-    schema_version: int = 2
-    extends: str | None = None
-    providers: list[dict[str, object]] | None = None
-    tools: list[dict[str, object]] | None = None
-    hooks: list[dict[str, object]] | None = None
-    orchestrator: dict[str, object] | None = None
-    context_manager: dict[str, object] | None = None
-    agents: dict[str, str] | None = None
-    context_refs: dict[str, str] | None = None
-    instruction: str | None = None
-
-    def __post_init__(self) -> None:
-        """Initialize default values."""
-        if self.providers is None:
-            self.providers = []
-        if self.tools is None:
-            self.tools = []
-        if self.hooks is None:
-            self.hooks = []
-
-
 class ProfileService:
-    """Simple profile management service.
+    """V3 profile management service.
 
-    Scans flat profiles directory for profiles:
-    - profiles/{collection}/*.yaml (collection profiles)
-    - profiles/*.yaml (standalone profiles)
-
-    Handles one-level inheritance via 'extends' field and stores
-    active profile in a text file.
-
-    Can optionally integrate with ProfileDiscoveryService and ProfileCompilationService
-    for schema v2 profile support.
+    Manages profiles in flat share/profiles/ directory structure.
+    Each profile is a directory containing mount_plan.json.
     """
 
     def __init__(
         self,
         share_dir: Path,
+        cache_dir: Path,
         data_dir: Path,
-        discovery_service: ProfileDiscoveryService | None = None,
+        registry_service: RegistryService,
         compilation_service: ProfileCompilationService | None = None,
     ) -> None:
         """Initialize profile service.
 
         Args:
             share_dir: Root share directory containing profiles/
+            cache_dir: Cache directory for compilation
             data_dir: Directory for service data (active profile file)
-            discovery_service: Optional ProfileDiscoveryService (for schema v2)
-            compilation_service: Optional ProfileCompilationService (for ref resolution)
+            registry_service: Registry service for amp:// resolution
+            compilation_service: Optional ProfileCompilationService
         """
         self.share_dir = Path(share_dir)
+        self.cache_dir = Path(cache_dir)
         self.profiles_dir = self.share_dir / "profiles"
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.active_profile_file = self.data_dir / "active_profile.txt"
-
-        # New services (optional for backward compatibility)
-        self.discovery_service = discovery_service
+        self.registry_service = registry_service
         self.compilation_service = compilation_service
 
-        service_status = []
-        if discovery_service:
-            service_status.append("discovery")
-        if compilation_service:
-            service_status.append("compilation")
-
-        services_str = f" (with {', '.join(service_status)})" if service_status else ""
         logger.info(
-            f"ProfileService initialized with share_dir={self.share_dir}, data_dir={self.data_dir}{services_str}"
+            f"ProfileService initialized: share_dir={self.share_dir}, "
+            f"cache_dir={self.cache_dir}, data_dir={self.data_dir}"
         )
 
     def list_profiles(self) -> list[ProfileInfo]:
-        """List all available profiles.
+        """List all profiles.
 
-        Combines profiles from:
-        - Local .yaml files (legacy schema v1)
-        - Cached profiles from ProfileDiscoveryService (schema v2)
+        Scans share/profiles/ for directories containing profile.yaml.
 
         Returns:
             List of ProfileInfo objects
         """
         profiles = []
-        active_name = self._read_active_profile()
-        profile_names_seen = set()
+        active_profile = self.get_active_profile()
 
-        # First, get cached profiles from discovery service (schema v2)
-        if self.discovery_service:
-            logger.debug("Listing cached profiles from discovery service")
-            try:
-                cached_profiles = self.discovery_service.list_cached_profiles()
-                for profile_detail in cached_profiles:
-                    profile_names_seen.add(profile_detail.name)
-                    profiles.append(
-                        ProfileInfo(
-                            name=profile_detail.name,
-                            source=profile_detail.source,
-                            is_active=(profile_detail.name == active_name),
-                            collection_id=profile_detail.collection_id,
-                            schema_version=profile_detail.schema_version,
-                        )
-                    )
-                logger.debug(f"Added {len(cached_profiles)} cached profiles (schema v2)")
-            except Exception as e:
-                logger.error(f"Error listing cached profiles: {e}")
-
-        # Then scan local .yaml and .md files (schema v1 / legacy and schema v2)
         if not self.profiles_dir.exists():
             logger.warning(f"Profiles directory does not exist: {self.profiles_dir}")
             return profiles
 
-        # Scan both .yaml (schema v1) and .md (schema v2) files
-        # Only look for profile files in the top 2 levels (collection/profile/*.md)
-        # This skips module documentation nested in providers/tools/hooks subdirectories
-        import itertools
-
-        yaml_files = self.profiles_dir.rglob("*.yaml")
-        # Only scan for .md files that are close to the profiles root (not deeply nested)
-        # Profile structure: profiles/collection/profile-name/profile-name.md
-        # Module docs are deeper: profiles/collection/profile-name/providers/hash/README.md
-        md_files = (f for f in self.profiles_dir.rglob("*.md") if len(f.relative_to(self.profiles_dir).parts) <= 3)
-
-        for profile_file in itertools.chain(yaml_files, md_files):
-            if not profile_file.is_file():
+        # Scan flat profile directories
+        for profile_dir in self.profiles_dir.iterdir():
+            if not profile_dir.is_dir():
                 continue
 
+            # Check for profile.yaml (new format)
+            profile_yaml_path = profile_dir / "profile.yaml"
+            if not profile_yaml_path.exists():
+                logger.debug(f"Skipping {profile_dir.name}: no profile.yaml")
+                continue
+
+            # Load minimal info from profile.yaml
+            import yaml
+
             try:
-                profile_data = self._load_profile_file(profile_file)
-
-                # Skip if already added from discovery service
-                if profile_data.name in profile_names_seen:
-                    logger.debug(f"Skipping {profile_data.name} (already in cached profiles)")
-                    continue
-
-                profile_names_seen.add(profile_data.name)
-                relative = profile_file.relative_to(self.profiles_dir)
-
-                if len(relative.parts) > 1:
-                    source = f"{relative.parts[0]}/profiles/{relative.name}"
-                else:
-                    source = f"profiles/{relative.name}"
+                profile_data = yaml.safe_load(profile_yaml_path.read_text())
+                profile_info = profile_data.get("profile", {})
+                profile_name = profile_info.get("name", profile_dir.name)
 
                 profiles.append(
                     ProfileInfo(
-                        name=profile_data.name,
-                        source=source,
-                        is_active=(profile_data.name == active_name),
+                        name=profile_name,
+                        source=str(profile_dir),
+                        source_type="local",
+                        registry_id=None,
+                        source_uri=None,
+                        is_active=(profile_name == active_profile),
+                        schema_version=3,
                     )
                 )
+                logger.debug(f"Found profile: {profile_name}")
             except Exception as e:
-                # Skip files that aren't valid profiles (README, docs, etc.)
-                # Only log at debug level since this is expected for non-profile markdown files
-                logger.debug(f"Skipping {profile_file.name}: not a valid profile ({e})")
+                logger.warning(f"Failed to parse {profile_yaml_path}: {e}")
 
-        logger.info(f"Found {len(profiles)} total profiles")
+        logger.info(f"Found {len(profiles)} profiles")
         return profiles
 
-    def get_profile(self, name: str) -> ProfileDetails:
-        """Get detailed information about a profile, resolving inheritance.
-
-        Note: Schema v2 profiles do not support inheritance via 'extends'.
-        Use ProfileCompilationService for ref resolution instead.
+    def compile_profile(self, profile_id: str, profile_yaml: dict, config_yaml: dict) -> Path:
+        """Compile v3 profile.
 
         Args:
-            name: Profile name
+            profile_id: Profile identifier
+            profile_yaml: Parsed profile YAML dictionary
+            config_yaml: Parsed config YAML dictionary
 
         Returns:
-            ProfileDetails object with resolved inheritance (schema v1 only)
+            Path to compiled profile directory
 
         Raises:
-            FileNotFoundError: If profile does not exist
+            ValueError: If ProfileCompilationService not available
         """
-        profile_file = self._find_profile_file(name)
-        profile_data = self._load_profile_file(profile_file)
+        if not self.compilation_service:
+            raise ValueError("ProfileCompilationService not available")
 
-        # Check schema version
-        if profile_data.schema_version == 2:
-            logger.debug(f"Profile {name} is schema v2, skipping inheritance resolution")
-            if profile_data.extends:
-                logger.warning(
-                    f"Profile {name} has schema_version: 2 but uses 'extends' field. "
-                    "Schema v2 profiles should use refs instead of inheritance. "
-                    "The 'extends' field will be ignored."
-                )
-        else:
-            # Schema v1: handle inheritance
-            inheritance_chain = [profile_data.name]
-            base_data = None
-
-            if profile_data.extends:
-                logger.debug(f"Resolving inheritance for schema v1 profile: {name}")
-                try:
-                    base_file = self._find_profile_file(profile_data.extends)
-                    base_data = self._load_profile_file(base_file)
-                    inheritance_chain.append(base_data.name)
-                except FileNotFoundError:
-                    logger.warning(f"Base profile not found: {profile_data.extends}")
-
-            if base_data:
-                profile_data = self._merge_profiles(base_data, profile_data)
-
-        active_name = self._read_active_profile()
-        source = self._get_profile_source(profile_file)
-        collection_id = _get_collection_from_source(source)
-
-        # Build SessionConfig if we have orchestrator or context_manager
-        session = None
-        if profile_data.orchestrator or profile_data.context_manager:
-            # Convert orchestrator dict to ModuleConfig
-            orchestrator_config = None
-            if profile_data.orchestrator:
-                module_val = profile_data.orchestrator.get("module", "")
-                source_val = profile_data.orchestrator.get("source")
-                config_val = profile_data.orchestrator.get("config")
-                orchestrator_config = ModuleConfig(
-                    module=str(module_val) if module_val else "",
-                    source=str(source_val) if source_val and isinstance(source_val, str) else None,
-                    config=config_val if isinstance(config_val, dict) else None,
-                )
-
-            # Convert context_manager dict to ModuleConfig
-            context_manager_config = None
-            if profile_data.context_manager:
-                module_val = profile_data.context_manager.get("module", "")
-                source_val = profile_data.context_manager.get("source")
-                config_val = profile_data.context_manager.get("config")
-                context_manager_config = ModuleConfig(
-                    module=str(module_val) if module_val else "",
-                    source=str(source_val) if source_val and isinstance(source_val, str) else None,
-                    config=config_val if isinstance(config_val, dict) else None,
-                )
-
-            # Only create SessionConfig if we have at least orchestrator
-            if orchestrator_config:
-                session = SessionConfig(
-                    orchestrator=orchestrator_config,
-                    context_manager=context_manager_config,
-                )
-
-        return ProfileDetails(
-            name=profile_data.name,
-            schema_version=profile_data.schema_version,
-            version=profile_data.version,
-            description=profile_data.description,
-            collection_id=collection_id,
-            source=source,
-            is_active=(profile_data.name == active_name),
-            providers=self._convert_module_configs(profile_data.providers or []),
-            tools=self._convert_module_configs(profile_data.tools or []),
-            hooks=self._convert_module_configs(profile_data.hooks or []),
-            session=session,
-            agents=profile_data.agents or {},
-            context=profile_data.context_refs or {},
-            instruction=profile_data.instruction,
+        logger.info(f"Compiling profile: {profile_id}")
+        return self.compilation_service.compile_profile(
+            profile_id=profile_id, profile_yaml=profile_yaml, config_yaml=config_yaml
         )
 
-    def get_active_profile(self) -> ProfileDetails | None:
-        """Get the currently active profile.
+    def get_active_profile(self) -> str | None:
+        """Get the currently active profile name.
 
         Returns:
-            ProfileDetails object or None if no profile is active
-        """
-        active_name = self._read_active_profile()
-        if not active_name:
-            return None
-
-        try:
-            return self.get_profile(active_name)
-        except FileNotFoundError:
-            logger.warning(f"Active profile not found: {active_name}")
-            self._write_active_profile(None)
-            return None
-
-    def activate_profile(self, name: str) -> None:
-        """Activate a profile.
-
-        Args:
-            name: Profile name
-
-        Raises:
-            FileNotFoundError: If profile does not exist
-        """
-        profile_file = self._find_profile_file(name)
-        profile_data = self._load_profile_file(profile_file)
-
-        self._write_active_profile(profile_data.name)
-        logger.info(f"Activated profile: {profile_data.name}")
-
-    def deactivate_profile(self) -> None:
-        """Deactivate the currently active profile."""
-        self._write_active_profile(None)
-        logger.info("Deactivated profile")
-
-    def _find_profile_file(self, name: str) -> Path:
-        """Find profile file by name across all profiles.
-
-        Searches for both .yaml (schema v1) and .md (schema v2) profile files.
-
-        Args:
-            name: Profile name
-
-        Returns:
-            Path to profile file
-
-        Raises:
-            FileNotFoundError: If profile not found
-        """
-        # Search for both .yaml and .md files
-        for pattern in ["*.yaml", "*.md"]:
-            for profile_file in self.profiles_dir.rglob(pattern):
-                if not profile_file.is_file():
-                    continue
-
-                try:
-                    profile_data = self._load_profile_file(profile_file)
-                    if profile_data.name == name:
-                        return profile_file
-                except Exception:
-                    continue
-
-        raise FileNotFoundError(f"Profile not found: {name}")
-
-    def _load_profile_file(self, profile_file: Path) -> ProfileData:
-        """Load profile data from YAML or markdown file.
-
-        Supports both:
-        - .yaml files (schema v1): Pure YAML
-        - .md files (schema v2): YAML frontmatter + markdown body
-
-        Args:
-            profile_file: Path to profile file (.yaml or .md)
-
-        Returns:
-            ProfileData object
-
-        Raises:
-            ValueError: If YAML is invalid or missing required fields
-        """
-        try:
-            with open(profile_file) as f:
-                content = f.read()
-
-            # Extract markdown body if present
-            markdown_body = None
-            if profile_file.suffix == ".md" and content.startswith("---\n"):
-                # Extract YAML frontmatter from markdown
-                parts = content.split("---\n", 2)
-                if len(parts) >= 3:
-                    yaml_content = parts[1]
-                    markdown_body = parts[2].strip() if len(parts) > 2 else None
-                    data = yaml.safe_load(yaml_content)
-                else:
-                    raise ValueError(f"Invalid markdown frontmatter in {profile_file}")
-            else:
-                # Pure YAML file - no instruction
-                markdown_body = None
-                data = yaml.safe_load(content)
-
-            if not data or not isinstance(data, dict):
-                raise ValueError(f"Invalid profile YAML: {profile_file}")
-
-            if "profile" not in data:
-                raise ValueError(f"Missing 'profile' section in {profile_file}")
-
-            profile = data["profile"]
-            if "name" not in profile:
-                raise ValueError(f"Missing 'name' in profile section: {profile_file}")
-
-            # Extract schema_version from profile section
-            schema_version = profile.get("schema_version", 1)
-
-            # For schema v2, orchestrator and context_manager are in session section
-            orchestrator = None
-            context_manager = None
-            if schema_version == 2 and "session" in data:
-                session = data["session"]
-                orchestrator = session.get("orchestrator")
-                context_manager = session.get("context")  # This is the MODULE, not context refs
-            else:
-                # Schema v1 or legacy: orchestrator/context at root level
-                orchestrator = data.get("orchestrator")
-                context_manager = data.get("context")
-
-            # Extract agents and context_refs from root level
-            agents = data.get("agents")  # Dict of name -> file ref
-            context_refs = data.get("context")  # Dict of name -> directory ref
-
-            # Handle schema v2 case where root-level context exists
-            if schema_version == 2 and "context" in data:
-                # Root-level context is the context REFS, not the context manager
-                context_refs = data.get("context")
-
-            return ProfileData(
-                name=profile["name"],
-                version=profile.get("version", "0.0.0"),
-                description=profile.get("description", ""),
-                schema_version=schema_version,
-                extends=profile.get("extends"),
-                providers=data.get("providers", []),
-                tools=data.get("tools", []),
-                hooks=data.get("hooks", []),
-                orchestrator=orchestrator,
-                context_manager=context_manager,
-                agents=agents,
-                context_refs=context_refs,
-                instruction=markdown_body,
-            )
-        except yaml.YAMLError as e:
-            raise ValueError(f"Failed to parse YAML file {profile_file}: {e}")
-
-    def _merge_profiles(self, base: ProfileData, derived: ProfileData) -> ProfileData:
-        """Merge derived profile with base profile (one-level inheritance).
-
-        Args:
-            base: Base profile data
-            derived: Derived profile data
-
-        Returns:
-            Merged ProfileData object
-        """
-        base_providers = base.providers or []
-        derived_providers = derived.providers or []
-        base_tools = base.tools or []
-        derived_tools = derived.tools or []
-        base_hooks = base.hooks or []
-        derived_hooks = derived.hooks or []
-
-        return ProfileData(
-            name=derived.name,
-            version=derived.version,
-            description=derived.description,
-            extends=derived.extends,
-            providers=base_providers + derived_providers,
-            tools=base_tools + derived_tools,
-            hooks=base_hooks + derived_hooks,
-            orchestrator=derived.orchestrator or base.orchestrator,
-            context_manager=derived.context_manager or base.context_manager,
-            agents={**(base.agents or {}), **(derived.agents or {})},
-            context_refs={**(base.context_refs or {}), **(derived.context_refs or {})},
-            instruction=derived.instruction or base.instruction,
-        )
-
-    def _convert_module_configs(self, configs: list[dict[str, object]]) -> list[ModuleConfig]:
-        """Convert raw config dictionaries to ModuleConfig objects.
-
-        Args:
-            configs: List of raw module configuration dictionaries
-
-        Returns:
-            List of ModuleConfig objects
-        """
-        result = []
-        for config in configs:
-            module = config.get("module", "")
-            source = config.get("source")
-            module_config = config.get("config")
-
-            if not isinstance(module, str):
-                module = ""
-            if source is not None and not isinstance(source, str):
-                source = None
-            if module_config is not None and not isinstance(module_config, dict):
-                module_config = None
-
-            result.append(
-                ModuleConfig(
-                    module=module,
-                    source=source,
-                    config=module_config,
-                )
-            )
-        return result
-
-    def _get_profile_source(self, profile_file: Path) -> str:
-        """Get profile source string (collection/profiles/filename or profiles/filename).
-
-        Args:
-            profile_file: Path to profile file
-
-        Returns:
-            Source string
-        """
-        try:
-            relative = profile_file.relative_to(self.profiles_dir)
-            if len(relative.parts) > 1:
-                return f"{relative.parts[0]}/profiles/{relative.name}"
-            return f"profiles/{relative.name}"
-        except ValueError:
-            return str(profile_file)
-
-    def _read_active_profile(self) -> str | None:
-        """Read active profile name from file.
-
-        Returns:
-            Active profile name or None
+            Profile name or None if no profile is active
         """
         if not self.active_profile_file.exists():
             return None
@@ -558,76 +154,48 @@ class ProfileService:
             logger.error(f"Error reading active profile file: {e}")
             return None
 
-    def _write_active_profile(self, name: str | None) -> None:
-        """Write active profile name to file.
+    def set_active_profile(self, profile_name: str | None) -> None:
+        """Set the active profile.
 
         Args:
-            name: Profile name or None to clear
+            profile_name: Profile name or None to clear
         """
         try:
-            if name:
-                self.active_profile_file.write_text(name + "\n")
+            if profile_name:
+                self.active_profile_file.write_text(profile_name + "\n")
+                logger.info(f"Set active profile: {profile_name}")
             else:
                 if self.active_profile_file.exists():
                     self.active_profile_file.unlink()
+                logger.info("Cleared active profile")
         except Exception as e:
             logger.error(f"Error writing active profile file: {e}")
             raise
 
-    def compile_and_activate_profile(self, collection_id: str, profile_name: str) -> Path:
-        """Compile profile and activate it (schema v2 profiles only).
-
-        Uses ProfileCompilationService to resolve all refs and create a
-        compiled profile directory, then activates the profile.
+    def activate_profile(self, profile_name: str) -> None:
+        """Activate a profile by name.
 
         Args:
-            collection_id: Collection ID
-            profile_name: Profile name
-
-        Returns:
-            Path to compiled profile directory
+            profile_name: Profile name to activate
 
         Raises:
-            ValueError: If compilation_service not available
-            FileNotFoundError: If profile not found
+            FileNotFoundError: If profile does not exist
         """
-        if not self.compilation_service:
-            raise ValueError(
-                "Profile compilation not available. compilation_service must be provided during initialization."
-            )
+        # Verify profile exists
+        profile_dir = self.profiles_dir / profile_name
+        if not profile_dir.exists() or not (profile_dir / "profile.yaml").exists():
+            raise FileNotFoundError(f"Profile not found: {profile_name}")
 
-        logger.info(f"Compiling profile: {collection_id}/{profile_name}")
+        self.set_active_profile(profile_name)
+        logger.info(f"Activated profile: {profile_name}")
 
-        # Get profile from discovery service or scan
-        profile = None
-        if self.discovery_service:
-            profile = self.discovery_service.get_cached_profile(collection_id, profile_name)
-            if profile:
-                logger.debug(f"Found profile in discovery cache: {profile_name}")
-
-        if not profile:
-            logger.debug(f"Profile not in cache, attempting to load from file: {profile_name}")
-            try:
-                profile = self.get_profile(profile_name)
-            except FileNotFoundError:
-                raise FileNotFoundError(
-                    f"Profile not found: {collection_id}/{profile_name}. "
-                    "Profile must be discovered first or exist as local .yaml file."
-                )
-
-        # Compile profile
-        logger.info(f"Compiling profile with compilation service: {profile.name}")
-        compiled_path = self.compilation_service.compile_profile(collection_id, profile)
-
-        # Activate
-        logger.info(f"Activating compiled profile: {profile.name}")
-        self._write_active_profile(profile.name)
-
-        logger.info(f"Profile compiled and activated: {profile.name} → {compiled_path}")
-        return compiled_path
+    def deactivate_profile(self) -> None:
+        """Deactivate the currently active profile."""
+        self.set_active_profile(None)
+        logger.info("Deactivated profile")
 
     def create_profile(self, request: CreateProfileRequest) -> ProfileDetails:
-        """Create new profile in local collection.
+        """Create a new profile.
 
         Args:
             request: Profile creation request
@@ -636,308 +204,890 @@ class ProfileService:
             Created profile details
 
         Raises:
-            ValueError: If profile name already exists
+            ValueError: If profile already exists or validation fails
         """
-        from amplifierd.models.profiles import CreateProfileRequest
+        import yaml
 
-        if not isinstance(request, CreateProfileRequest):
-            request = CreateProfileRequest(**request)
+        if not self.compilation_service:
+            raise ValueError("ProfileCompilationService not available")
 
-        existing_profiles = self.list_profiles()
-        if any(p.name == request.name for p in existing_profiles):
-            raise ValueError(f"Profile '{request.name}' already exists")
+        profile_dir = self.profiles_dir / request.name
 
-        local_profile_dir = self.profiles_dir / "local" / request.name
-        local_profile_dir.mkdir(parents=True, exist_ok=True)
+        # Verify profile doesn't exist
+        if profile_dir.exists():
+            raise ValueError(f"Profile already exists: {request.name}")
 
-        profile_details = ProfileDetails(
-            name=request.name,
-            schema_version=2,
-            version=request.version,
-            description=request.description,
-            collection_id="local",
-            source=f"local/profiles/{request.name}.md",
-            is_active=False,
-            providers=request.providers,
-            tools=request.tools,
-            hooks=request.hooks,
+        logger.info(f"Creating profile: {request.name}")
+
+        # Create profile directory
+        profile_dir.mkdir(parents=True)
+
+        # Build profile YAML structure (source)
+        profile_yaml: dict[str, object] = {
+            "profile": {
+                "name": request.name,
+                "version": request.version,
+                "description": request.description,
+                "schema_version": 3,
+            },
+            "behaviors": [],
+        }
+
+        # Add orchestrator and context if provided
+        if request.orchestrator:
+            orch_config: dict[str, object] = {
+                "id": request.orchestrator.module,
+                "source": request.orchestrator.source,
+            }
+            if request.orchestrator.config:
+                orch_config["config"] = request.orchestrator.config
+            profile_yaml["orchestrator"] = orch_config
+
+        if request.context:
+            ctx_config: dict[str, object] = {"id": request.context.module, "source": request.context.source}
+            if request.context.config:
+                ctx_config["config"] = request.context.config
+            profile_yaml["context"] = ctx_config
+
+        # Add providers with configs
+        if request.providers:
+            profile_yaml["providers"] = [
+                {"id": p.module, "source": p.source, "config": p.config or {}} for p in request.providers
+            ]
+
+        # Add tools with configs
+        if request.tools:
+            profile_yaml["tools"] = [
+                {"id": t.module, "source": t.source, "config": t.config or {}} for t in request.tools
+            ]
+
+        # Add hooks with configs
+        if request.hooks:
+            profile_yaml["hooks"] = [
+                {"id": h.module, "source": h.source, "config": h.config or {}} for h in request.hooks
+            ]
+
+        # Add empty agents and contexts (user can add later)
+        profile_yaml["agents"] = {}
+        profile_yaml["contexts"] = []
+
+        # Write profile.yaml (source)
+        (profile_dir / "profile.yaml").write_text(yaml.dump(profile_yaml, default_flow_style=False))
+
+        # Create metadata
+        metadata = {
+            "name": request.name,
+            "source_type": "local",
+            "registry_ref": None,
+            "editable": True,
+            "last_compiled": None,
+        }
+        (profile_dir / ".metadata.json").write_text(json.dumps(metadata, indent=2))
+
+        # Build config YAML structure for compilation
+        config_yaml: dict[str, object] = {"session": {}}
+
+        # Add configurations for each component
+        if request.orchestrator and request.orchestrator.config:
+            if "session" not in config_yaml:
+                config_yaml["session"] = {}
+            config_yaml["session"]["orchestrator"] = request.orchestrator.config  # type: ignore
+
+        if request.context and request.context.config:
+            if "session" not in config_yaml:
+                config_yaml["session"] = {}
+            config_yaml["session"]["context"] = request.context.config  # type: ignore
+
+        if request.providers:
+            config_yaml["providers"] = {p.module: p.config or {} for p in request.providers}
+
+        # Compile the profile (creates mount_plan.json)
+        self.compilation_service.compile_profile(
+            profile_id=request.name, profile_yaml=profile_yaml, config_yaml=config_yaml
         )
 
-        manifest_content = self._generate_profile_manifest(
-            profile_details,
-            request.orchestrator,
-            request.context,
-            None,  # agents (not supported in CreateProfileRequest yet)
-            None,  # contexts (not supported in CreateProfileRequest yet)
-            None,  # instruction (not supported in CreateProfileRequest yet)
-        )
-        manifest_file = local_profile_dir / "profile.md"
-        manifest_file.write_text(manifest_content)
+        # Mark as local
+        (profile_dir / ".local").touch()
 
-        logger.info(f"Created local profile: {request.name}")
-        return profile_details
+        logger.info(f"Profile created successfully: {request.name}")
+
+        # Return the profile details
+        return self.get_profile(request.name)
 
     def copy_profile(self, source_name: str, new_name: str) -> ProfileDetails:
-        """Copy profile from any collection to local collection with new name.
-
-        Creates a copy of an existing profile in the local collection with all
-        fields preserved except the name. The source profile can be from any
-        collection (local, discovered, etc).
+        """Copy an existing profile with a new name.
 
         Args:
-            source_name: Name of profile to copy from
-            new_name: Name for the copied profile (kebab-case)
+            source_name: Name of profile to copy
+            new_name: Name for the new profile
 
         Returns:
-            ProfileDetails of the newly created profile
+            Created profile details
 
         Raises:
-            FileNotFoundError: If source profile doesn't exist
-            ValueError: If new_name format invalid or already exists
+            FileNotFoundError: If source profile not found
+            ValueError: If new name already exists
         """
-        import re
+        import shutil
 
-        # 1. Validate new_name format (kebab-case pattern)
-        if not re.match(r"^[a-z0-9-]+$", new_name):
-            raise ValueError(
-                f"Invalid profile name '{new_name}'. Name must contain only lowercase letters, numbers, and hyphens."
-            )
+        from amplifierd.startup import save_profile_source
 
-        # 2. Check if new_name already exists in local collection
-        existing_profiles = self.list_profiles()
-        local_profiles = [p for p in existing_profiles if p.source.startswith("local/")]
-        if any(p.name == new_name for p in local_profiles):
-            raise ValueError(f"Profile '{new_name}' already exists in local collection")
+        source_dir = self.profiles_dir / source_name
+        new_dir = self.profiles_dir / new_name
 
-        # 3. Get source profile (from any collection)
-        source_profile = self.get_profile(source_name)
+        # Verify source exists
+        if not source_dir.exists():
+            raise FileNotFoundError(f"Source profile not found: {source_name}")
 
-        # 4. Create copy request with all fields from source
-        orchestrator = None
-        context = None
-        if source_profile.session:
-            orchestrator = source_profile.session.orchestrator
-            context = source_profile.session.context_manager
+        # Verify new name doesn't exist
+        if new_dir.exists():
+            raise ValueError(f"Profile already exists: {new_name}")
 
-        copy_request = CreateProfileRequest(
-            name=new_name,
-            version=source_profile.version,
-            description=source_profile.description,
-            providers=source_profile.providers,
-            tools=source_profile.tools,
-            hooks=source_profile.hooks,
-            orchestrator=orchestrator,
-            context=context,
-        )
+        logger.info(f"Copying profile {source_name} to {new_name}")
 
-        # 5. Create the new profile using existing create_profile method
-        new_profile = self.create_profile(copy_request)
+        # Create new profile directory
+        new_dir.mkdir(parents=True)
 
-        # 6. If source has instruction, agents, or contexts, update the profile
-        if source_profile.instruction or source_profile.agents or source_profile.context:
-            local_profile_dir = self.profiles_dir / "local" / new_name
+        # Try to copy profile.yaml if it exists (local profile with assets)
+        source_yaml = source_dir / "profile.yaml"
+        if source_yaml.exists():
+            # Copy source YAML
+            shutil.copy2(source_yaml, new_dir / "profile.yaml")
+            self._update_profile_name_in_yaml(new_dir / "profile.yaml", new_name)
 
-            # Pass through agents dict as-is
-            agents = source_profile.agents if source_profile.agents else None
+            # Copy asset directories if they exist
+            for item in source_dir.iterdir():
+                if item.is_dir() and item.name in [
+                    "behaviors",
+                    "session",
+                    "contexts",
+                    "agents",
+                    "hooks",
+                    "tools",
+                    "providers",
+                ]:
+                    dest_item = new_dir / item.name
+                    if dest_item.exists():
+                        shutil.rmtree(dest_item)
+                    shutil.copytree(item, dest_item)
+                    logger.info(f"Copied {item.name}/ to {new_name}")
+        else:
+            # Complex case: fetch original source from registry
+            logger.info(f"No local profile.yaml for {source_name}, fetching from registry")
+            registry_source_dir = self._get_registry_source_dir(source_name)
 
-            manifest_content = self._generate_profile_manifest(
-                new_profile,
-                orchestrator,
-                context,
-                agents,
-                source_profile.context,  # context refs
-                source_profile.instruction,
-            )
+            if registry_source_dir:
+                # Found registry source - fetch it with assets
+                logger.info(f"Found registry source for {source_name}: {registry_source_dir}")
+                profile_yaml_text = self._get_registry_source_for_profile(source_name)
 
-            manifest_file = local_profile_dir / "profile.md"
-            manifest_file.write_text(manifest_content)
-            logger.info(f"Updated copied profile with instruction/agents/contexts: {new_name}")
+                if profile_yaml_text:
+                    import yaml
 
-        # 7. Re-read the profile to get complete ProfileDetails with instruction
+                    profile_yaml = yaml.safe_load(profile_yaml_text)
+                    profile_yaml["profile"]["name"] = new_name
+
+                    # Use startup's helper to save source + assets
+                    save_profile_source(new_name, profile_yaml, {}, registry_source_dir, self.profiles_dir)
+                    logger.info(f"Fetched profile source and assets from registry for {new_name}")
+
+                    # Compile profile to fetch and resolve all assets
+                    if self.compilation_service:
+                        try:
+                            logger.info(f"Compiling assets for '{new_name}'...")
+                            compiled_path = self.compilation_service.compile_profile(
+                                profile_id=new_name, profile_yaml=profile_yaml, config_yaml={}
+                            )
+
+                            # Remove mount_plan.json (created per-session, not part of profile source)
+                            mount_plan_path = compiled_path / "mount_plan.json"
+                            if mount_plan_path.exists():
+                                mount_plan_path.unlink()
+                                logger.debug("Removed mount_plan.json (created per-session)")
+
+                            logger.info(f"✓ Profile '{new_name}' assets compiled")
+                        except Exception as e:
+                            logger.warning(f"Failed to compile profile assets for '{new_name}': {e}")
+                            # Continue anyway - profile.yaml exists
+                    else:
+                        logger.debug("No compilation service available, skipping asset compilation")
+
+                else:
+                    # Couldn't load YAML - fall back
+                    logger.warning(f"Failed to load registry source for {source_name}, using mount_plan")
+                    self._create_yaml_from_mount_plan(source_dir, new_dir, new_name)
+            else:
+                # Last resort: create from mount_plan (loses agents/contexts)
+                logger.warning(
+                    f"No registry source found for {source_name}, using mount_plan (may lose agents/contexts)"
+                )
+                self._create_yaml_from_mount_plan(source_dir, new_dir, new_name)
+
+        # Create metadata
+        metadata = {
+            "name": new_name,
+            "source_type": "local",
+            "registry_ref": None,
+            "editable": True,
+            "created_from": source_name,
+        }
+        (new_dir / ".metadata.json").write_text(json.dumps(metadata, indent=2))
+
+        # Mark as local by creating a .local marker file
+        (new_dir / ".local").touch()
+
+        logger.info(f"Profile copied successfully: {new_name}")
+
+        # Return the new profile details
         return self.get_profile(new_name)
 
-    def update_profile(self, name: str, request: UpdateProfileRequest) -> ProfileDetails:
-        """Update existing local profile.
+    def _get_registry_source_for_profile(self, profile_name: str) -> str | None:
+        """Get original source YAML from registry for a profile.
+
+        Reads profiles.yaml to find the amp:// source, then fetches from cache.
+
+        Args:
+            profile_name: Profile name to fetch source for
+
+        Returns:
+            Original YAML source text or None if not found
+        """
+        import yaml
+
+        # Read profiles.yaml
+        profiles_config_path = self.share_dir / "profiles.yaml"
+        if not profiles_config_path.exists():
+            logger.debug(f"No profiles.yaml found at {profiles_config_path}")
+            return None
+
+        try:
+            profiles_config = yaml.safe_load(profiles_config_path.read_text())
+            profiles_list = profiles_config.get("profiles", [])
+
+            # Find the profile entry
+            for profile_entry in profiles_list:
+                if isinstance(profile_entry, dict) and profile_name in profile_entry:
+                    # Format: {profile_name: amp://uri}
+                    amp_uri = profile_entry[profile_name]
+                    logger.debug(f"Found amp:// URI for {profile_name}: {amp_uri}")
+
+                    # Resolve amp:// URI to actual path
+                    resolved_uri = self.registry_service.resolve_amp_uri(amp_uri)
+                    logger.debug(f"Resolved to: {resolved_uri}")
+
+                    # Use ref_resolution service to fetch (it handles caching)
+                    if self.compilation_service:
+                        ref_service = self.compilation_service.ref_resolution
+                        resolved_path = ref_service.resolve_ref(resolved_uri)
+
+                        if resolved_path.exists():
+                            logger.info(f"Found registry source at: {resolved_path}")
+                            return resolved_path.read_text()
+                        logger.warning(f"Resolved path does not exist: {resolved_path}")
+
+                    return None
+
+            logger.debug(f"No entry found for {profile_name} in profiles.yaml")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get registry source for {profile_name}: {e}")
+            return None
+
+    def _get_registry_source_dir(self, profile_name: str) -> Path | None:
+        """Get registry source directory path for a profile.
+
+        Reads profiles.yaml to find the amp:// source, resolves it to get the directory.
+
+        Args:
+            profile_name: Profile name to fetch source directory for
+
+        Returns:
+            Path to registry source directory or None if not found
+        """
+        import yaml
+
+        # Read profiles.yaml
+        profiles_config_path = self.share_dir / "profiles.yaml"
+        if not profiles_config_path.exists():
+            logger.debug(f"No profiles.yaml found at {profiles_config_path}")
+            return None
+
+        try:
+            profiles_config = yaml.safe_load(profiles_config_path.read_text())
+            profiles_list = profiles_config.get("profiles", [])
+
+            # Find the profile entry
+            for profile_entry in profiles_list:
+                if isinstance(profile_entry, dict) and profile_name in profile_entry:
+                    # Format: {profile_name: amp://uri}
+                    amp_uri = profile_entry[profile_name]
+                    logger.debug(f"Found amp:// URI for {profile_name}: {amp_uri}")
+
+                    # Resolve amp:// URI to actual path
+                    resolved_uri = self.registry_service.resolve_amp_uri(amp_uri)
+                    logger.debug(f"Resolved to: {resolved_uri}")
+
+                    # Use ref_resolution service to fetch (it handles caching)
+                    if self.compilation_service:
+                        ref_service = self.compilation_service.ref_resolution
+                        resolved_path = ref_service.resolve_ref(resolved_uri)
+
+                        if resolved_path.exists():
+                            # Return parent directory if it's a file, otherwise the directory itself
+                            if resolved_path.is_file():
+                                logger.info(f"Found registry source file at: {resolved_path}")
+                                return resolved_path.parent
+                            logger.info(f"Found registry source directory at: {resolved_path}")
+                            return resolved_path
+                        logger.warning(f"Resolved path does not exist: {resolved_path}")
+
+                    return None
+
+            logger.debug(f"No entry found for {profile_name} in profiles.yaml")
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get registry source directory for {profile_name}: {e}")
+            return None
+
+    def _update_profile_name_in_yaml(self, yaml_path: Path, new_name: str) -> None:
+        """Update profile name in YAML file.
+
+        Args:
+            yaml_path: Path to profile.yaml
+            new_name: New profile name
+        """
+        import yaml
+
+        yaml_data = yaml.safe_load(yaml_path.read_text())
+        if "profile" not in yaml_data:
+            yaml_data["profile"] = {}
+        yaml_data["profile"]["name"] = new_name
+        yaml_path.write_text(yaml.dump(yaml_data, default_flow_style=False))
+
+    def _update_profile_name_in_mount_plan(self, mount_plan_path: Path, new_name: str) -> None:
+        """Update profile name in mount_plan.json.
+
+        Args:
+            mount_plan_path: Path to mount_plan.json
+            new_name: New profile name
+        """
+        mount_plan = json.loads(mount_plan_path.read_text())
+        if "session" not in mount_plan:
+            mount_plan["session"] = {}
+        if "settings" not in mount_plan["session"]:
+            mount_plan["session"]["settings"] = {}
+        mount_plan["session"]["settings"]["profile_name"] = new_name
+        mount_plan_path.write_text(json.dumps(mount_plan, indent=2))
+
+    def _create_yaml_from_mount_plan(self, source_dir: Path, new_dir: Path, new_name: str) -> None:
+        """Create profile.yaml from mount_plan.json for legacy profiles.
+
+        Args:
+            source_dir: Source profile directory
+            new_dir: New profile directory
+            new_name: New profile name
+        """
+        import yaml
+
+        mount_plan_path = source_dir / "mount_plan.json"
+        if not mount_plan_path.exists():
+            raise ValueError(f"No mount_plan.json found in {source_dir}")
+
+        mount_plan = json.loads(mount_plan_path.read_text())
+
+        # Build profile YAML from mount_plan
+        profile_yaml: dict[str, object] = {
+            "profile": {"name": new_name, "version": "1.0.0", "description": "Copied from mount_plan"}
+        }
+
+        # Extract orchestrator
+        session_data = mount_plan.get("session", {})
+        if "orchestrator" in session_data:
+            orch = session_data["orchestrator"]
+            profile_yaml["orchestrator"] = {
+                "id": orch.get("module", ""),
+                "source": orch.get("source", ""),
+                "config": orch.get("config", {}),
+            }
+
+        # Extract context
+        if "context" in session_data:
+            ctx = session_data["context"]
+            profile_yaml["context"] = {
+                "id": ctx.get("module", ""),
+                "source": ctx.get("source", ""),
+                "config": ctx.get("config", {}),
+            }
+
+        # Extract providers
+        providers = mount_plan.get("providers", [])
+        if providers:
+            profile_yaml["providers"] = [
+                {"id": p.get("module", ""), "source": p.get("source", ""), "config": p.get("config", {})}
+                for p in providers
+            ]
+
+        # Extract tools
+        tools = mount_plan.get("tools", [])
+        if tools:
+            profile_yaml["tools"] = [
+                {"id": t.get("module", ""), "source": t.get("source", ""), "config": t.get("config", {})} for t in tools
+            ]
+
+        # Extract hooks
+        hooks = mount_plan.get("hooks", [])
+        if hooks:
+            profile_yaml["hooks"] = [
+                {"id": h.get("module", ""), "source": h.get("source", ""), "config": h.get("config", {})} for h in hooks
+            ]
+
+        # Note: agents and contexts from mount_plan are expanded content
+        # We cannot reverse-engineer the refs, so we'll leave them empty
+        # User will need to manually add them back if needed
+        profile_yaml["agents"] = {}
+        profile_yaml["contexts"] = []
+
+        # Write profile.yaml
+        (new_dir / "profile.yaml").write_text(yaml.dump(profile_yaml, default_flow_style=False))
+
+    def get_profile(self, name: str) -> ProfileDetails:
+        """Get detailed profile information.
+
+        Reads from profile.yaml (source) if available, otherwise mount_plan.json.
+        Returns structure suitable for editing.
 
         Args:
             name: Profile name
-            request: Update request with partial fields
+
+        Returns:
+            Profile details
+
+        Raises:
+            FileNotFoundError: If profile not found
+        """
+        profile_dir = self.profiles_dir / name
+        if not profile_dir.exists():
+            raise FileNotFoundError(f"Profile not found: {name}")
+
+        # Try to read from source YAML first (for editing)
+        source_path = profile_dir / "profile.yaml"
+        if source_path.exists():
+            return self._load_from_source_yaml(source_path, name)
+
+        # Fall back to mount_plan.json (legacy or registry profiles)
+        mount_plan_path = profile_dir / "mount_plan.json"
+        if mount_plan_path.exists():
+            return self._load_from_mount_plan(mount_plan_path, name)
+
+        raise FileNotFoundError(f"No profile.yaml or mount_plan.json found for: {name}")
+
+    def _load_from_source_yaml(self, source_path: Path, name: str) -> ProfileDetails:
+        """Load ProfileDetails from source profile.yaml.
+
+        Preserves refs, configs, and structure for editing.
+
+        Args:
+            source_path: Path to profile.yaml
+            name: Profile name
+
+        Returns:
+            Profile details with source structure preserved
+        """
+        import yaml
+
+        try:
+            source_data = yaml.safe_load(source_path.read_text())
+            profile_info = source_data.get("profile", {})
+
+            # Parse behaviors (modern format)
+            behaviors = []
+            for behavior in source_data.get("behaviors", []):
+                if isinstance(behavior, dict):
+                    behaviors.append(BehaviorRef(id=behavior.get("id", ""), source=behavior.get("source", "")))
+
+            # Extract components as refs (not expanded)
+            providers = []
+            for provider in source_data.get("providers", []):
+                providers.append(
+                    ModuleConfig(
+                        module=provider.get("id", ""), source=provider.get("source"), config=provider.get("config")
+                    )
+                )
+
+            # Legacy format support - tools and hooks at top level
+            # Modern format: these come from behaviors, so will be empty
+            tools = []
+            for tool_item in source_data.get("tools", []):
+                tools.append(
+                    ModuleConfig(
+                        module=tool_item.get("id", ""), source=tool_item.get("source"), config=tool_item.get("config")
+                    )
+                )
+
+            hooks = []
+            for hook_item in source_data.get("hooks", []):
+                hooks.append(
+                    ModuleConfig(
+                        module=hook_item.get("id", ""), source=hook_item.get("source"), config=hook_item.get("config")
+                    )
+                )
+
+            # Extract agents as dict of refs (not content)
+            # Modern format: agents come from behaviors, so will be empty
+            agents = {}
+            for agent_key, agent_ref in source_data.get("agents", {}).items():
+                agents[agent_key] = agent_ref  # Keep as ref string
+
+            # Extract contexts as refs
+            contexts = {}
+            for context_item in source_data.get("contexts", []):
+                if isinstance(context_item, dict):
+                    contexts[context_item.get("id")] = context_item.get("source")
+
+            # Extract session config
+            session_config = None
+            orch_data = source_data.get("orchestrator", {})
+            ctx_data = source_data.get("context", {})
+
+            orchestrator = None
+            if orch_data:
+                orchestrator = ModuleConfig(
+                    module=orch_data.get("id", ""), source=orch_data.get("source"), config=orch_data.get("config")
+                )
+
+            context_manager = None
+            if ctx_data:
+                context_manager = ModuleConfig(
+                    module=ctx_data.get("id", ""), source=ctx_data.get("source"), config=ctx_data.get("config")
+                )
+
+            if orchestrator:
+                session_config = SessionConfig(orchestrator=orchestrator, context_manager=context_manager)
+
+            # Check if active
+            active_profile = self.get_active_profile()
+            is_active = active_profile == name
+
+            return ProfileDetails(
+                name=profile_info.get("name", name),
+                schema_version=profile_info.get("schema_version", 3),
+                version=profile_info.get("version", "1.0.0"),
+                description=profile_info.get("description", ""),
+                source=str(source_path),
+                source_type="local",
+                registry_id=None,
+                source_uri=None,
+                is_active=is_active,
+                behaviors=behaviors,
+                providers=providers,
+                tools=tools,
+                hooks=hooks,
+                session=session_config,
+                agents=agents,  # Dict of refs, not expanded content
+                contexts=contexts,  # Dict of refs
+                instruction=source_data.get("instructions", ""),
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to load profile from {source_path}: {e}")
+            raise
+
+    def _load_from_mount_plan(self, mount_plan_path: Path, name: str) -> ProfileDetails:
+        """Load ProfileDetails from compiled mount_plan.json.
+
+        This is the legacy path for profiles without source YAML.
+
+        Args:
+            mount_plan_path: Path to mount_plan.json
+            name: Profile name
+
+        Returns:
+            Profile details
+        """
+        try:
+            # Load mount plan
+            mount_plan = json.loads(mount_plan_path.read_text())
+
+            # Extract session config
+            session_data = mount_plan.get("session", {})
+            orchestrator_data = session_data.get("orchestrator")
+            context_data = session_data.get("context")
+
+            session_config = None
+            if orchestrator_data:
+                orch_config = ModuleConfig(
+                    module=orchestrator_data.get("module", ""),
+                    source=orchestrator_data.get("source"),
+                    config=orchestrator_data.get("config"),
+                )
+
+                ctx_config = None
+                if context_data:
+                    ctx_config = ModuleConfig(
+                        module=context_data.get("module", ""),
+                        source=context_data.get("source"),
+                        config=context_data.get("config"),
+                    )
+
+                session_config = SessionConfig(orchestrator=orch_config, context_manager=ctx_config)
+
+            # Extract providers
+            providers = []
+            for prov_data in mount_plan.get("providers", []):
+                providers.append(
+                    ModuleConfig(
+                        module=prov_data.get("module", ""),
+                        source=prov_data.get("source"),
+                        config=prov_data.get("config"),
+                    )
+                )
+
+            # Extract tools
+            tools = []
+            for tool_data in mount_plan.get("tools", []):
+                tools.append(
+                    ModuleConfig(
+                        module=tool_data.get("module", ""),
+                        source=tool_data.get("source"),
+                        config=tool_data.get("config"),
+                    )
+                )
+
+            # Extract hooks
+            hooks = []
+            for hook_data in mount_plan.get("hooks", []):
+                hooks.append(
+                    ModuleConfig(
+                        module=hook_data.get("module", ""),
+                        source=hook_data.get("source"),
+                        config=hook_data.get("config"),
+                    )
+                )
+
+            # Extract agents (expanded content from mount_plan)
+            agents = {}
+            for agent_id, agent_data in mount_plan.get("agents", {}).items():
+                agents[agent_id] = agent_data.get("content", "")
+
+            # Check if active
+            active_profile = self.get_active_profile()
+            is_active = active_profile == name
+
+            # Get profile metadata from settings
+            settings = session_data.get("settings", {})
+            profile_name = settings.get("profile_name", name)
+
+            return ProfileDetails(
+                name=profile_name,
+                schema_version=3,
+                version="1.0.0",
+                description=f"Profile: {profile_name}",
+                source=str(mount_plan_path.parent),
+                source_type="local",
+                registry_id=None,
+                source_uri=None,
+                is_active=is_active,
+                behaviors=[],
+                providers=providers,
+                tools=tools,
+                hooks=hooks,
+                session=session_config,
+                agents=agents,
+                contexts={},
+                instruction=None,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to load profile from {mount_plan_path}: {e}")
+            raise
+
+    def update_profile(self, name: str, request: UpdateProfileRequest) -> ProfileDetails:
+        """Update an existing profile.
+
+        Args:
+            name: Profile name
+            request: Profile update request
 
         Returns:
             Updated profile details
 
         Raises:
             FileNotFoundError: If profile not found
-            ValueError: If profile not in local collection
+            ValueError: If validation fails or profile not editable
         """
-        from amplifierd.models.profiles import UpdateProfileRequest
+        import yaml
 
-        if not isinstance(request, UpdateProfileRequest):
-            request = UpdateProfileRequest(**request)
+        if not self.compilation_service:
+            raise ValueError("ProfileCompilationService not available")
 
+        profile_dir = self.profiles_dir / name
+
+        # Verify profile exists
+        if not profile_dir.exists():
+            raise FileNotFoundError(f"Profile not found: {name}")
+
+        # Verify profile is local (editable)
+        if not (profile_dir / ".local").exists():
+            raise ValueError(f"Profile is not editable: {name}. Only local profiles can be updated.")
+
+        logger.info(f"Updating profile: {name}")
+
+        # Get current profile to build updated YAML
         current = self.get_profile(name)
 
-        self._validate_local_ownership(current)
+        # Build profile YAML structure with updates (source)
+        profile_yaml: dict[str, object] = {
+            "profile": {
+                "name": name,
+                "version": request.version or current.version,
+                "description": request.description or current.description,
+                "schema_version": 3,
+            },
+            "behaviors": [],
+        }
 
-        updated = ProfileDetails(
-            name=current.name,
-            schema_version=current.schema_version,
-            version=request.version if request.version is not None else current.version,
-            description=request.description if request.description is not None else current.description,
-            collection_id=current.collection_id,
-            source=current.source,
-            is_active=current.is_active,
-            providers=request.providers if request.providers is not None else current.providers,
-            tools=request.tools if request.tools is not None else current.tools,
-            hooks=request.hooks if request.hooks is not None else current.hooks,
-            agents=request.agents if request.agents is not None else current.agents,
-            context=request.contexts if request.contexts is not None else current.context,
-            instruction=request.instruction if request.instruction is not None else current.instruction,
+        # Add orchestrator and context (use request values or keep current)
+        orchestrator = (
+            request.orchestrator
+            if request.orchestrator is not None
+            else (current.session.orchestrator if current.session else None)
         )
+        if orchestrator:
+            orch_config: dict[str, object] = {"id": orchestrator.module, "source": orchestrator.source}
+            if orchestrator.config:
+                orch_config["config"] = orchestrator.config
+            profile_yaml["orchestrator"] = orch_config
 
-        orchestrator = request.orchestrator if request.orchestrator is not None else None
-        context = request.context if request.context is not None else None
+        context = (
+            request.context
+            if request.context is not None
+            else (current.session.context_manager if current.session else None)
+        )
+        if context:
+            ctx_config: dict[str, object] = {"id": context.module, "source": context.source}
+            if context.config:
+                ctx_config["config"] = context.config
+            profile_yaml["context"] = ctx_config
 
-        agents = request.agents if request.agents is not None else (current.agents if current.agents else None)
-        contexts = request.contexts if request.contexts is not None else current.context
+        # Add providers (use request values or keep current)
+        providers = request.providers if request.providers is not None else current.providers
+        if providers:
+            profile_yaml["providers"] = [
+                {"id": p.module, "source": p.source, "config": p.config or {}} for p in providers
+            ]
+
+        # Add tools (use request values or keep current)
+        tools = request.tools if request.tools is not None else current.tools
+        if tools:
+            profile_yaml["tools"] = [{"id": t.module, "source": t.source, "config": t.config or {}} for t in tools]
+
+        # Add hooks (use request values or keep current)
+        hooks = request.hooks if request.hooks is not None else current.hooks
+        if hooks:
+            profile_yaml["hooks"] = [{"id": h.module, "source": h.source, "config": h.config or {}} for h in hooks]
+
+        # Add agents (use request values or keep current)
+        agents = request.agents if request.agents is not None else current.agents
+        profile_yaml["agents"] = agents
+
+        # Add contexts (use request values or keep current)
+        contexts = request.contexts if request.contexts is not None else current.contexts
+        if contexts:
+            profile_yaml["contexts"] = [{"id": k, "source": v} for k, v in contexts.items()]
+
+        # Add instruction (use request value or keep current)
         instruction = request.instruction if request.instruction is not None else current.instruction
+        if instruction:
+            profile_yaml["instructions"] = instruction
 
-        local_profile_dir = self.profiles_dir / "local" / name
-        manifest_content = self._generate_profile_manifest(
-            updated, orchestrator, context, agents, contexts, instruction
-        )
-        manifest_file = local_profile_dir / "profile.md"
-        manifest_file.write_text(manifest_content)
+        # Write updated profile.yaml (source)
+        (profile_dir / "profile.yaml").write_text(yaml.dump(profile_yaml, default_flow_style=False))
 
-        logger.info(f"Updated local profile: {name}")
-        return updated
+        # Build config YAML structure for compilation
+        config_yaml: dict[str, object] = {"session": {}}
+
+        # Add configurations for each component
+        if orchestrator and orchestrator.config:
+            if "session" not in config_yaml:
+                config_yaml["session"] = {}
+            config_yaml["session"]["orchestrator"] = orchestrator.config  # type: ignore
+
+        if context and context.config:
+            if "session" not in config_yaml:
+                config_yaml["session"] = {}
+            config_yaml["session"]["context"] = context.config  # type: ignore
+
+        if providers:
+            config_yaml["providers"] = {p.module: p.config or {} for p in providers}
+
+        # Recompile the profile (creates mount_plan.json)
+        self.compilation_service.compile_profile(profile_id=name, profile_yaml=profile_yaml, config_yaml=config_yaml)
+
+        logger.info(f"Profile updated successfully: {name}")
+
+        # Return the updated profile details
+        return self.get_profile(name)
 
     def delete_profile(self, name: str) -> None:
-        """Delete local profile.
+        """Delete a profile.
 
         Args:
-            name: Profile name
+            name: Profile name to delete
 
         Raises:
             FileNotFoundError: If profile not found
-            ValueError: If profile not local or is active
+            ValueError: If trying to delete active profile or non-local profile
         """
-        profile = self.get_profile(name)
+        profile_dir = self.profiles_dir / name
 
-        self._validate_local_ownership(profile)
+        if not profile_dir.exists():
+            raise FileNotFoundError(f"Profile not found: {name}")
 
-        if profile.is_active:
-            raise ValueError(f"Cannot delete active profile '{name}'. Deactivate it first.")
+        # Check if profile is active
+        active_profile = self.get_active_profile()
+        if active_profile == name:
+            raise ValueError(f"Cannot delete active profile: {name}. Deactivate it first.")
 
-        local_profile_dir = self.profiles_dir / "local" / name
-        if local_profile_dir.exists():
-            shutil.rmtree(local_profile_dir)
-            logger.info(f"Deleted local profile: {name}")
-        else:
-            raise FileNotFoundError(f"Profile directory not found: {name}")
+        # Check if profile is local (has .local marker or is in local directory)
+        # For now, we allow deletion of any profile in the profiles directory
+        # In the future, we might add a .local marker file to distinguish local vs registry profiles
 
-    def _validate_local_ownership(self, profile: ProfileDetails) -> None:
-        """Ensure profile is in local collection.
+        logger.info(f"Deleting profile: {name}")
+
+        # Delete the profile directory
+        import shutil
+
+        shutil.rmtree(profile_dir)
+        logger.info(f"Profile deleted: {name}")
+
+    def compile_and_activate_profile(self, profile_id: str, profile_yaml: dict, config_yaml: dict) -> Path:
+        """Compile and activate a profile.
 
         Args:
-            profile: Profile to validate
-
-        Raises:
-            ValueError: If profile not in local collection
-        """
-        collection_id = profile.collection_id or self._extract_collection_from_source(profile.source)
-
-        if collection_id != "local":
-            raise ValueError(
-                f"Cannot modify profile '{profile.name}' from collection '{collection_id}'. "
-                "Only profiles in 'local' collection can be modified."
-            )
-
-    def _extract_collection_from_source(self, source: str) -> str | None:
-        """Extract collection ID from source path."""
-        parts = source.split("/")
-        if len(parts) > 0 and parts[0]:
-            return parts[0]
-        return None
-
-    def _generate_profile_manifest(
-        self,
-        profile: ProfileDetails,
-        orchestrator: ModuleConfig | None = None,
-        context: ModuleConfig | None = None,
-        agents: dict[str, str] | None = None,
-        contexts: dict[str, str] | None = None,
-        instruction: str | None = None,
-    ) -> str:
-        """Generate .md file content with YAML frontmatter.
-
-        Args:
-            profile: Profile details
-            orchestrator: Orchestrator module config
-            context: Context module config
-            agents: Agent file references (name -> ref)
-            contexts: Context directory references (name -> ref)
-            instruction: Profile system instruction
+            profile_id: Profile identifier
+            profile_yaml: Parsed profile YAML
+            config_yaml: Parsed config YAML
 
         Returns:
-            Markdown content with YAML frontmatter
+            Path to compiled profile directory
+
+        Raises:
+            ValueError: If compilation fails or ProfileCompilationService not available
         """
-        session_data: dict[str, object] = {}
+        if not self.compilation_service:
+            raise ValueError("ProfileCompilationService not available")
 
-        if orchestrator:
-            session_data["orchestrator"] = {
-                "module": orchestrator.module,
-                "source": orchestrator.source,
-                "config": orchestrator.config or {},
-            }
+        logger.info(f"Compiling and activating profile: {profile_id}")
 
-        if context:
-            session_data["context"] = {
-                "module": context.module,
-                "source": context.source,
-                "config": context.config or {},
-            }
+        # Compile the profile
+        profile_path = self.compilation_service.compile_profile(
+            profile_id=profile_id, profile_yaml=profile_yaml, config_yaml=config_yaml
+        )
 
-        yaml_data: dict[str, object] = {
-            "profile": {
-                "name": profile.name,
-                "schema_version": profile.schema_version,
-                "version": profile.version,
-                "description": profile.description,
-            },
-            "session": session_data,
-        }
+        # Activate the profile
+        self.activate_profile(profile_id)
 
-        if profile.providers:
-            yaml_data["providers"] = [
-                {"module": p.module, "source": p.source, **({"config": p.config} if p.config else {})}
-                for p in profile.providers
-            ]
-
-        if profile.tools:
-            yaml_data["tools"] = [
-                {"module": t.module, "source": t.source, **({"config": t.config} if t.config else {})}
-                for t in profile.tools
-            ]
-
-        if profile.hooks:
-            yaml_data["hooks"] = [
-                {"module": h.module, "source": h.source, **({"config": h.config} if h.config else {})}
-                for h in profile.hooks
-            ]
-
-        if agents:
-            yaml_data["agents"] = agents
-
-        if contexts:
-            yaml_data["context"] = contexts
-
-        yaml_content = yaml.dump(yaml_data, sort_keys=False, allow_unicode=True, default_flow_style=False)
-
-        if instruction:
-            markdown_body = instruction
-        else:
-            # Default markdown body if no custom instruction
-            markdown_body = f"# {profile.name}\n\n{profile.description}\n"
-
-        return f"---\n{yaml_content}---\n\n{markdown_body}"
+        logger.info(f"Profile compiled and activated: {profile_id}")
+        return profile_path

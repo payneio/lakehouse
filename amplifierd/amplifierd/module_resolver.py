@@ -1,17 +1,16 @@
 """Module source resolver for amplifierd.
 
 Resolves module IDs to filesystem paths in the compiled profile structure.
-Uses collection/profile namespacing to isolate module sources per session.
+Uses flat profile organization (no collections) with behavior-aware resolution.
 
 Contract:
-- Inputs: Module ID (hyphenated), profile source hint (collection/profile context)
+- Inputs: Module ID (hyphenated), profile ID (source hint)
 - Outputs: Path to directory containing Python package
 - Side Effects: None (read-only discovery)
 """
 
 import logging
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,27 +46,26 @@ class ModuleSource:
 
 
 class DaemonModuleSourceResolver:
-    """Resolves module IDs to paths in compiled profile structure.
+    """Resolves module IDs to paths in compiled profile structure (v3).
 
-    Handles collection/profile namespacing, mount type detection,
-    and module directory discovery.
+    Uses flat profile organization without collections.
+    Searches both session/ and behaviors/*/ directories.
 
     Example:
         >>> resolver = DaemonModuleSourceResolver(share_dir=Path(".amplifierd/share"))
-        >>> profile_hint = {"collection": "foundation", "profile": "base"}
-        >>> source = resolver.resolve("provider-anthropic", profile_hint)
+        >>> source = resolver.resolve("provider-anthropic", "software-developer")
         >>> path = source.resolve()
-        >>> # Returns: .amplifierd/share/profiles/foundation/base/providers/provider-anthropic
+        >>> # Returns: .amplifierd/share/profiles/software-developer/session/providers/provider-anthropic
     """
 
-    # Map module ID patterns to mount types
-    MOUNT_TYPE_MAP = {
-        "orchestrator": "orchestrator",
-        "loop": "orchestrator",
-        "context": "context",
-        "provider": "providers",
-        "tool": "tools",
-        "hook": "hooks",
+    # Map module ID patterns to component types
+    TYPE_PATTERNS = {
+        "provider-": "providers",
+        "tool-": "tools",
+        "hooks-": "hooks",
+        "loop-": "orchestrator",
+        "orchestrator-": "orchestrator",
+        "context-": "context",
     }
 
     def __init__(self, share_dir: Path):
@@ -79,80 +77,92 @@ class DaemonModuleSourceResolver:
         self.share_dir = Path(share_dir)
         logger.debug(f"DaemonModuleSourceResolver initialized with share_dir={self.share_dir}")
 
-    def resolve(self, module_id: str, profile_hint: dict[str, Any] | str | None = None) -> ModuleSource:
+    def resolve(self, module_id: str, profile_hint: str | None = None) -> ModuleSource:
         """Resolve module ID to source path.
 
         Args:
             module_id: Hyphenated module name (e.g., "provider-anthropic")
-            profile_hint: Dict with collection/profile or profile string
+            profile_hint: Profile ID (e.g., "software-developer")
 
         Returns:
             ModuleSource that can be resolved to a Path
 
         Raises:
-            ValueError: If profile hint missing or invalid
+            ValueError: If profile hint missing
             FileNotFoundError: If module not found in profile
 
         Example:
-            >>> resolver.resolve("provider-anthropic", {"collection": "foundation", "profile": "base"})
-            ModuleSource(.../.amplifierd/share/profiles/foundation/base/providers/provider-anthropic)
+            >>> resolver.resolve("provider-anthropic", "software-developer")
+            ModuleSource(.../.amplifierd/share/profiles/software-developer/session/providers/provider-anthropic)
         """
-        # Extract collection and profile from hint
-        if isinstance(profile_hint, dict):
-            collection = profile_hint.get("collection")
-            profile = profile_hint.get("profile")
-        elif isinstance(profile_hint, str) and "/" in profile_hint:
-            # Support "collection/profile" string format
-            collection, profile = profile_hint.split("/", 1)
-        else:
-            raise ValueError(
-                f"profile_hint must be dict with collection/profile or 'collection/profile' string, "
-                f"got: {type(profile_hint)}"
-            )
+        if not profile_hint:
+            raise ValueError("profile_hint (profile ID) is required for v3 profiles")
 
-        if not collection or not profile:
-            raise ValueError(f"profile_hint must specify both collection and profile, got: {profile_hint}")
+        # Profile hint is just the profile ID (no collections)
+        profile_id = profile_hint
 
-        # Determine mount type from module ID
-        mount_type = self._guess_mount_type(module_id)
-        if not mount_type:
-            raise ValueError(f"Could not determine mount type for module: {module_id}")
+        # Infer component type from module ID
+        component_type = self._infer_component_type(module_id)
 
-        # Build path to module directory
-        # Structure: share/profiles/{collection}/{profile}/{mount_type}/{module_id}/
-        module_dir = self.share_dir / "profiles" / collection / profile / mount_type / module_id
+        # Build profile directory path
+        profile_dir = self.share_dir / "profiles" / profile_id
 
-        logger.debug(f"Resolved '{module_id}' → {module_dir} (mount_type={mount_type})")
+        if not profile_dir.exists():
+            raise FileNotFoundError(f"Profile '{profile_id}' not found at {profile_dir}")
 
-        return ModuleSource(path=module_dir, module_id=module_id)
+        # Check session components first
+        session_path = profile_dir / "session" / component_type / module_id
+        if session_path.exists():
+            logger.debug(f"Resolved '{module_id}' → {session_path} (session component)")
+            return ModuleSource(path=session_path, module_id=module_id)
 
-    def _guess_mount_type(self, module_id: str) -> str | None:
-        """Guess mount type from module ID.
+        # Check behavior components (search all behaviors)
+        for behavior_dir in profile_dir.glob("behaviors/*/"):
+            behavior_path = behavior_dir / component_type / module_id
+            if behavior_path.exists():
+                logger.debug(f"Resolved '{module_id}' → {behavior_path} (behavior: {behavior_dir.name})")
+                return ModuleSource(path=behavior_path, module_id=module_id)
+
+        # Module not found
+        available_dirs = list(profile_dir.glob(f"*/{component_type}/*")) + list(
+            profile_dir.glob(f"behaviors/*/{component_type}/*")
+        )
+        available_modules = [d.name for d in available_dirs if d.is_dir()]
+
+        raise FileNotFoundError(
+            f"Module '{module_id}' not found in profile '{profile_id}'.\n"
+            f"Searched in: session/{component_type}/ and behaviors/*/{component_type}/\n"
+            f"Available {component_type}: {', '.join(available_modules) if available_modules else 'none'}"
+        )
+
+    def _infer_component_type(self, module_id: str) -> str:
+        """Infer component type from module ID.
 
         Args:
             module_id: Hyphenated module name
 
         Returns:
-            Mount type directory name or None if unknown
+            Component type directory name (e.g., "tools", "providers")
 
         Example:
-            >>> resolver._guess_mount_type("provider-anthropic")
+            >>> resolver._infer_component_type("provider-anthropic")
             'providers'
-            >>> resolver._guess_mount_type("loop-streaming")
-            'orchestrator'
-            >>> resolver._guess_mount_type("hooks-status-context")
+            >>> resolver._infer_component_type("tool-bash")
+            'tools'
+            >>> resolver._infer_component_type("hooks-logging")
             'hooks'
         """
-        # Check patterns in order of specificity (plural forms first to match module type)
-        # This ensures "hooks-status-context" matches "hooks" not "context"
-        specificity_order = ["provider", "tool", "hook", "loop", "orchestrator", "context"]
+        # Check patterns in order
+        for pattern, type_name in self.TYPE_PATTERNS.items():
+            if module_id.startswith(pattern):
+                return type_name
 
-        for pattern in specificity_order:
-            if pattern in module_id:
-                mount_type = self.MOUNT_TYPE_MAP.get(pattern)
-                if mount_type:
-                    return mount_type
+        # Handle special cases
+        if module_id in ["loop-streaming", "loop-basic", "loop-events"]:
+            return "orchestrator"
+        if "context" in module_id:
+            return "context"
 
-        # Default: if we can't guess, log warning and return None
-        logger.warning(f"Could not guess mount type for module: {module_id}")
-        return None
+        # Default to tools
+        logger.warning(f"Could not infer component type for '{module_id}', defaulting to 'tools'")
+        return "tools"

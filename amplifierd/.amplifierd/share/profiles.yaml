@@ -1,0 +1,10 @@
+# Profiles to pre-compile on daemon startup
+#
+# This file specifies which profiles should be compiled and kept ready.
+# Profiles are compiled during daemon startup if they don't exist or if
+# update_stale_caches is enabled in startup config.
+
+profiles:
+  - bare-essentials: amp://microsoft/profiles/bare-essentials.yaml
+  - basic: amp://microsoft/profiles/basic.yaml
+  - software-developer: amp://microsoft/profiles/software-developer.yaml

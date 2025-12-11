@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
-import { useProfiles } from '@/features/collections/hooks/useCollections';
+import { useQuery } from '@tanstack/react-query';
+import * as api from '@/api/profiles';
 import { DirectoryBrowser } from './DirectoryBrowser';
 import type { AmplifiedDirectoryCreate } from '@/types/api';
 
@@ -20,7 +21,10 @@ export function CreateDirectoryDialog({
   isLoading = false,
   error,
 }: CreateDirectoryDialogProps) {
-  const { profiles } = useProfiles();
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: api.listProfiles,
+  });
   const [formData, setFormData] = useState({
     relative_path: '',
     default_profile: '',
@@ -129,16 +133,11 @@ export function CreateDirectoryDialog({
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => {
-                  const fullName = profile.collectionId
-                    ? `${profile.collectionId}/${profile.name}`
-                    : profile.name;
-                  return (
-                    <option key={fullName} value={fullName}>
-                      {fullName}
-                    </option>
-                  );
-                })}
+                {profiles.map((profile) => (
+                  <option key={profile.name} value={profile.name}>
+                    {profile.name}
+                  </option>
+                ))}
               </select>
             ) : (
               <input

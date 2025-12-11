@@ -57,16 +57,6 @@ def _setup_amplifier_mocks() -> None:
     sys.modules["amplifier_config"] = config_module
 
     # Mock amplifier_collections
-    class MockCollectionResolver:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            """Initialize mock collection resolver (accepts any arguments)."""
-
-        def list_collections(self) -> list[dict[str, Any]]:
-            return []
-
-        def get_collection(self, identifier: str) -> dict[str, Any]:
-            raise ValueError(f"Collection not found: {identifier}")
-
     class MockCollectionLock:
         """Mock CollectionLock for testing."""
 
@@ -81,7 +71,6 @@ def _setup_amplifier_mocks() -> None:
         }
 
     collections_module = types.ModuleType("amplifier_collections")
-    collections_module.CollectionResolver = MockCollectionResolver  # type: ignore[attr-defined]
     collections_module.CollectionLock = MockCollectionLock  # type: ignore[attr-defined]
     collections_module.discover_collection_resources = mock_discover_collection_resources  # type: ignore[attr-defined]
     sys.modules["amplifier_collections"] = collections_module

@@ -1,484 +1,755 @@
-"""Profile compilation service.
+"""V3 Profile compilation service.
 
-Resolves profile refs and caches compiled assets for dynamic import.
-Creates Python module structure from profile manifests with all refs resolved.
+Compiles v3 profile definitions into mount plans for the Amplifier system.
+Uses the same algorithm as compile_profile.py with all stages.
 """
 
-import hashlib
 import json
 import logging
 import shutil
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from amplifierd.models.profiles import ProfileDetails
+import yaml
+
+from amplifier_library.services.registry_service import RegistryService
 from amplifierd.services.ref_resolution import RefResolutionService
 
 logger = logging.getLogger(__name__)
-
-
-class RefResolutionError(Exception):
-    """Raised when ref resolution fails."""
 
 
 class ProfileCompilationError(Exception):
     """Raised when profile compilation fails."""
 
 
+@dataclass
+class ComponentRefInternal:
+    """Internal component reference during compilation."""
+
+    id: str
+    type: str
+    behavior_id: str | None = None
+    source: str | None = None
+    config: dict[str, Any] | None = None
+
+
 class ProfileCompilationService:
-    """Compiles profiles by resolving all refs and caching assets.
+    """Service for compiling v3 profiles.
 
-    Creates Python module structure for dynamic import with all referenced
-    assets (agents, context, modules) fetched and organized into a standard
-    directory layout.
-
-    Compiled Structure:
-        share/profiles/{collection-id}/{profile-name}/
-          {profile-name}.md  (manifest from discovery)
-          orchestrator/
-            __init__.py
-            (orchestrator files)
-          agents/
-            __init__.py
-            agent1.md
-          context/
-            __init__.py
-            doc1.md
-          tools/
-            __init__.py
-          hooks/
-            __init__.py
-          providers/
-            __init__.py
+    Compiles profile YAML + config YAML into mount plans following v3 spec.
+    Uses behavior-based composition with dependency resolution.
     """
 
-    def __init__(self, share_dir: Path, ref_resolution: RefResolutionService):
-        """Initialize with share directory and ref resolution service.
+    def __init__(
+        self,
+        share_dir: Path,
+        cache_dir: Path,
+        ref_resolution: RefResolutionService,
+        registry_service: RegistryService,
+    ):
+        """Initialize profile compilation service.
 
         Args:
-            share_dir: Path to share directory (compiled profiles go here)
-            ref_resolution: RefResolutionService for resolving refs
+            share_dir: Share directory (compiled profiles output here)
+            cache_dir: Cache directory (for intermediate assets)
+            ref_resolution: RefResolutionService for downloading refs
+            registry_service: RegistryService for amp:// URI resolution
         """
         self.share_dir = Path(share_dir)
-        self.profiles_dir = self.share_dir / "profiles"
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir = Path(cache_dir)
         self.ref_resolution = ref_resolution
+        self.registry_service = registry_service
+        self.logger = logging.getLogger(__name__)
 
-    def _hash_profile_manifest(self, profile: ProfileDetails) -> str:
-        """Hash profile manifest for change detection.
-
-        Creates a stable hash of the profile manifest by serializing key fields
-        that affect compilation output. Changes to profile definition will change
-        the hash, triggering recompilation.
+    def compile_profile(self, profile_id: str, profile_yaml: dict, config_yaml: dict) -> Path:
+        """Compile v3 profile to share/profiles/{profile_id}/.
 
         Args:
-            profile: ProfileDetails to hash
+            profile_id: Profile identifier (e.g., "software-developer")
+            profile_yaml: Parsed profile YAML dictionary
+            config_yaml: Parsed config YAML dictionary
 
         Returns:
-            SHA256 hex digest of manifest content
-        """
-        manifest_data = {
-            "name": profile.name,
-            "version": profile.version,
-            "agents": sorted((profile.agents or {}).items()),  # Dict items for hashing
-            "context": sorted((profile.context or {}).items()),  # Dict items for hashing
-            "tools": [{"module": t.module, "source": t.source} for t in profile.tools],
-            "hooks": [{"module": h.module, "source": h.source} for h in profile.hooks],
-            "providers": [{"module": p.module, "source": p.source} for p in profile.providers],
-        }
-
-        # Add session orchestrator if present
-        if profile.session and profile.session.orchestrator:
-            manifest_data["orchestrator"] = {
-                "module": profile.session.orchestrator.module,
-                "source": profile.session.orchestrator.source,
-            }
-
-        # Add context manager if present
-        if profile.session and profile.session.context_manager:
-            manifest_data["context_manager"] = {
-                "module": profile.session.context_manager.module,
-                "source": profile.session.context_manager.source,
-            }
-
-        content = json.dumps(manifest_data, sort_keys=True)
-        return hashlib.sha256(content.encode()).hexdigest()
-
-    def compile_profile(self, collection_id: str, profile: ProfileDetails, force: bool = False) -> Path:
-        """Compile profile by resolving all refs with change detection.
-
-        Creates a staging directory for compilation, resolves all referenced
-        assets (agents, context, module sources), and creates a Python module
-        structure ready for dynamic import. On success, atomically renames
-        staging to final location. On failure, cleans up staging directory.
-
-        Uses hash-based change detection to skip compilation if profile manifest
-        is unchanged and force=False. Saves compilation metadata for future checks.
-
-        Args:
-            collection_id: Collection identifier
-            profile: ProfileDetails with refs to resolve
-            force: If True, recompile even if manifest unchanged
-
-        Returns:
-            Path to compiled profile directory (share/profiles/{collection}/{profile-name}/)
-
-        Side Effects:
-            - Fetches and caches all referenced assets via RefResolutionService
-            - Creates Python module structure with __init__.py files
-            - Copies resolved assets into compilation directory
-            - Uses staging directory for atomic compilation
-            - Saves .compilation_meta.json for change detection
+            Path to compiled profile directory
 
         Raises:
-            RefResolutionError: If any ref cannot be resolved
             ProfileCompilationError: If compilation fails
-
-        Atomicity Guarantee:
-            Uses staging directory pattern - final compilation directory only
-            exists if ALL assets resolved successfully. No partial state on failure.
-
-        Example:
-            >>> service = ProfileCompilationService(share_dir, ref_resolution)
-            >>> compiled_path = service.compile_profile("mycollection", profile)
-            >>> print(compiled_path)
-            /path/to/share/profiles/mycollection/general/
         """
-        logger.info(f"Compiling profile {collection_id}/{profile.name}")
-
-        # Define final and staging paths
-        final_dir = self.profiles_dir / collection_id / profile.name
-        staging_dir = self.profiles_dir / collection_id / f".staging-{profile.name}"
-        meta_file = final_dir / ".compilation_meta.json"
-
-        # Check if recompilation needed via hash comparison
-        if not force and meta_file.exists():
-            try:
-                meta = json.loads(meta_file.read_text())
-                current_hash = self._hash_profile_manifest(profile)
-
-                if meta["manifest_hash"] == current_hash:
-                    logger.info(f"Profile {collection_id}/{profile.name} unchanged, skipping compilation")
-                    return final_dir
-            except Exception as e:
-                logger.warning(f"Failed to read compilation metadata: {e}, will recompile")
-
-        # Create staging directory
-        staging_dir.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Created staging directory: {staging_dir}")
-
         try:
-            # Initialize assets dictionary for all module types
-            assets: dict[str, list[Path]] = {
-                "orchestrator": [],
-                "context-manager": [],  # Python module for context management
-                "agents": [],
-                "context": [],  # Embedded markdown context files
-                "tools": [],
-                "hooks": [],
-                "providers": [],
-            }
+            self.logger.info(f"Compiling profile '{profile_id}'")
 
-            # Resolve orchestrator module source (if present)
-            if profile.session and profile.session.orchestrator.source:
-                resolved_path = self._resolve_ref(profile.session.orchestrator.source, "orchestrator")
-                assets["orchestrator"].append(resolved_path)
-                logger.debug(f"Resolved orchestrator: {profile.session.orchestrator.module}")
+            # Load registries
+            registries = self.registry_service.load_registries()
 
-            # Resolve context-manager module source (if present)
-            if profile.session and profile.session.context_manager and profile.session.context_manager.source:
-                resolved_path = self._resolve_ref(profile.session.context_manager.source, "context-manager")
-                assets["context-manager"].append(resolved_path)
-                logger.debug(f"Resolved context-manager: {profile.session.context_manager.module}")
+            # Stage 1: Load behavior definitions (recursive)
+            behavior_items = profile_yaml.get("behaviors", [])
+            behavior_defs = {}
+            if behavior_items:
+                self.logger.info(f"Loading {len(behavior_items)} behavior definitions...")
+                behavior_defs = self._load_behavior_definitions(behavior_items, registries)
 
-            # Resolve agent refs (schema v2: dict of name -> file refs)
-            if profile.agents:
-                logger.debug(f"Resolving {len(profile.agents)} agent refs")
-                for agent_name, agent_ref in profile.agents.items():
-                    try:
-                        resolved_path = self._resolve_ref(agent_ref, "agent")
-                        assets["agents"].append(resolved_path)
-                        logger.debug(f"Resolved agent '{agent_name}': {agent_ref}")
-                    except RefResolutionError as e:
-                        logger.error(f"Failed to resolve agent ref '{agent_ref}' for '{agent_name}': {e}")
-                        raise
+            # Stage 2: Topological sort
+            all_behavior_ids = list(behavior_defs.keys())
+            sorted_behaviors = self._topological_sort_behaviors(all_behavior_ids, behavior_defs)
 
-            # Resolve context refs (schema v2: dict of name -> directory refs)
-            if profile.context:
-                logger.debug(f"Resolving {len(profile.context)} context directory refs")
-                for _context_name, context_ref in profile.context.items():
-                    try:
-                        resolved_path = self._resolve_ref(context_ref, "context")
+            # Stage 3: Collect components
+            self.logger.info("Collecting components...")
+            refs = self._collect_components(profile_yaml, behavior_defs)
+            self.logger.info(f"Found {len(refs)} components")
 
-                        # Verify it's a directory
-                        if not resolved_path.is_dir():
-                            raise RefResolutionError(
-                                f"Context ref must be a directory: {context_ref}\nResolved to: {resolved_path}"
-                            )
+            # Stage 4: Resolve assets
+            self.logger.info("Resolving assets...")
+            asset_map = self._resolve_assets(refs, registries)
 
-                        assets["context"].append(resolved_path)
-                        logger.debug(f"Resolved context directory: {context_ref}")
-                    except RefResolutionError as e:
-                        logger.error(f"Failed to resolve context ref '{context_ref}': {e}")
-                        raise
+            # Stage 5: Copy to profile cache
+            profile_dir = self.share_dir / "profiles" / profile_id
+            self.logger.info("Copying components to profile cache...")
+            asset_map = self._copy_to_profile_cache(profile_yaml, asset_map, refs, profile_dir)
 
-            # Resolve tool module sources
-            for tool in profile.tools:
-                if tool.source:
-                    resolved_path = self._resolve_ref(tool.source, "tool")
-                    assets["tools"].append(resolved_path)
+            # Stage 6: Merge configs
+            self.logger.info("Merging configurations...")
+            behavior_configs = config_yaml.get("behaviors", {})
+            if not isinstance(behavior_configs, dict):
+                behavior_configs = {}
+            merged_config = self._merge_configs(config_yaml, behavior_configs, sorted_behaviors)
 
-            # Resolve hook module sources
-            for hook in profile.hooks:
-                if hook.source:
-                    resolved_path = self._resolve_ref(hook.source, "hook")
-                    assets["hooks"].append(resolved_path)
+            # Stage 7: Generate mount plan
+            self.logger.info("Generating mount plan...")
+            mount_plan = self._generate_mount_plan(
+                profile_yaml, merged_config, asset_map, behavior_defs, sorted_behaviors
+            )
 
-            # Resolve provider module sources
-            for provider in profile.providers:
-                if provider.source:
-                    resolved_path = self._resolve_ref(provider.source, "provider")
-                    assets["providers"].append(resolved_path)
+            # Stage 8: Save mount plan
+            mount_plan_path = profile_dir / "mount_plan.json"
+            mount_plan_path.write_text(json.dumps(mount_plan, indent=2))
 
-            # Create Python module structure in STAGING directory
-            self._create_module_structure(staging_dir, assets, profile)
-
-            # Copy the cached manifest file from discovery cache into staging
-            # The manifest is preserved by the discovery service and must exist in the final compiled profile
-            manifest_source = self.profiles_dir / collection_id / profile.name / f"{profile.name}.md"
-            if manifest_source.exists():
-                manifest_dest = staging_dir / f"{profile.name}.md"
-                shutil.copy2(manifest_source, manifest_dest)
-                logger.debug(f"Copied profile manifest to staging: {profile.name}.md")
-            else:
-                logger.warning(f"Profile manifest not found in discovery cache: {manifest_source}")
-
-            # Atomic rename: staging -> final (only happens if we got here without exception)
-            # Remove existing directory if present (profiles are fully regenerated on sync)
-            if final_dir.exists():
-                logger.debug(f"Removing existing directory: {final_dir}")
-                shutil.rmtree(final_dir)
-            logger.debug(f"Compilation successful, atomically renaming {staging_dir} -> {final_dir}")
-            staging_dir.rename(final_dir)
-
-            # Save compilation metadata for change detection
-            metadata = {
-                "manifest_hash": self._hash_profile_manifest(profile),
-                "compiled_at": datetime.now().isoformat(),
-                "source_commit": "main",
-            }
-            meta_file_final = final_dir / ".compilation_meta.json"
-            meta_file_final.write_text(json.dumps(metadata, indent=2))
-            logger.debug(f"Saved compilation metadata: {meta_file_final}")
-
-            logger.info(f"Successfully compiled profile: {collection_id}/{profile.name} → {final_dir}")
-            return final_dir
+            self.logger.info(f"✓ Profile '{profile_id}' compiled successfully")
+            return profile_dir
 
         except Exception as e:
-            # Cleanup staging directory on failure - no partial state left behind
-            logger.error(f"Compilation failed for {collection_id}/{profile.name}: {e}")
-            if staging_dir.exists():
-                logger.debug(f"Cleaning up staging directory: {staging_dir}")
-                shutil.rmtree(staging_dir)
-            raise ProfileCompilationError(f"Failed to compile profile {profile.name}: {e}") from e
+            self.logger.error(f"Profile compilation failed: {e}")
+            raise ProfileCompilationError(f"Failed to compile profile '{profile_id}': {e}") from e
 
-    def _resolve_ref(self, ref: str, ref_type: str) -> Path:
-        """Resolve reference with profile-specific error context.
+    def _load_behavior_definitions(
+        self, behavior_items: list[str | dict], registries: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Load behavior definition files, recursively loading dependencies.
 
         Args:
-            ref: Reference string (git+URL, absolute path, fsspec)
-            ref_type: Type of ref for error messages (agent, context, module)
+            behavior_items: List of behavior items from profile (dict with id/source)
+            registries: Dictionary of available registries
 
         Returns:
-            Path to resolved asset
+            Dictionary mapping behavior ID to its parsed definition
 
         Raises:
-            RefResolutionError: If resolution fails with profile context
+            ProfileCompilationError: If behavior definition not found or invalid
         """
-        try:
-            return self.ref_resolution.resolve_ref(ref)
-        except RefResolutionError as e:
-            raise RefResolutionError(f"Failed to resolve {ref_type} reference '{ref}': {e}") from e
+        behavior_defs = {}
+        to_process = list(behavior_items)
+        processed = set()
 
-    def _create_module_structure(
-        self, target_dir: Path, assets: dict[str, list[Path]], profile_spec: ProfileDetails
-    ) -> None:
-        """Create Python module structure using profile names from profile spec.
+        while to_process:
+            behavior_item = to_process.pop(0)
 
-        For each module type:
-        1. Get module name from profile spec
-        2. Create directory: {mount_type}/{module_name}/
-        3. Copy module package into that directory
+            # Parse behavior item (object format only)
+            if not isinstance(behavior_item, dict):
+                raise ProfileCompilationError(
+                    f"Behavior must be dict with 'id' and 'source', got {type(behavior_item)}: {behavior_item}"
+                )
 
-        Args:
-            target_dir: Staging directory for compilation
-            assets: Dict of resolved asset paths from cache
-            profile_spec: Profile details with module names
+            behavior_id = behavior_item.get("id")
+            if not behavior_id:
+                raise ProfileCompilationError(f"Behavior must have 'id' field: {behavior_item}")
 
-        Side Effects:
-            - Creates directory structure using profile names
-            - Copies module packages from cache
-            - Creates __init__.py files
+            source_ref = behavior_item.get("source")
 
-        Structure Created:
-            target_dir/
-              __init__.py
-              orchestrator/
-                loop-streaming/              ← Profile name
-                  amplifier_module_loop_streaming/
-              context/
-                context-simple/              ← Profile name
-                  amplifier_module_context_simple/
-              providers/
-                provider-anthropic/          ← Profile name
-                  amplifier_module_provider_anthropic/
-        """
-        # Create root __init__.py
-        root_init = target_dir / "__init__.py"
-        root_init.write_text('"""Compiled profile module."""\n')
-        logger.debug(f"Created {root_init}")
-
-        # Process session.orchestrator
-        orchestrator_dir = target_dir / "orchestrator"
-        orchestrator_dir.mkdir(exist_ok=True)
-        (orchestrator_dir / "__init__.py").write_text('"""Orchestrator assets."""\n')
-
-        if assets.get("orchestrator") and profile_spec.session:
-            module_name = profile_spec.session.orchestrator.module
-            source_path = assets["orchestrator"][0]
-
-            dest_dir = orchestrator_dir / module_name
-            dest_dir.mkdir(parents=True, exist_ok=True)
-
-            # Copy module package
-            self._copy_module_package(source_path, dest_dir)
-            logger.debug(f"Created orchestrator/{module_name}/ with module package")
-
-        # Process session.context-manager (note: context directory might also be used for context files)
-        if assets.get("context-manager") and profile_spec.session and profile_spec.session.context_manager:
-            module_name = profile_spec.session.context_manager.module
-            source_path = assets["context-manager"][0]
-
-            context_dir = target_dir / "context"
-            context_dir.mkdir(exist_ok=True)
-            # Create __init__.py if not already created
-            init_file = context_dir / "__init__.py"
-            if not init_file.exists():
-                init_file.write_text('"""Context assets."""\n')
-
-            dest_dir = context_dir / module_name
-            dest_dir.mkdir(parents=True, exist_ok=True)
-
-            # Copy module package
-            self._copy_module_package(source_path, dest_dir)
-            logger.debug(f"Created context/{module_name}/ with module package")
-
-        # Process agents (list of file refs)
-        if assets.get("agents"):
-            agents_dir = target_dir / "agents"
-            agents_dir.mkdir(exist_ok=True)
-
-            # Create __init__.py
-            (agents_dir / "__init__.py").write_text('"""Agent assets."""\n')
-
-            # Copy agent files
-            for agent_path in assets["agents"]:
-                if agent_path.is_file():
-                    dest = agents_dir / agent_path.name
-                    shutil.copy2(agent_path, dest)
-                    logger.debug(f"Copied agent {agent_path.name} to agents/")
-
-        # Process contexts (dict of name -> directory refs)
-        if assets.get("context") and profile_spec.context:
-            contexts_dir = target_dir / "contexts"  # Plural!
-            contexts_dir.mkdir(exist_ok=True)
-            (contexts_dir / "__init__.py").write_text('"""Context documentation assets."""\n')
-
-            # Copy context directories using names from profile spec
-            context_names = list(profile_spec.context.keys())
-            for context_name, context_path in zip(context_names, assets["context"], strict=False):
-                if context_path.is_dir():
-                    dest = contexts_dir / context_name  # Use profile's context name!
-
-                    def ignore_non_essential(dir: str, files: list[str]) -> set[str]:
-                        """Ignore .git, __pycache__, .venv, and other non-essential directories."""
-                        return {name for name in files if name in {".git", "__pycache__", ".venv", "node_modules"}}
-
-                    shutil.copytree(context_path, dest, dirs_exist_ok=True, ignore=ignore_non_essential)
-                    logger.debug(f"Copied context directory to contexts/{context_name}/")
-
-        # Process providers, tools, hooks (lists)
-        for module_type in ["providers", "tools", "hooks"]:
-            if not assets.get(module_type):
-                # Create empty directories for consistency
-                type_dir = target_dir / module_type
-                type_dir.mkdir(exist_ok=True)
-                (type_dir / "__init__.py").write_text(f'"""{module_type.capitalize()} assets."""\n')
-                logger.debug(f"Created empty {module_type}/ directory")
+            if behavior_id in processed:
                 continue
 
-            type_dir = target_dir / module_type
-            type_dir.mkdir(exist_ok=True)
+            processed.add(behavior_id)
 
-            # Create __init__.py
-            (type_dir / "__init__.py").write_text(f'"""{module_type.capitalize()} assets."""\n')
+            # Require explicit source in component
+            if not source_ref:
+                raise ProfileCompilationError(
+                    f"Behavior '{behavior_id}' has no source. Behaviors must include 'source' field in YAML."
+                )
 
-            # Get module list from profile spec
-            module_list = getattr(profile_spec, module_type, [])
+            try:
+                # Resolve amp:// URIs before fetching
+                resolved_uri = self.registry_service.resolve_amp_uri(source_ref)
+                self.logger.info(f"Loading behavior definition for '{behavior_id}' from {resolved_uri}")
+                resolved_path = self.ref_resolution.resolve_ref(resolved_uri)
 
-            # Match assets to modules by index (assets are in same order as profile spec)
-            for module_config, source_path in zip(module_list, assets[module_type], strict=False):
-                module_name = module_config.module
+                if resolved_path.is_file():
+                    behavior_content = resolved_path.read_text()
+                elif resolved_path.is_dir():
+                    possible_files = [
+                        resolved_path / f"{behavior_id}.yaml",
+                        resolved_path / "behavior.yaml",
+                    ]
+                    behavior_file = next((f for f in possible_files if f.exists()), None)
+                    if not behavior_file:
+                        raise ProfileCompilationError(
+                            f"Could not find behavior YAML for '{behavior_id}' in directory: {resolved_path}"
+                        )
+                    behavior_content = behavior_file.read_text()
+                else:
+                    raise ProfileCompilationError(f"Unexpected path type for behavior '{behavior_id}': {resolved_path}")
 
-                dest_dir = type_dir / module_name
-                dest_dir.mkdir(parents=True, exist_ok=True)
+                behavior_def = yaml.safe_load(behavior_content)
 
-                # Copy module package
-                self._copy_module_package(source_path, dest_dir)
-                logger.debug(f"Created {module_type}/{module_name}/ with module package")
+                if "behavior" in behavior_def:
+                    behavior_metadata = behavior_def["behavior"]
+                    behavior_defs[behavior_id] = {
+                        **behavior_def,
+                        "behavior": behavior_metadata,
+                        "requires": behavior_metadata.get("requires", []),
+                    }
+                else:
+                    behavior_defs[behavior_id] = behavior_def
 
-        logger.info(f"Created Python module structure at {target_dir}")
+                requires = behavior_defs[behavior_id].get("requires", [])
+                if isinstance(requires, list):
+                    for required_item in requires:
+                        # Expect object format with id/source
+                        if not isinstance(required_item, dict):
+                            raise ProfileCompilationError(
+                                f"Behavior dependency must be dict with 'id' and 'source', got: {required_item}"
+                            )
 
-    def _copy_module_package(self, source_path: Path, dest_dir: Path) -> None:
-        """Copy module package from cache to destination.
+                        req_behavior_id = required_item.get("id")
+                        if not req_behavior_id:
+                            raise ProfileCompilationError(f"Behavior dependency must have 'id' field: {required_item}")
 
-        Handles both:
-        - Directories: Copy entire tree (e.g., amplifier_module_*/ directory)
-        - Files: Copy single file (e.g., agent.md)
+                        req_obj = required_item
+
+                        if req_behavior_id not in processed and req_behavior_id not in [
+                            b.get("id") for b in to_process if isinstance(b, dict)
+                        ]:
+                            self.logger.debug(f"  Queueing required behavior: {req_behavior_id}")
+                            to_process.append(req_obj)
+
+            except Exception as e:
+                raise ProfileCompilationError(
+                    f"Failed to load behavior '{behavior_id}' from '{source_ref}': {e}"
+                ) from e
+
+        return behavior_defs
+
+    def _parse_component_ref(
+        self, item: dict | str, component_type: str, behavior_id: str | None = None
+    ) -> ComponentRefInternal:
+        """Parse a component reference from YAML (object or string format).
 
         Args:
-            source_path: Path in cache (may be hash directory or package directly)
-            dest_dir: Destination directory
-        """
-        if source_path.is_dir():
-            # Find the amplifier_module_* package inside (if in hash directory)
-            package_dirs = list(source_path.glob("amplifier_module_*"))
+            item: Component dict with id/source/config, OR plain string URI
+            component_type: Type of component (tools, agents, hooks, etc.)
+            behavior_id: Behavior this component belongs to (if any)
 
-            if package_dirs:
-                # Copy the package directory
-                package_dir = package_dirs[0]
-                dest_package = dest_dir / package_dir.name
-                shutil.copytree(
-                    package_dir,
-                    dest_package,
-                    dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns(".git", "__pycache__", ".venv", "node_modules"),
-                )
-                logger.debug(f"Copied module package {package_dir.name}/ to {dest_dir}/")
-            else:
-                # Might be the package itself
-                if source_path.name.startswith("amplifier_module_"):
-                    dest_package = dest_dir / source_path.name
-                    shutil.copytree(
-                        source_path,
-                        dest_package,
-                        dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns(".git", "__pycache__", ".venv", "node_modules"),
+        Returns:
+            ComponentRefInternal object
+
+        Raises:
+            ProfileCompilationError: If component format is invalid
+        """
+        # Handle string format (backward compatible)
+        if isinstance(item, str):
+            # Extract ID from URI (e.g., "amp://microsoft/tools/tool-bash" -> "tool-bash")
+            filename = item.split("/")[-1]
+            component_id = filename.removesuffix(".yaml").removesuffix(".md")
+            return ComponentRefInternal(
+                id=component_id,
+                type=component_type,
+                behavior_id=behavior_id,
+                source=item,
+                config=None,
+            )
+
+        # Handle dict format
+        if not isinstance(item, dict):
+            raise ProfileCompilationError(f"Component must be dict or string, got {type(item)}: {item}")
+
+        component_id = item.get("id")
+        component_source = item.get("source")
+
+        if not component_id and component_source:
+            # Extract ID from source (e.g., "amp://microsoft/tools/tool-bash" -> "tool-bash")
+            filename = component_source.split("/")[-1]
+            component_id = filename.removesuffix(".yaml").removesuffix(".md")
+
+        if not component_id:
+            raise ProfileCompilationError(f"Component must have 'id' field or 'source' to extract ID from: {item}")
+
+        return ComponentRefInternal(
+            id=component_id,
+            type=component_type,
+            behavior_id=behavior_id,
+            source=component_source,
+            config=item.get("config"),
+        )
+
+    def _topological_sort_behaviors(self, behaviors: list[str], behavior_defs: dict[str, Any]) -> list[str]:
+        """Sort behaviors by dependency order using Kahn's algorithm.
+
+        Args:
+            behaviors: List of behavior IDs from the profile
+            behavior_defs: Dictionary mapping behavior ID to its definition (including requires)
+
+        Returns:
+            List of behavior IDs in dependency order
+
+        Raises:
+            ProfileCompilationError: If circular dependency detected
+        """
+        if not behaviors:
+            return []
+
+        graph = {}
+        in_degree = {}
+
+        for behavior_id in behaviors:
+            behavior_def = behavior_defs.get(behavior_id, {})
+            requires = behavior_def.get("requires", [])
+            raw_deps = requires if isinstance(requires, list) else [requires] if requires else []
+
+            # Normalize dependencies (extract IDs from objects or URIs)
+            normalized_deps = []
+            for dep in raw_deps:
+                if isinstance(dep, dict):
+                    # Extract ID from dict object
+                    dep_id = dep.get("id")
+                    if dep_id:
+                        normalized_deps.append(dep_id)
+                elif isinstance(dep, str) and dep.startswith("amp://"):
+                    # Extract behavior ID from URI
+                    filename = dep.split("/")[-1]
+                    dep_id = filename.removesuffix(".yaml")
+                    normalized_deps.append(dep_id)
+                elif isinstance(dep, str):
+                    normalized_deps.append(dep)
+
+            graph[behavior_id] = normalized_deps
+            in_degree[behavior_id] = 0
+
+        for behavior_id in behaviors:
+            for dep in graph[behavior_id]:
+                if dep not in in_degree:
+                    raise ProfileCompilationError(
+                        f"Behavior '{behavior_id}' requires unknown behavior '{dep}'. "
+                        f"Available behaviors: {', '.join(behaviors)}"
                     )
-                    logger.debug(f"Copied module package {source_path.name}/ to {dest_dir}/")
+                in_degree[behavior_id] += 1
+
+        queue = [bid for bid in behaviors if in_degree[bid] == 0]
+        sorted_ids = []
+
+        while queue:
+            bid = queue.pop(0)
+            sorted_ids.append(bid)
+
+            for other_bid in behaviors:
+                if bid in graph[other_bid]:
+                    in_degree[other_bid] -= 1
+                    if in_degree[other_bid] == 0:
+                        queue.append(other_bid)
+
+        if len(sorted_ids) != len(behaviors):
+            remaining = set(behaviors) - set(sorted_ids)
+            raise ProfileCompilationError(
+                f"Circular dependency detected in behaviors: {', '.join(remaining)}. Check the 'requires' fields."
+            )
+
+        return sorted_ids
+
+    def _collect_components(self, profile: dict, behavior_defs: dict[str, Any]) -> list[ComponentRefInternal]:
+        """Extract all component IDs from profile in dependency order.
+
+        Args:
+            profile: Profile YAML dictionary
+            behavior_defs: Dictionary of loaded behavior definitions
+
+        Returns:
+            List of ComponentRefInternal objects in dependency order
+        """
+        refs = []
+
+        # Profile-level components (use new parser)
+        if orch := profile.get("orchestrator"):
+            refs.append(self._parse_component_ref(orch, "orchestrator"))
+        if ctx := profile.get("context"):
+            refs.append(self._parse_component_ref(ctx, "context"))
+        if provs := profile.get("providers"):
+            for prov in provs:
+                # Providers are lists of objects with 'id' and 'source'
+                refs.append(self._parse_component_ref(prov, "providers"))
+        if ctxs := profile.get("contexts"):
+            for ctx in ctxs:
+                refs.append(self._parse_component_ref(ctx, "contexts"))
+
+        # Behavior components (use new parser with behavior_id)
+        all_behavior_ids = list(behavior_defs.keys())
+        if all_behavior_ids:
+            sorted_behaviors = self._topological_sort_behaviors(all_behavior_ids, behavior_defs)
+
+            for behavior_id in sorted_behaviors:
+                behavior_def = behavior_defs.get(behavior_id, {})
+
+                for hook in behavior_def.get("hooks", []):
+                    refs.append(self._parse_component_ref(hook, "hooks", behavior_id))
+                for agent in behavior_def.get("agents", []):
+                    refs.append(self._parse_component_ref(agent, "agents", behavior_id))
+                for ctx in behavior_def.get("contexts", []):
+                    refs.append(self._parse_component_ref(ctx, "contexts", behavior_id))
+                for tool in behavior_def.get("tools", []):
+                    refs.append(self._parse_component_ref(tool, "tools", behavior_id))
+
+        return refs
+
+    def _resolve_assets(self, refs: list[ComponentRefInternal], registries: dict[str, Any]) -> dict[str, Path]:
+        """Download/cache all assets and return local paths.
+
+        All component sources are inline in ComponentRefInternal objects.
+
+        Args:
+            refs: List of component references (each has inline source)
+            registries: Dictionary of available registries
+
+        Returns:
+            Dictionary mapping component IDs to local file paths
+
+        Raises:
+            ProfileCompilationError: If component has no source or download fails
+        """
+        asset_map = {}
+
+        for ref in refs:
+            if not ref.source:
+                raise ProfileCompilationError(
+                    f"Component '{ref.id}' (type: {ref.type}) has no source. Components must include 'source' field."
+                )
+
+            try:
+                # Resolve amp:// URIs before fetching
+                resolved_uri = self.registry_service.resolve_amp_uri(ref.source)
+
+                self.logger.info(f"Resolving {ref.type} '{ref.id}' from {resolved_uri}")
+                resolved_path = self.ref_resolution.resolve_ref(resolved_uri)
+                asset_map[ref.id] = resolved_path
+                self.logger.debug(f"  → {resolved_path}")
+            except Exception as e:
+                raise ProfileCompilationError(
+                    f"Failed to resolve component '{ref.id}' from source '{ref.source}': {e}"
+                ) from e
+
+        return asset_map
+
+    def _copy_to_profile_cache(
+        self, profile: dict, asset_map: dict[str, Path], refs: list[ComponentRefInternal], cache_dir: Path
+    ) -> dict[str, Path]:
+        """Copy all components to profile-specific cache for self-contained profiles.
+
+        Args:
+            profile: Profile YAML dictionary
+            asset_map: Mapping of component IDs to their cached locations
+            refs: List of all component references
+            cache_dir: Profile output directory (not .cache/)
+
+        Returns:
+            Updated asset_map with profile cache paths
+        """
+        self.logger.info(f"Creating self-contained profile cache at {cache_dir}")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        profile_asset_map = {}
+
+        for ref in refs:
+            if ref.id not in asset_map:
+                self.logger.warning(f"Component '{ref.id}' not in asset map, skipping")
+                continue
+
+            source_path = asset_map[ref.id]
+
+            # Determine destination based on behavior_id
+            if ref.behavior_id:
+                # Behavior component: profiles/{name}/behaviors/{behavior-id}/{type}/{id}/
+                dest_path = cache_dir / "behaviors" / ref.behavior_id / ref.type / ref.id
+            else:
+                # Session component: profiles/{name}/session/{type}/{id}/
+                dest_path = cache_dir / "session" / ref.type / ref.id
+
+            # Copy component to profile cache
+            try:
+                if dest_path.exists():
+                    self.logger.debug(f"Profile cache path exists, skipping: {dest_path}")
                 else:
-                    logger.warning(f"No amplifier_module_* package found in {source_path}")
-        elif source_path.is_file():
-            # Single file (agents, context markdown)
-            shutil.copy2(source_path, dest_dir / source_path.name)
-            logger.debug(f"Copied file {source_path.name} to {dest_dir}/")
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+                    if source_path.is_dir():
+                        shutil.copytree(source_path, dest_path)
+                        self.logger.debug(f"Copied directory: {ref.id} -> {dest_path}")
+                    else:
+                        dest_path.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source_path, dest_path / source_path.name)
+                        self.logger.debug(f"Copied file: {ref.id} -> {dest_path}")
+
+                profile_asset_map[ref.id] = dest_path
+
+            except Exception as e:
+                self.logger.error(f"Failed to copy component '{ref.id}' to profile cache: {e}")
+                # Fall back to shared cache path
+                profile_asset_map[ref.id] = source_path
+
+        self.logger.info(f"Profile cache complete with {len(profile_asset_map)} components")
+        return profile_asset_map
+
+    def _deep_merge(self, base: dict, override: dict) -> dict:
+        """Recursively merge two dicts (lists are replaced, dicts merged).
+
+        Args:
+            base: Base dictionary
+            override: Override dictionary
+
+        Returns:
+            Merged dictionary
+        """
+        result = dict(base)
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = self._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def _merge_configs(
+        self, root_config: dict, behavior_configs: dict[str, Any], sorted_behavior_ids: list[str]
+    ) -> dict:
+        """Merge root + behavior configs in dependency order.
+
+        Args:
+            root_config: Root configuration from config.yaml
+            behavior_configs: Dictionary of behavior configs
+            sorted_behavior_ids: Behavior IDs in dependency order
+
+        Returns:
+            Merged configuration dictionary
+        """
+        # Start with root config (excluding behavior-specific section)
+        merged = {}
+        for key, value in root_config.items():
+            if key != "behaviors":  # Skip behavior-specific configs
+                merged[key] = value
+
+        # Merge behavior-specific configs in dependency order
+        for behavior_id in sorted_behavior_ids:
+            behavior_config = behavior_configs.get(behavior_id, {})
+            if "config" in behavior_config:
+                merged = self._deep_merge(merged, behavior_config["config"])
+
+        return merged
+
+    def _generate_mount_plan(
+        self,
+        profile: dict,
+        config: dict,
+        asset_map: dict[str, Path],
+        behavior_defs: dict[str, Any],
+        sorted_behavior_ids: list[str],
+    ) -> dict:
+        """Build final mount plan from profile, config, and assets.
+
+        Args:
+            profile: Profile YAML dictionary
+            config: Merged configuration dictionary
+            asset_map: Dictionary mapping component IDs to local paths (profile cache)
+            behavior_defs: Dictionary of loaded behavior definitions
+            sorted_behavior_ids: Behavior IDs in dependency order
+
+        Returns:
+            Mount plan dictionary ready for JSON serialization
+        """
+        self.logger.debug(f"Generating mount plan with {len(asset_map)} components from profile cache")
+
+        mount_plan: dict[str, Any] = {}
+
+        # Get profile name for source field
+        profile_name = profile.get("profile", {}).get("name", "unknown")
+
+        # Get working_dir from config
+        working_dir = config.get("session", {}).get("working_dir", "")
+
+        # Session section - orchestrator and context are DICT objects with module/source/config
+        session: dict[str, Any] = {}
+        session_config = config.get("session", {})
+
+        if orch_ref := profile.get("orchestrator"):
+            # Extract ID from ref (could be dict with id/source or just dict with source)
+            if isinstance(orch_ref, dict):
+                orch_id = orch_ref.get("id")
+                if not orch_id and orch_ref.get("source"):
+                    # Extract from source
+                    filename = orch_ref["source"].split("/")[-1]
+                    orch_id = filename.removesuffix(".yaml").removesuffix(".md")
+            else:
+                orch_id = orch_ref
+
+            session["orchestrator"] = {
+                "module": orch_id,
+                "source": profile_name,
+                "config": session_config.get("orchestrator", {}),
+            }
+
+        if ctx_ref := profile.get("context"):
+            if isinstance(ctx_ref, dict):
+                ctx_id = ctx_ref.get("id")
+                if not ctx_id and ctx_ref.get("source"):
+                    filename = ctx_ref["source"].split("/")[-1]
+                    ctx_id = filename.removesuffix(".yaml").removesuffix(".md")
+            else:
+                ctx_id = ctx_ref
+
+            session["context"] = {"module": ctx_id, "source": profile_name, "config": session_config.get("context", {})}
+
+        # Session-level settings
+        session["injection_size_limit"] = session_config.get("injection_size_limit")
+        session["injection_budget_per_turn"] = session_config.get("injection_budget_per_turn")
+
+        session["settings"] = {
+            "amplified_dir": working_dir,
+            "session_cwd": working_dir,
+            "profile_name": profile_name,
+        }
+
+        mount_plan["session"] = session
+
+        # Providers section - list of objects with module/source/config
+        if provs := profile.get("providers"):
+            providers = []
+            providers_config = config.get("providers", {})
+
+            # Build config map
+            provider_config_map = {}
+            if isinstance(providers_config, dict):
+                provider_config_map = providers_config
+            elif isinstance(providers_config, list):
+                for prov_conf in providers_config:
+                    if isinstance(prov_conf, dict):
+                        for prov_id, prov_settings in prov_conf.items():
+                            provider_config_map[prov_id] = prov_settings
+
+            for prov_item in provs:
+                if isinstance(prov_item, dict):
+                    prov_id = prov_item.get("id")
+                else:
+                    prov_id = prov_item
+
+                providers.append(
+                    {"module": prov_id, "source": profile_name, "config": provider_config_map.get(prov_id, {})}
+                )
+
+            mount_plan["providers"] = providers
+
+        # Tools section - list of objects with module/source/config
+        seen_tools = set()
+        all_tools = []
+        for behavior_id in sorted_behavior_ids:
+            behavior_def = behavior_defs.get(behavior_id, {})
+            for tool_item in behavior_def.get("tools", []):
+                # Extract tool ID from dict object or string URI
+                if isinstance(tool_item, dict):
+                    tool_id = tool_item.get("id")
+                elif isinstance(tool_item, str):
+                    # Extract from URI
+                    filename = tool_item.split("/")[-1]
+                    tool_id = filename.removesuffix(".yaml").removesuffix(".md")
+                else:
+                    continue  # Skip invalid items
+
+                if tool_id in seen_tools:
+                    continue
+                seen_tools.add(tool_id)
+
+                # Build tool config
+                tool_config = {"working_dir": working_dir} if working_dir else {}
+                for key, value in config.items():
+                    if key.startswith(f"{tool_id}."):
+                        tool_config[key.split(".", 1)[1]] = value
+
+                all_tools.append({"module": tool_id, "source": profile_name, "config": tool_config})
+
+        if all_tools:
+            mount_plan["tools"] = all_tools
+
+        # Hooks section - list of objects with module/source/config
+        seen_hooks = set()
+        all_hooks = []
+        for behavior_id in sorted_behavior_ids:
+            behavior_def = behavior_defs.get(behavior_id, {})
+            for hook_item in behavior_def.get("hooks", []):
+                # Extract hook ID from dict object or string URI
+                if isinstance(hook_item, dict):
+                    hook_id = hook_item.get("id")
+                elif isinstance(hook_item, str):
+                    # Extract from URI
+                    filename = hook_item.split("/")[-1]
+                    hook_id = filename.removesuffix(".yaml").removesuffix(".md")
+                else:
+                    continue  # Skip invalid items
+
+                if hook_id in seen_hooks:
+                    continue
+                seen_hooks.add(hook_id)
+
+                # Build hook config
+                hook_config = {}
+                for key, value in config.items():
+                    if key.startswith(f"hook.{hook_id}."):
+                        hook_config[key.split(".", 2)[2]] = value
+
+                all_hooks.append({"module": hook_id, "source": profile_name, "config": hook_config})
+
+        if all_hooks:
+            mount_plan["hooks"] = all_hooks
+
+        # Agents section - content/metadata format (already correct)
+        agents_obj = {}
+        for behavior_id in sorted_behavior_ids:
+            behavior_def = behavior_defs.get(behavior_id, {})
+            for agent_item in behavior_def.get("agents", []):
+                # Extract agent ID from dict object or string URI
+                agent_id: str | None = None
+                if isinstance(agent_item, dict):
+                    agent_id = agent_item.get("id")
+                elif isinstance(agent_item, str):
+                    # Extract from URI
+                    filename = agent_item.split("/")[-1]
+                    agent_id = filename.removesuffix(".yaml").removesuffix(".md")
+                else:
+                    continue  # Skip invalid items
+
+                if not agent_id:
+                    continue  # Skip if no ID extracted
+
+                agent_path = asset_map[agent_id]
+
+                if agent_path.is_file():
+                    agent_content = agent_path.read_text()
+                else:
+                    possible_files = [agent_path / f"{agent_id}.md", agent_path / "agent.md", agent_path / "README.md"]
+                    agent_file = next((f for f in possible_files if f.exists()), None)
+                    if not agent_file:
+                        raise ProfileCompilationError(
+                            f"Could not find agent file for '{agent_id}' in directory: {agent_path}"
+                        )
+                    agent_content = agent_file.read_text()
+
+                agents_obj[agent_id] = {
+                    "content": agent_content,
+                    "metadata": {"source": f"{profile['profile']['name']}:agents/{agent_id}.md"},
+                }
+
+        if agents_obj:
+            mount_plan["agents"] = agents_obj
+
+        return mount_plan

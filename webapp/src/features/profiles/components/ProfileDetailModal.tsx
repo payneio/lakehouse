@@ -28,7 +28,7 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
 
   if (!profileName) return null;
 
-  const isLocal = profile?.source.startsWith('local/');
+  const isLocal = profile?.sourceType === 'local';
 
   return (
     <Dialog open={!!profileName} onOpenChange={onClose}>
@@ -182,6 +182,24 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
               </div>
             )}
 
+            {profile.behaviors && profile.behaviors.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">Behaviors ({profile.behaviors.length})</h4>
+                <div className="space-y-2">
+                  {profile.behaviors.map((behavior, i) => (
+                    <div key={i} className="border rounded-lg p-3 bg-muted/50">
+                      <div className="font-mono text-sm font-semibold">{behavior.id}</div>
+                      {behavior.source && (
+                        <div className="text-xs text-muted-foreground mt-1 break-all">
+                          Source: {behavior.source}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {profile.inheritanceChain && profile.inheritanceChain.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2">Inheritance Chain</h4>
@@ -203,10 +221,9 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
         )}
       </DialogContent>
 
-      {profile && (
+      {profileName && (
         <CopyProfileDialog
-          sourceProfile={profile}
-          open={showCopyDialog}
+          sourceName={showCopyDialog ? profileName : null}
           onClose={() => setShowCopyDialog(false)}
           onSuccess={handleCopySuccess}
         />

@@ -1,299 +1,120 @@
-"""Mount plan service for generating session mount plans from profile frontmatter.
+"""Mount plan service for compiling profiles on-demand (v3).
 
-This service reads profile YAML frontmatter and generates dict-based mount plans
-that amplifier-core can use to initialize sessions with the DaemonModuleSourceResolver.
+This service compiles profiles from source profile.yaml at session creation time.
+Mount plans are generated in-memory and not persisted to profile directories.
 """
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from amplifierd.services.mention_loader import MentionLoader
-
 logger = logging.getLogger(__name__)
 
 
 class MountPlanService:
-    """Service for generating mount plans from profile YAML frontmatter.
-
-    Reads profile.md YAML frontmatter and transforms it into dict-based mount plans
-    using profile hint format (source: "collection/profile") that the resolver understands.
-    """
+    """Service for compiling profiles on-demand from source profile.yaml (v3)."""
 
     def __init__(self, share_dir: Path) -> None:
         """Initialize mount plan service.
 
         Args:
-            share_dir: Path to share directory (for finding cached profiles)
+            share_dir: Path to share directory (contains profiles)
         """
         self.share_dir = Path(share_dir)
         logger.info(f"MountPlanService initialized with share_dir={self.share_dir}")
 
     def generate_mount_plan(self, profile_id: str, amplified_dir: Path) -> dict[str, Any]:
-        """Generate mount plan from profile frontmatter.
-
-        Reads profile.md YAML frontmatter and transforms it into dict-based mount plan
-        with profile hint format for source fields (e.g., "foundation/base").
+        """Generate mount plan by compiling profile with session context.
 
         Args:
-            profile_id: Profile ID in format "collection/profile" (e.g., "foundation/base")
-            amplified_dir: Absolute path to amplified directory (for AGENTS.md and @path resolution)
+            profile_id: Profile identifier (e.g., "software-developer")
+            amplified_dir: Absolute path to amplified directory for this session
 
         Returns:
-            Dict mount plan with session, providers, tools, hooks, agents, context_messages sections
+            Compiled mount plan dictionary
 
         Raises:
-            ValueError: If profile_id format is invalid
-            FileNotFoundError: If profile not found in cache
+            FileNotFoundError: If profile or profile.yaml not found
+            ValueError: If profile compilation fails
         """
-        logger.info(f"Generating mount plan for profile: {profile_id}")
+        from amplifier_library.services.registry_service import RegistryService
+        from amplifier_library.storage import get_cache_dir
+        from amplifierd.services.profile_compilation import ProfileCompilationService
+        from amplifierd.services.ref_resolution import RefResolutionService
 
-        # Parse profile_id
-        parts = profile_id.split("/")
-        if len(parts) != 2:
-            raise ValueError(
-                f"Invalid profile_id format: {profile_id}. "
-                "Expected format: collection/profile (e.g., 'foundation/base')"
-            )
-        collection_id, profile_name = parts
+        logger.info(f"Compiling mount plan for profile: {profile_id}")
 
-        # Find cached profile directory
-        profile_dir = self.share_dir / "profiles" / collection_id / profile_name
+        # Find profile directory
+        profile_dir = self.share_dir / "profiles" / profile_id
         if not profile_dir.exists():
-            raise FileNotFoundError(
-                f"Profile cache directory not found: {profile_dir}. Profile {profile_id} must be compiled/cached first."
-            )
+            raise FileNotFoundError(f"Profile not found: {profile_id}")
 
-        logger.debug(f"Using profile cache directory: {profile_dir}")
+        # Read profile.yaml source
+        profile_yaml_path = profile_dir / "profile.yaml"
 
-        # Read agents directory if it exists
-        agents_dict = self._load_agents(profile_dir / "agents", profile_id)
+        if not profile_yaml_path.exists():
+            # Backward compatibility: try mount_plan.json
+            mount_plan_path = profile_dir / "mount_plan.json"
+            if mount_plan_path.exists():
+                logger.warning(
+                    f"Using legacy mount_plan.json for profile '{profile_id}'. "
+                    "Consider re-syncing from registry to get profile.yaml source."
+                )
+                mount_plan = json.loads(mount_plan_path.read_text())
+                # Add session context to legacy mount_plan
+                if "session" not in mount_plan:
+                    mount_plan["session"] = {}
+                if "settings" not in mount_plan["session"]:
+                    mount_plan["session"]["settings"] = {}
+                mount_plan["session"]["settings"]["amplified_dir"] = str(amplified_dir)
+                mount_plan["session"]["settings"]["session_cwd"] = str(amplified_dir)
+                mount_plan["session"]["settings"]["profile_name"] = profile_id
+                return mount_plan
 
-        # Find profile.md in the registry (source)
-        # The cached profile directory mirrors the registry structure
-        # Use profile_id to construct the registry path
-        registry_profile_path = (
-            Path("/data/repos/msft/payneio/amplifierd/registry/profiles") / collection_id / f"{profile_name}.md"
+            raise FileNotFoundError(f"No profile.yaml or mount_plan.json for profile: {profile_id}")
+
+        logger.debug(f"Loading profile.yaml from: {profile_yaml_path}")
+        profile_yaml = yaml.safe_load(profile_yaml_path.read_text())
+        config_yaml = {}  # Modern format has config inline
+
+        # Initialize compilation service
+        cache_dir = get_cache_dir()
+        registry_service = RegistryService(share_dir=self.share_dir)
+        ref_resolution = RefResolutionService(state_dir=cache_dir)
+        compilation_service = ProfileCompilationService(
+            share_dir=self.share_dir,
+            cache_dir=cache_dir,
+            ref_resolution=ref_resolution,
+            registry_service=registry_service,
         )
 
-        if not registry_profile_path.exists():
-            raise FileNotFoundError(
-                f"Profile source not found: {registry_profile_path}. Expected profile definition at this location."
-            )
+        # Compile profile (creates mount_plan.json in profile directory)
+        logger.debug(f"Compiling profile '{profile_id}' with session context")
+        compiled_profile_dir = compilation_service.compile_profile(
+            profile_id=profile_id, profile_yaml=profile_yaml, config_yaml=config_yaml
+        )
 
-        # Parse YAML frontmatter from profile.md
-        frontmatter = self._parse_frontmatter(registry_profile_path)
+        # Read the compiled mount_plan
+        mount_plan_path = compiled_profile_dir / "mount_plan.json"
+        mount_plan = json.loads(mount_plan_path.read_text())
 
-        # Load context messages with @mention resolution
-        context_messages = self._load_context_messages(profile_id, amplified_dir)
+        # Delete mount_plan.json from profile directory (it's for session only)
+        if mount_plan_path.exists():
+            logger.debug(f"Removing compiled mount_plan from profile directory: {mount_plan_path}")
+            mount_plan_path.unlink()
 
-        # Transform to mount plan dict
-        mount_plan = self._transform_to_mount_plan(frontmatter, profile_id, agents_dict)
-
-        # Add context messages to mount plan
-        if context_messages:
-            mount_plan["context_messages"] = context_messages
-            logger.info(f"Added {len(context_messages)} context messages to mount plan")
-
-        logger.info(f"Generated mount plan for {profile_id} with {len(agents_dict)} agents")
-        return mount_plan
-
-    def _load_context_messages(self, profile_id: str, amplified_dir: Path) -> list[dict[str, Any]]:
-        """Load and resolve @mentions from profile instruction and AGENTS.md.
-
-        Args:
-            profile_id: Profile ID (collection/profile)
-            amplified_dir: Absolute path to amplified directory
-
-        Returns:
-            List of message dicts with role="developer" and resolved content
-
-        Process:
-        1. Load profile instruction (markdown body)
-        2. Resolve @mentions in instruction (relative to profile dir)
-        3. Load .amplified/AGENTS.md if exists
-        4. Resolve @mentions in AGENTS.md (relative to .amplified/)
-        5. Return combined list of ContextMessage dicts
-        """
-        collection_id, profile_name = profile_id.split("/")
-        profile_dir = self.share_dir / "profiles" / collection_id / profile_name
-
-        # Create mention loader
-        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=amplified_dir)
-
-        context_messages = []
-
-        # Load profile instruction
-        profile_md = profile_dir / f"{profile_name}.md"
-        if profile_md.exists():
-            content = profile_md.read_text(encoding="utf-8")
-
-            # Extract body after frontmatter
-            if content.startswith("---\n"):
-                end_idx = content.find("\n---\n", 4)
-                if end_idx != -1:
-                    body = content[end_idx + 5 :].strip()
-
-                    if body:
-                        # Resolve @mentions recursively
-                        messages = loader.load_mentions(text=body, relative_to=profile_md.parent)
-                        context_messages.extend(messages)
-                        logger.info(f"Loaded {len(messages)} context messages from profile instruction")
-        else:
-            logger.warning(f"Profile markdown not found: {profile_md}")
-
-        # Load .amplified/AGENTS.md if exists
-        agents_md = amplified_dir / ".amplified" / "AGENTS.md"
-        if agents_md.exists():
-            content = agents_md.read_text(encoding="utf-8")
-
-            # Resolve @mentions recursively
-            messages = loader.load_mentions(text=content, relative_to=agents_md.parent)
-            context_messages.extend(messages)
-            logger.info(f"Loaded {len(messages)} context messages from AGENTS.md")
-        else:
-            logger.debug(f"AGENTS.md not found at {agents_md}")
-
-        # Convert ContextMessage objects to dicts for JSON serialization
-        return [msg.model_dump() for msg in context_messages]
-
-    def _parse_frontmatter(self, profile_path: Path) -> dict[str, Any]:
-        """Parse YAML frontmatter from profile.md.
-
-        Args:
-            profile_path: Path to profile.md file
-
-        Returns:
-            Dict of parsed YAML frontmatter
-
-        Raises:
-            ValueError: If file has no frontmatter or invalid YAML
-        """
-        content = profile_path.read_text(encoding="utf-8")
-
-        # Extract frontmatter between --- delimiters
-        if not content.startswith("---\n"):
-            raise ValueError(f"Profile {profile_path} has no YAML frontmatter")
-
-        # Find end of frontmatter
-        end_idx = content.find("\n---\n", 4)
-        if end_idx == -1:
-            raise ValueError(f"Profile {profile_path} has unclosed frontmatter")
-
-        frontmatter_text = content[4:end_idx]
-
-        # Parse YAML
-        try:
-            frontmatter = yaml.safe_load(frontmatter_text)
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in {profile_path}: {e}") from e
-
-        return frontmatter
-
-    def _load_agents(self, agents_dir: Path, profile_id: str) -> dict[str, dict[str, Any]]:
-        """Load agent markdown files from profile agents directory.
-
-        Args:
-            agents_dir: Path to agents directory
-            profile_id: Profile ID for metadata
-
-        Returns:
-            Dict mapping agent names to content/metadata
-        """
-        if not agents_dir.exists():
-            logger.debug(f"No agents directory at {agents_dir}")
-            return {}
-
-        agents = {}
-        for agent_file in agents_dir.glob("*.md"):
-            agent_name = agent_file.stem
-            content = agent_file.read_text(encoding="utf-8")
-            agents[agent_name] = {"content": content, "metadata": {"source": f"{profile_id}:agents/{agent_file.name}"}}
-            logger.debug(f"Loaded agent: {agent_name}")
-
-        return agents
-
-    def _transform_to_mount_plan(
-        self, frontmatter: dict[str, Any], profile_id: str, agents_dict: dict[str, dict[str, Any]]
-    ) -> dict[str, Any]:
-        """Transform frontmatter YAML to mount plan dict.
-
-        Args:
-            frontmatter: Parsed YAML frontmatter
-            profile_id: Profile ID for source hints
-            agents_dict: Loaded agents
-
-        Returns:
-            Mount plan dict with session, providers, tools, hooks, agents
-        """
-        mount_plan: dict[str, Any] = {}
-
-        # Session section (orchestrator + context + session-level config)
-        if "session" in frontmatter:
-            session_data = frontmatter["session"]
+        # Add session-specific context
+        if "session" not in mount_plan:
             mount_plan["session"] = {}
+        if "settings" not in mount_plan["session"]:
+            mount_plan["session"]["settings"] = {}
 
-            # Transform orchestrator
-            if "orchestrator" in session_data:
-                orch = session_data["orchestrator"]
-                mount_plan["session"]["orchestrator"] = {
-                    "module": orch.get("module"),
-                    "source": profile_id,  # Profile hint for resolver
-                    "config": orch.get("config", {}),
-                }
+        mount_plan["session"]["settings"]["amplified_dir"] = str(amplified_dir)
+        mount_plan["session"]["settings"]["session_cwd"] = str(amplified_dir)
+        mount_plan["session"]["settings"]["profile_name"] = profile_id
 
-            # Transform context
-            if "context" in session_data:
-                ctx = session_data["context"]
-                mount_plan["session"]["context"] = {
-                    "module": ctx.get("module"),
-                    "source": profile_id,  # Profile hint for resolver
-                    "config": ctx.get("config", {}),
-                }
-
-            # Copy session-level configuration fields (injection limits, etc.)
-            if "injection_size_limit" in session_data:
-                mount_plan["session"]["injection_size_limit"] = session_data["injection_size_limit"]
-            if "injection_budget_per_turn" in session_data:
-                mount_plan["session"]["injection_budget_per_turn"] = session_data["injection_budget_per_turn"]
-
-        # Transform providers
-        if "providers" in frontmatter:
-            mount_plan["providers"] = [
-                {
-                    "module": p.get("module"),
-                    "source": profile_id,  # Profile hint for resolver
-                    "config": p.get("config", {}),
-                }
-                for p in frontmatter["providers"]
-            ]
-
-        # Transform tools
-        if "tools" in frontmatter:
-            mount_plan["tools"] = [
-                {
-                    "module": t.get("module"),
-                    "source": profile_id,  # Profile hint for resolver
-                    "config": t.get("config", {}),
-                }
-                for t in frontmatter["tools"]
-            ]
-
-        # Transform hooks
-        if "hooks" in frontmatter:
-            mount_plan["hooks"] = [
-                {
-                    "module": h.get("module"),
-                    "source": profile_id,  # Profile hint for resolver
-                    "config": h.get("config", {}),
-                }
-                for h in frontmatter["hooks"]
-            ]
-
-        # Add agents
-        if agents_dict:
-            mount_plan["agents"] = agents_dict
-
+        logger.info(f"Mount plan compiled successfully for profile '{profile_id}'")
         return mount_plan

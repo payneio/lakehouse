@@ -294,7 +294,7 @@ class MockProfileService:
             "description": profile_obj.profile.description,
             "source": loader.get_profile_source(name) or "unknown",
             "isActive": name == active_profile,
-            "inheritanceChain": chain_names,
+            "behaviors": [],  # v3 uses behaviors instead
             "providers": [
                 {"module": item["module"], "source": item.get("source"), "config": item.get("config")}
                 for item in profile_obj.providers
@@ -403,7 +403,20 @@ tools:
 System profile for testing.
 """)
 
-    return ProfileService(share_dir=share_dir, data_dir=data_dir)
+    # Create required services for v3
+    from amplifier_library.services.registry_service import RegistryService
+    from amplifier_library.storage import get_cache_dir
+
+    cache_dir = get_cache_dir()
+    # Registry service uses share_dir (where registries.yaml lives)
+    registry_service = RegistryService(share_dir=share_dir)
+
+    return ProfileService(
+        share_dir=share_dir,
+        cache_dir=cache_dir,
+        data_dir=data_dir,
+        registry_service=registry_service
+    )
 
 
 @pytest.fixture
@@ -498,7 +511,7 @@ class TestProfilesAPI:
         assert data["description"] == "Default system profile"
         assert data["source"] == "system"
         assert data["isActive"] is True
-        assert data["inheritanceChain"] == []
+        # inheritanceChain removed in v3
         assert len(data["providers"]) == 1
         assert data["providers"][0]["module"] == "openai"
         assert len(data["tools"]) == 1
@@ -516,8 +529,7 @@ class TestProfilesAPI:
         assert data["description"] == "Custom user profile"
         assert data["source"] == "user"
         assert data["isActive"] is False
-        # Schema v2 doesn't have inheritance
-        assert data["inheritanceChain"] == []
+        # inheritanceChain removed in v3
 
     def test_get_profile_404_for_nonexistent(self, client: TestClient) -> None:
         """Test GET /api/v1/profiles/{name} returns 404 for nonexistent."""
@@ -552,9 +564,16 @@ class TestProfilesAPI:
         for profile in data:
             assert "name" in profile
             assert "source" in profile
+            assert "sourceType" in profile
+            assert "registryId" in profile
+            assert "sourceUri" in profile
             assert "isActive" in profile
             assert isinstance(profile["name"], str)
             assert isinstance(profile["source"], str)
+            assert isinstance(profile["sourceType"], str)
+            assert profile["sourceType"] == "local"  # All profiles are local for now
+            assert profile["registryId"] is None  # No registry profiles yet
+            assert profile["sourceUri"] is None  # No registry profiles yet
             assert isinstance(profile["isActive"], bool)
 
     def test_profile_details_schema(self, client: TestClient) -> None:
@@ -565,9 +584,16 @@ class TestProfilesAPI:
         assert "name" in data
         assert "version" in data
         assert "description" in data
+        assert "sourceType" in data
+        assert "registryId" in data
+        assert "sourceUri" in data
+        assert isinstance(data["sourceType"], str)
+        assert data["sourceType"] == "local"  # All profiles are local for now
+        assert data["registryId"] is None  # No registry profiles yet
+        assert data["sourceUri"] is None  # No registry profiles yet
         assert "source" in data
         assert "isActive" in data
-        assert "inheritanceChain" in data
+        assert "behaviors" in data  # v3 uses behaviors
         assert "providers" in data
         assert "tools" in data
         assert "hooks" in data
@@ -614,6 +640,7 @@ class TestProfilesAPI:
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="v2 CRUD operations removed in v3")
 class TestProfileCRUD:
     """Test profile CRUD operations."""
 
