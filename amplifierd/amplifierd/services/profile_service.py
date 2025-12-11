@@ -348,29 +348,13 @@ class ProfileService:
         # Create new profile directory
         new_dir.mkdir(parents=True)
 
-        # Try to copy profile.yaml if it exists (local profile with assets)
+        # STEP 1: Copy or fetch profile.yaml
         source_yaml = source_dir / "profile.yaml"
         if source_yaml.exists():
-            # Copy source YAML
+            # Simple case: copy local profile's source
             shutil.copy2(source_yaml, new_dir / "profile.yaml")
             self._update_profile_name_in_yaml(new_dir / "profile.yaml", new_name)
-
-            # Copy asset directories if they exist
-            for item in source_dir.iterdir():
-                if item.is_dir() and item.name in [
-                    "behaviors",
-                    "session",
-                    "contexts",
-                    "agents",
-                    "hooks",
-                    "tools",
-                    "providers",
-                ]:
-                    dest_item = new_dir / item.name
-                    if dest_item.exists():
-                        shutil.rmtree(dest_item)
-                    shutil.copytree(item, dest_item)
-                    logger.info(f"Copied {item.name}/ to {new_name}")
+            logger.info(f"Copied profile.yaml from {source_name} to {new_name}")
         else:
             # Complex case: fetch original source from registry
             logger.info(f"No local profile.yaml for {source_name}, fetching from registry")
@@ -391,27 +375,6 @@ class ProfileService:
                     save_profile_source(new_name, profile_yaml, {}, registry_source_dir, self.profiles_dir)
                     logger.info(f"Fetched profile source and assets from registry for {new_name}")
 
-                    # Compile profile to fetch and resolve all assets
-                    if self.compilation_service:
-                        try:
-                            logger.info(f"Compiling assets for '{new_name}'...")
-                            compiled_path = self.compilation_service.compile_profile(
-                                profile_id=new_name, profile_yaml=profile_yaml, config_yaml={}
-                            )
-
-                            # Remove mount_plan.json (created per-session, not part of profile source)
-                            mount_plan_path = compiled_path / "mount_plan.json"
-                            if mount_plan_path.exists():
-                                mount_plan_path.unlink()
-                                logger.debug("Removed mount_plan.json (created per-session)")
-
-                            logger.info(f"✓ Profile '{new_name}' assets compiled")
-                        except Exception as e:
-                            logger.warning(f"Failed to compile profile assets for '{new_name}': {e}")
-                            # Continue anyway - profile.yaml exists
-                    else:
-                        logger.debug("No compilation service available, skipping asset compilation")
-
                 else:
                     # Couldn't load YAML - fall back
                     logger.warning(f"Failed to load registry source for {source_name}, using mount_plan")
@@ -422,6 +385,34 @@ class ProfileService:
                     f"No registry source found for {source_name}, using mount_plan (may lose agents/contexts)"
                 )
                 self._create_yaml_from_mount_plan(source_dir, new_dir, new_name)
+
+        # STEP 2: Compile assets (for ALL copies, not just registry)
+        if self.compilation_service:
+            try:
+                logger.info(f"Compiling assets for '{new_name}'...")
+
+                # Read the profile.yaml we just created
+                import yaml
+
+                profile_yaml_path = new_dir / "profile.yaml"
+                profile_yaml = yaml.safe_load(profile_yaml_path.read_text())
+
+                # Compile to fetch and resolve all assets
+                compiled_path = self.compilation_service.compile_profile(
+                    profile_id=new_name, profile_yaml=profile_yaml, config_yaml={}
+                )
+
+                # Remove mount_plan.json (created per-session)
+                mount_plan_path = compiled_path / "mount_plan.json"
+                if mount_plan_path.exists():
+                    mount_plan_path.unlink()
+                    logger.debug("Removed mount_plan.json (created per-session)")
+
+                logger.info(f"✓ Profile '{new_name}' assets compiled")
+            except Exception as e:
+                logger.warning(f"Failed to compile assets for '{new_name}': {e}")
+        else:
+            logger.debug("No compilation service available, skipping asset compilation")
 
         # Create metadata
         metadata = {
