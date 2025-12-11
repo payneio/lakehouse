@@ -162,6 +162,17 @@ class MentionLoader:
             file_path = context_dir / path
 
             if not file_path.exists():
+                # Fallback: Try stripping 'context/' prefix for backward compatibility
+                if path.startswith("context/"):
+                    fallback_path = path[len("context/") :]
+                    file_path = context_dir / fallback_path
+                    if file_path.exists():
+                        logger.debug(
+                            f"Resolved context mention {mention} using fallback "
+                            f"(stripped 'context/' prefix) → {file_path}"
+                        )
+                        return file_path
+
                 logger.warning(f"Context file not found: {file_path}")
                 return None
 

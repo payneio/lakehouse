@@ -7,13 +7,14 @@ import asyncio
 import logging
 from typing import Annotated
 
-from amplifier_library.execution.runner import ExecutionRunner
-from amplifier_library.sessions.manager import SessionManager as SessionStateService
-from amplifier_library.storage import get_state_dir
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from pydantic import BaseModel
+
+from amplifier_library.execution.runner import ExecutionRunner
+from amplifier_library.sessions.manager import SessionManager as SessionStateService
+from amplifier_library.storage import get_state_dir
 
 from ..models import MessageResponse
 from ..models import SendMessageRequest
@@ -142,6 +143,29 @@ async def send_message_for_execution(
         with open(mount_plan_path) as f:
             mount_plan = json.load(f)
 
+        # Resolve runtime mentions (AGENTS.md + user message)
+        from pathlib import Path
+
+        from amplifier_library.storage import get_share_dir
+
+        from ..services.mention_resolver import MentionResolver
+
+        # Get directories from mount plan
+        amplified_dir = Path(mount_plan["session"]["settings"]["amplified_dir"])
+        profile_name = mount_plan["session"]["settings"]["profile_name"]
+
+        # Get compiled profile directory
+        share_dir = get_share_dir()
+        compiled_profile_dir = share_dir / "profiles" / profile_name
+
+        # Resolve runtime mentions
+        resolver = MentionResolver(
+            compiled_profile_dir=compiled_profile_dir,
+            amplified_dir=amplified_dir,
+        )
+        runtime_context_messages = resolver.resolve_runtime_mentions(request.content)
+        logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
+
         # Get stream manager (creates if needed)
         registry = get_stream_registry()
         manager = await registry.get_or_create(session_id, mount_plan)
@@ -172,7 +196,7 @@ async def send_message_for_execution(
         async def execute_and_emit():
             try:
                 full_response = ""
-                async for token in runner.execute_stream(session, request.content):
+                async for token in runner.execute_stream(session, request.content, runtime_context_messages):
                     full_response += token
                     # Emit each token to ALL subscribers
                     await manager.emitter.emit("content", {"type": "content", "content": token})
@@ -265,7 +289,6 @@ class ApprovalResponse(BaseModel):
 
 @router.post("/approval-response")
 async def submit_approval_response(
-    session_id: str,
     response: ApprovalResponse,
 ) -> dict[str, str]:
     """Receive user's approval decision.
@@ -273,7 +296,6 @@ async def submit_approval_response(
     Unblocks execution waiting on approval.
 
     Args:
-        session_id: Session identifier
         response: User's approval response
 
     Returns:

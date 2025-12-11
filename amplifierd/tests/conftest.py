@@ -200,10 +200,22 @@ def mock_amplifier_module():
     """
 
     class MockCoordinator:
-        """Mock coordinator with mount method."""
+        """Mock coordinator with mount and capability methods."""
+
+        def __init__(self):
+            """Initialize with empty capabilities dict."""
+            self._capabilities = {}
 
         async def mount(self, mount_point: str, module: Any) -> None:
             """Mock mount - does nothing."""
+
+        def register_capability(self, name: str, value: Any) -> None:
+            """Mock register_capability - stores in dict."""
+            self._capabilities[name] = value
+
+        def get_capability(self, name: str) -> Any:
+            """Mock get_capability - retrieves from dict."""
+            return self._capabilities.get(name)
 
     class MockAmplifierSession:
         """Mock AmplifierSession for testing without LLM API calls."""
@@ -214,7 +226,7 @@ def mock_amplifier_module():
             self.args = args
             self.kwargs = kwargs
             self.messages: list[dict[str, str]] = []
-            self.coordinator = MockCoordinator()
+            self.coordinator = MockCoordinator()  # Create instance
 
         async def initialize(self) -> None:
             """Mock initialization."""

@@ -135,6 +135,37 @@ async def create_session(
         # Generate mount plan
         mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
 
+        # Resolve profile instruction mentions
+        profile_context_messages = []
+        try:
+            # Compiled profile is in share_dir/profiles/{profile_name}
+            from amplifier_library.storage import get_share_dir
+            from amplifierd.services.mention_resolver import MentionResolver
+
+            share_dir = get_share_dir()
+            compiled_profile_dir = share_dir / "profiles" / profile_name
+
+            # Extract agent instructions from mount plan
+            all_instructions = []
+            agents = mount_plan.get("agents", {})
+            for agent_data in agents.values():
+                if isinstance(agent_data, dict) and "content" in agent_data:
+                    all_instructions.append(agent_data["content"])
+
+            # Resolve mentions if any instructions found
+            if all_instructions:
+                resolver = MentionResolver(
+                    compiled_profile_dir=compiled_profile_dir, amplified_dir=Path(absolute_amplified_dir)
+                )
+                combined_instructions = "\n\n".join(all_instructions)
+                profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
+                logger.info(
+                    f"Resolved {len(profile_context_messages)} profile context messages from {len(agents)} agents"
+                )
+        except Exception as e:
+            # Log error but don't fail session creation
+            logger.warning(f"Failed to resolve profile instruction mentions: {e}")
+
         # Generate session ID
         import uuid
 
@@ -167,6 +198,15 @@ async def create_session(
             parent_session_id=parent_session_id,
             amplified_dir=amplified_dir,
         )
+
+        # Save profile context messages to session directory
+        if profile_context_messages:
+            session_dir = session_service.storage_dir / session_id
+            context_file = session_dir / "profile_context_messages.json"
+            context_file.write_text(
+                json.dumps([msg.model_dump() for msg in profile_context_messages], indent=2), encoding="utf-8"
+            )
+            logger.info(f"Saved {len(profile_context_messages)} profile context messages to session {session_id}")
 
         logger.info(f"Created session {metadata.session_id} in '{amplified_dir}' with profile {profile_name}")
         return metadata

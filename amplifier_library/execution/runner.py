@@ -111,8 +111,9 @@ class ExecutionRunner:
                 "amplifier-core is required for execution. Install it with: pip install amplifier-core"
             ) from e
 
-        from amplifier_library.storage.paths import get_share_dir
         from amplifierd.module_resolver import DaemonModuleSourceResolver
+
+        from amplifier_library.storage.paths import get_share_dir
 
         # Create session
         self._session = AmplifierSession(self.config, session_id=self._session_id)
@@ -126,6 +127,10 @@ class ExecutionRunner:
         # Initialize
         await self._session.initialize()
         logger.info(f"Initialized AmplifierSession for {self._session_id}")
+
+        # Register session_manager capability for agent spawning
+        self._session.coordinator.register_capability("session_manager", self.session_manager)
+        logger.debug(f"Registered session_manager capability for session {self._session_id}")
 
         # Load transcript history into context
         historical_messages = await self._load_transcript_history()
@@ -196,12 +201,15 @@ class ExecutionRunner:
         self: "ExecutionRunner",
         session: Session,
         user_input: str,
+        runtime_context_messages: list[Any] | None = None,
     ) -> AsyncIterator[str]:
         """Execute user input and stream response tokens in real-time.
 
         Args:
             session: Session object
             user_input: User's prompt/message
+            runtime_context_messages: Optional list of context messages to inject
+                before user message (e.g., from @mentions in AGENTS.md or user message)
 
         Yields:
             Response tokens as they're generated
@@ -218,6 +226,38 @@ class ExecutionRunner:
             await self._ensure_session()
             assert self._session is not None  # Type guard - guaranteed by _ensure_session()
 
+            # Load cached profile context messages
+            import json
+            from pathlib import Path
+
+            session_dir = Path(self.session_manager.storage_dir) / session.session_id
+            profile_context_path = session_dir / "profile_context_messages.json"
+            if profile_context_path.exists():
+                try:
+                    with open(profile_context_path) as f:
+                        profile_context_data = json.load(f)
+                    # Inject profile context
+                    context = self._session.coordinator.get("context")
+                    if context and profile_context_data:
+                        for msg_data in profile_context_data:
+                            await context.add_message(msg_data)
+                        logger.debug(f"Injected {len(profile_context_data)} profile context messages")
+                except (OSError, json.JSONDecodeError) as e:
+                    logger.warning(f"Failed to load profile context messages: {e}")
+
+            # Inject runtime context messages into coordinator context
+            if runtime_context_messages:
+                context = self._session.coordinator.get("context")
+                if context:
+                    for ctx_msg in runtime_context_messages:
+                        # Convert ContextMessage to dict format if needed
+                        if hasattr(ctx_msg, "role") and hasattr(ctx_msg, "content"):
+                            msg_dict = {"role": ctx_msg.role, "content": ctx_msg.content}
+                        else:
+                            msg_dict = ctx_msg
+                        await context.add_message(msg_dict)
+                    logger.debug(f"Injected {len(runtime_context_messages)} runtime context messages")
+
             # Stream execution
             try:
                 orchestrator = self._session.coordinator.get("orchestrator")
@@ -230,7 +270,7 @@ class ExecutionRunner:
                 hooks = self._session.coordinator.get("hooks")
 
                 full_response = ""
-                async for token, _iteration in orchestrator._execute_stream(
+                async for token, _ in orchestrator._execute_stream(
                     user_input, context, providers, tools, hooks, self._session.coordinator
                 ):
                     full_response += token

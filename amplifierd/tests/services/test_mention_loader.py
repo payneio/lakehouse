@@ -348,3 +348,52 @@ class TestMentionLoader:
 
         assert len(messages) == 1
         assert len(messages[0].content) > 100000
+
+    def test_context_prefix_fallback(self, tmp_path: Path) -> None:
+        """Fallback: Strip 'context/' prefix for backward compatibility."""
+        profile_dir = tmp_path / "profile"
+        profile_dir.mkdir()
+        contexts = profile_dir / "contexts" / "legacy"
+        contexts.mkdir(parents=True)
+
+        # Create file WITHOUT context/ subdirectory (new architecture)
+        (contexts / "guide.md").write_text("# Guide\n\nNew architecture - no context/ prefix")
+
+        amp_dir = tmp_path / "amp"
+        amp_dir.mkdir()
+
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=amp_dir)
+
+        # User uses old @legacy:context/guide.md format
+        text = "See @legacy:context/guide.md"
+        messages = loader.load_mentions(text, relative_to=amp_dir)
+
+        # Should successfully resolve by stripping 'context/' prefix
+        assert len(messages) == 1
+        assert "New architecture" in messages[0].content
+        assert "@legacy:context/guide.md" in messages[0].content
+
+    def test_context_prefix_not_stripped_if_exists(self, tmp_path: Path) -> None:
+        """Don't strip 'context/' if that path actually exists."""
+        profile_dir = tmp_path / "profile"
+        profile_dir.mkdir()
+        contexts = profile_dir / "contexts" / "test"
+        contexts.mkdir(parents=True)
+
+        # Create file WITH context/ subdirectory
+        context_subdir = contexts / "context"
+        context_subdir.mkdir()
+        (context_subdir / "nested.md").write_text("# Nested\n\nActually in context/ subdir")
+
+        amp_dir = tmp_path / "amp"
+        amp_dir.mkdir()
+
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=amp_dir)
+
+        # Use @test:context/nested.md
+        text = "See @test:context/nested.md"
+        messages = loader.load_mentions(text, relative_to=amp_dir)
+
+        # Should resolve to the actual context/ subdirectory (NOT using fallback)
+        assert len(messages) == 1
+        assert "Actually in context/ subdir" in messages[0].content
