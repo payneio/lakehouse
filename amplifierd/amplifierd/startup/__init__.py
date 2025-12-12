@@ -128,20 +128,32 @@ async def handle_startup_updates(config: StartupConfig) -> None:
 
         logger.info(f"Parsed {len(profile_refs)} profile references")
 
+        # STEP 3.5: Delete existing registry profiles (will be rebuilt)
+        profiles_dir = share_dir / "profiles"
+        logger.info("Deleting existing registry profiles for rebuild...")
+        if profiles_dir.exists():
+            for profile_dir in profiles_dir.iterdir():
+                if not profile_dir.is_dir():
+                    continue
+
+                # Check if this is a local profile (don't delete)
+                # Local profiles are marked with .local file
+                local_marker = profile_dir / ".local"
+                if local_marker.exists():
+                    logger.debug(f"Skipping local profile: {profile_dir.name}")
+                    continue
+
+                # This is a registry profile - delete it
+                logger.info(f"Deleting registry profile for rebuild: {profile_dir.name}")
+                shutil.rmtree(profile_dir)
+
+        logger.info("Registry profiles deleted, will rebuild from registries")
+
         # STEP 4: Fetch and save profile sources from registry
         ref_resolution = RefResolutionService(state_dir=get_cache_dir())
-        profiles_dir = share_dir / "profiles"
         synced_count = 0
-        skipped_count = 0
 
         for profile_id, amp_uri in profile_refs.items():
-            # Check if already synced
-            profile_dir = profiles_dir / profile_id
-            if profile_dir.exists() and not config.update_stale_caches:
-                logger.debug(f"Profile '{profile_id}' already synced, skipping")
-                skipped_count += 1
-                continue
-
             # Fetch profile source from registry
             try:
                 logger.info(f"Fetching profile '{profile_id}' from {amp_uri}")
@@ -217,10 +229,7 @@ async def handle_startup_updates(config: StartupConfig) -> None:
             except Exception as e:
                 logger.error(f"Failed to sync profile '{profile_id}': {e}")
 
-        logger.info(
-            f"Startup complete: {synced_count} synced, {skipped_count} skipped, "
-            f"{len(profile_refs) - synced_count - skipped_count} failed"
-        )
+        logger.info(f"Startup complete: {synced_count} synced, {len(profile_refs) - synced_count} failed")
 
     except Exception as e:
         logger.error(f"Failed to handle startup updates: {e}", exc_info=True)
