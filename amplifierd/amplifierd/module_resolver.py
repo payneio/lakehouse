@@ -77,12 +77,20 @@ class DaemonModuleSourceResolver:
         self.share_dir = Path(share_dir)
         logger.debug(f"DaemonModuleSourceResolver initialized with share_dir={self.share_dir}")
 
-    def resolve(self, module_id: str, profile_hint: str | None = None) -> ModuleSource:
+    def resolve(
+        self,
+        module_id: str,
+        profile_hint: str | None = None,
+        component_type: str | None = None,
+    ) -> ModuleSource:
         """Resolve module ID to source path.
 
         Args:
             module_id: Hyphenated module name (e.g., "provider-anthropic")
             profile_hint: Profile ID (e.g., "software-developer")
+            component_type: Known component type ('hooks', 'tools', 'providers', 'context', 'orchestrator')
+                           If provided, uses this type directly, skipping inference.
+                           If None, falls back to name-based inference.
 
         Returns:
             ModuleSource that can be resolved to a Path
@@ -92,8 +100,13 @@ class DaemonModuleSourceResolver:
             FileNotFoundError: If module not found in profile
 
         Example:
+            >>> # When you know the component type (from mount plan)
+            >>> resolver.resolve("streaming-ui", "software-developer", component_type="hooks")
+            ModuleSource(.../.amplifierd/share/profiles/software-developer/.../hooks/streaming-ui)
+
+            >>> # Backwards compatible - infers from name
             >>> resolver.resolve("provider-anthropic", "software-developer")
-            ModuleSource(.../.amplifierd/share/profiles/software-developer/session/providers/provider-anthropic)
+            ModuleSource(.../.amplifierd/share/profiles/software-developer/.../providers/provider-anthropic)
         """
         if not profile_hint:
             raise ValueError("profile_hint (profile ID) is required for v3 profiles")
@@ -101,8 +114,13 @@ class DaemonModuleSourceResolver:
         # Profile hint is just the profile ID (no collections)
         profile_id = profile_hint
 
-        # Infer component type from module ID
-        component_type = self._infer_component_type(module_id)
+        # Use provided component type if available, otherwise infer from module ID
+        if component_type:
+            logger.debug(f"Using provided component type '{component_type}' for module '{module_id}'")
+            resolved_type = component_type
+        else:
+            resolved_type = self._infer_component_type(module_id)
+            logger.debug(f"Inferred component type '{resolved_type}' from module ID '{module_id}'")
 
         # Build profile directory path
         profile_dir = self.share_dir / "profiles" / profile_id
@@ -111,32 +129,35 @@ class DaemonModuleSourceResolver:
             raise FileNotFoundError(f"Profile '{profile_id}' not found at {profile_dir}")
 
         # Check session components first
-        session_path = profile_dir / "session" / component_type / module_id
+        session_path = profile_dir / "session" / resolved_type / module_id
         if session_path.exists():
             logger.debug(f"Resolved '{module_id}' → {session_path} (session component)")
             return ModuleSource(path=session_path, module_id=module_id)
 
         # Check behavior components (search all behaviors)
         for behavior_dir in profile_dir.glob("behaviors/*/"):
-            behavior_path = behavior_dir / component_type / module_id
+            behavior_path = behavior_dir / resolved_type / module_id
             if behavior_path.exists():
                 logger.debug(f"Resolved '{module_id}' → {behavior_path} (behavior: {behavior_dir.name})")
                 return ModuleSource(path=behavior_path, module_id=module_id)
 
         # Module not found
-        available_dirs = list(profile_dir.glob(f"*/{component_type}/*")) + list(
-            profile_dir.glob(f"behaviors/*/{component_type}/*")
+        available_dirs = list(profile_dir.glob(f"*/{resolved_type}/*")) + list(
+            profile_dir.glob(f"behaviors/*/{resolved_type}/*")
         )
         available_modules = [d.name for d in available_dirs if d.is_dir()]
 
         raise FileNotFoundError(
             f"Module '{module_id}' not found in profile '{profile_id}'.\n"
-            f"Searched in: session/{component_type}/ and behaviors/*/{component_type}/\n"
-            f"Available {component_type}: {', '.join(available_modules) if available_modules else 'none'}"
+            f"Searched in: session/{resolved_type}/ and behaviors/*/{resolved_type}/\n"
+            f"Available {resolved_type}: {', '.join(available_modules) if available_modules else 'none'}"
         )
 
     def _infer_component_type(self, module_id: str) -> str:
         """Infer component type from module ID.
+
+        Note: This is a fallback when component_type is not explicitly provided.
+        Prefer passing component_type directly when known.
 
         Args:
             module_id: Hyphenated module name
@@ -164,5 +185,8 @@ class DaemonModuleSourceResolver:
             return "context"
 
         # Default to tools
-        logger.warning(f"Could not infer component type for '{module_id}', defaulting to 'tools'")
+        logger.warning(
+            f"Could not infer component type for '{module_id}', defaulting to 'tools'. "
+            f"Consider passing component_type explicitly to resolve() for better accuracy."
+        )
         return "tools"
