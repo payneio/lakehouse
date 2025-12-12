@@ -20,11 +20,19 @@ class SessionStatus(str, Enum):
     """Session lifecycle status.
 
     State transitions:
-    - CREATED: Mount plan generated, session not yet started
+    - CREATED: (Legacy) Mount plan generated, session not yet started
+                Kept for backwards compatibility with old sessions
     - ACTIVE: Session running, messages being exchanged
-    - COMPLETED: Session finished successfully
-    - FAILED: Error occurred during session execution
-    - TERMINATED: Session killed by user
+              New sessions start in this state (as of v0.2.0)
+    - COMPLETED: Session finished successfully (from ACTIVE)
+    - FAILED: Error occurred during execution (from ACTIVE)
+    - TERMINATED: Session killed by user (from ACTIVE)
+
+    Valid transitions:
+    - CREATED → ACTIVE (legacy only, via start_session)
+    - ACTIVE → COMPLETED (via complete_session)
+    - ACTIVE → FAILED (via fail_session)
+    - ACTIVE → TERMINATED (via terminate_session)
     """
 
     CREATED = "created"

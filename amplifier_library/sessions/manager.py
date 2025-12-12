@@ -45,6 +45,7 @@ class SessionManager:
         mount_plan: Any = None,
         parent_session_id: str | None = None,
         amplified_dir: str = ".",
+        name: str | None = None,
     ) -> SessionMetadata:
         """Create new session in CREATED state.
 
@@ -54,6 +55,7 @@ class SessionManager:
             mount_plan: Complete mount plan to persist
             parent_session_id: Optional parent session for sub-sessions
             amplified_dir: Relative path to amplified directory (defaults to ".")
+            name: Optional human-readable session name
 
         Returns:
             SessionMetadata for created session
@@ -90,15 +92,16 @@ class SessionManager:
                     mount_plan_data = mount_plan
                 mount_plan_path.write_text(json.dumps(mount_plan_data, indent=2))
 
-            # Create SessionMetadata with CREATED status
+            # Create SessionMetadata with ACTIVE status (auto-start)
             now = datetime.now(UTC)
             metadata = SessionMetadata(
                 session_id=session_id,
+                name=name,  # Optional human-readable name
                 amplified_dir=amplified_dir,
                 profile_name=profile_name,
-                status=SessionStatus.CREATED,
+                status=SessionStatus.ACTIVE,  # Start active immediately
                 created_at=now,
-                started_at=None,
+                started_at=now,  # Set started_at to creation time
                 ended_at=None,
                 parent_session_id=parent_session_id,
                 mount_plan_path="mount_plan.json",
@@ -133,16 +136,35 @@ class SessionManager:
             raise
 
     def start_session(self, session_id: str) -> None:
-        """Transition CREATED → ACTIVE."""
+        """Start session or no-op if already ACTIVE (idempotent).
 
+        Transitions CREATED → ACTIVE (legacy behavior for old sessions).
+        No-op for already ACTIVE sessions (backwards compatibility).
+
+        Args:
+            session_id: Session identifier
+
+        Raises:
+            ValueError: If session is in terminal state
+            FileNotFoundError: If session not found
+        """
         def update(metadata: SessionMetadata) -> None:
-            if metadata.status != SessionStatus.CREATED:
-                raise ValueError(f"Cannot start session {session_id} in state {metadata.status}")
-            metadata.status = SessionStatus.ACTIVE
-            metadata.started_at = datetime.now(UTC)
+            # Already active? No-op (common path after this change)
+            if metadata.status == SessionStatus.ACTIVE:
+                logger.debug(f"Session {session_id} already active, no-op")
+                return
+
+            # Terminal state? Error
+            if metadata.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.TERMINATED}:
+                raise ValueError(f"Cannot start session {session_id} in terminal state {metadata.status}")
+
+            # CREATED → ACTIVE (legacy path for old sessions)
+            if metadata.status == SessionStatus.CREATED:
+                metadata.status = SessionStatus.ACTIVE
+                metadata.started_at = datetime.now(UTC)
+                logger.info(f"Started legacy CREATED session {session_id}")
 
         self._update_session(session_id, update)
-        logger.info(f"Started session {session_id}")
 
     def complete_session(self, session_id: str) -> None:
         """Transition ACTIVE → COMPLETED."""

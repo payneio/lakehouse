@@ -66,9 +66,9 @@ class TestSessionStateService:
         # Verify metadata
         assert metadata.session_id == "sess_test"
         assert metadata.profile_name == "foundation.base"
-        assert metadata.status == SessionStatus.CREATED
+        assert metadata.status == SessionStatus.ACTIVE  # Auto-start in v0.2.0
         assert metadata.created_at is not None
-        assert metadata.started_at is None
+        assert metadata.started_at is not None  # Set at creation time
         assert metadata.ended_at is None
         assert metadata.message_count == 0
 
@@ -92,7 +92,7 @@ class TestSessionStateService:
         # Verify session metadata was saved
         session_data = json.loads((session_dir / "session.json").read_text())
         assert session_data.get("sessionId") == "sess_test" or session_data.get("session_id") == "sess_test"
-        assert session_data["status"] == "created"
+        assert session_data["status"] == "active"  # Auto-start in v0.2.0
 
         # Verify transcript is empty
         transcript_content = (session_dir / "transcript.jsonl").read_text()
@@ -158,18 +158,20 @@ class TestSessionStateService:
         service: SessionStateService,
         sample_mount_plan: MountPlan,
     ) -> None:
-        """Test that starting already active session raises ValueError."""
+        """Test that starting already active session is idempotent (no-op)."""
         service.create_session(
             session_id="sess_bad_start",
             profile_name="test.profile",
             mount_plan=sample_mount_plan,
         )
+        # Session is already ACTIVE after creation (auto-start in v0.2.0)
+
+        # Starting again should be a no-op, not an error
         service.start_session("sess_bad_start")
 
-        with pytest.raises(ValueError) as exc_info:
-            service.start_session("sess_bad_start")
-
-        assert "Cannot start session" in str(exc_info.value)
+        # Verify still ACTIVE
+        metadata = service.get_session("sess_bad_start")
+        assert metadata.status == SessionStatus.ACTIVE
 
     def test_complete_session(
         self,
@@ -417,19 +419,19 @@ class TestSessionStateService:
     ) -> None:
         """Test filtering sessions by status."""
         # Create sessions in different states
-        service.create_session("sess_created", "test", sample_mount_plan)
-        service.create_session("sess_active", "test", sample_mount_plan)
-        service.start_session("sess_active")
+        # All start as ACTIVE in v0.2.0
+        service.create_session("sess_active1", "test", sample_mount_plan)
+        service.create_session("sess_active2", "test", sample_mount_plan)
         service.create_session("sess_completed", "test", sample_mount_plan)
-        service.start_session("sess_completed")
         service.complete_session("sess_completed")
 
         # Query only active sessions
         sessions = service.list_sessions(status=SessionStatus.ACTIVE)
 
-        assert len(sessions) == 1
-        assert sessions[0].session_id == "sess_active"
-        assert sessions[0].status == SessionStatus.ACTIVE
+        assert len(sessions) == 2
+        assert all(s.status == SessionStatus.ACTIVE for s in sessions)
+        session_ids = {s.session_id for s in sessions}
+        assert session_ids == {"sess_active1", "sess_active2"}
 
     def test_list_sessions_by_profile(
         self,
@@ -465,16 +467,19 @@ class TestSessionStateService:
     ) -> None:
         """Test getting all active sessions."""
         # Create mixed status sessions
+        # All start as ACTIVE in v0.2.0
         service.create_session("sess_1", "test", sample_mount_plan)
         service.create_session("sess_2", "test", sample_mount_plan)
-        service.start_session("sess_2")
         service.create_session("sess_3", "test", sample_mount_plan)
-        service.start_session("sess_3")
+        # Complete one to test filtering
+        service.complete_session("sess_1")
 
         active = service.get_active_sessions()
 
         assert len(active) == 2
         assert all(s.status == SessionStatus.ACTIVE for s in active)
+        session_ids = {s.session_id for s in active}
+        assert session_ids == {"sess_2", "sess_3"}
 
     def test_delete_session(
         self,
@@ -569,51 +574,58 @@ class TestSessionStateService:
         service: SessionStateService,
         sample_mount_plan: MountPlan,
     ) -> None:
-        """Cannot complete session that hasn't been started."""
-        # Create session
+        """Sessions auto-start in v0.2.0, can be completed immediately."""
+        # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             profile_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
-        # Try to complete without starting (invalid transition)
-        with pytest.raises(ValueError, match="Cannot complete session test_session in state"):
-            service.complete_session("test_session")
+        # Can complete immediately (session is ACTIVE)
+        service.complete_session("test_session")
+
+        metadata = service.get_session("test_session")
+        assert metadata.status == SessionStatus.COMPLETED
 
     def test_fail_session_from_created_state_error(
         self,
         service: SessionStateService,
         sample_mount_plan: MountPlan,
     ) -> None:
-        """Cannot fail session that hasn't been started."""
-        # Create session
+        """Sessions auto-start in v0.2.0, can fail immediately."""
+        # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             profile_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
-        # Try to fail without starting
-        with pytest.raises(ValueError, match="Cannot fail session test_session in state"):
-            service.fail_session("test_session", "error")
+        # Can fail immediately (session is ACTIVE)
+        service.fail_session("test_session", "error")
+
+        metadata = service.get_session("test_session")
+        assert metadata.status == SessionStatus.FAILED
+        assert metadata.error_message == "error"
 
     def test_terminate_session_from_created_state_error(
         self,
         service: SessionStateService,
         sample_mount_plan: MountPlan,
     ) -> None:
-        """Cannot terminate session that hasn't been started."""
-        # Create session
+        """Sessions auto-start in v0.2.0, can be terminated immediately."""
+        # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             profile_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
-        # Try to terminate without starting
-        with pytest.raises(ValueError, match="Cannot terminate session test_session in state"):
-            service.terminate_session("test_session")
+        # Can terminate immediately (session is ACTIVE)
+        service.terminate_session("test_session")
+
+        metadata = service.get_session("test_session")
+        assert metadata.status == SessionStatus.TERMINATED
 
     def test_create_session_cleanup_on_mount_plan_write_failure(
         self,
@@ -664,16 +676,15 @@ class TestSessionStateServiceIntegration:
         mount_plan: MountPlan,
     ) -> None:
         """Test complete session lifecycle from creation to completion."""
-        # Create
+        # Create (auto-starts as ACTIVE in v0.2.0)
         metadata = service.create_session("sess_lifecycle", "test.profile", mount_plan)
-        assert metadata.status == SessionStatus.CREATED
+        assert metadata.status == SessionStatus.ACTIVE
+        assert metadata.started_at is not None
 
-        # Start
-        service.start_session("sess_lifecycle")
+        # Verify active
         metadata = service.get_session("sess_lifecycle")
         assert metadata is not None
         assert metadata.status == SessionStatus.ACTIVE
-        assert metadata.started_at is not None
 
         # Add messages
         service.append_message("sess_lifecycle", "user", "Hello", token_count=5)
@@ -694,20 +705,22 @@ class TestSessionStateServiceIntegration:
         mount_plan: MountPlan,
     ) -> None:
         """Test creating multiple sessions and querying them."""
-        # Create diverse sessions
+        # Create diverse sessions (all start ACTIVE in v0.2.0)
         for i in range(3):
             service.create_session(f"sess_found_{i}", "foundation.base", mount_plan)
         for i in range(2):
             service.create_session(f"sess_custom_{i}", "custom.profile", mount_plan)
-            service.start_session(f"sess_custom_{i}")
+
+        # Complete one foundation session to have mixed states
+        service.complete_session("sess_found_0")
 
         # Query foundation sessions
         found_sessions = service.list_sessions(profile_name="foundation.base")
         assert len(found_sessions) == 3
 
-        # Query active sessions
+        # Query active sessions (2 foundation + 2 custom = 4 active)
         active_sessions = service.get_active_sessions()
-        assert len(active_sessions) == 2
+        assert len(active_sessions) == 4
 
         # Query with combined filters
         custom_active = service.list_sessions(

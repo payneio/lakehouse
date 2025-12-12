@@ -148,8 +148,12 @@ async def create_session(
 ) -> SessionMetadata:
     """Create new session with mount plan.
 
-    Generates mount plan and creates session state in one operation.
-    Session starts in CREATED state and must be explicitly started.
+    Generates mount plan and creates session in ACTIVE state.
+    Session is immediately ready for message exchange.
+
+    As of v0.2.0, sessions are created in ACTIVE state and are immediately
+    ready for message exchange. The start_session endpoint is no longer
+    required but remains for backwards compatibility.
 
     Args:
         amplified_dir: Relative path to amplified directory (defaults to ".")
@@ -285,10 +289,15 @@ async def start_session(
     session_id: str,
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
 ) -> None:
-    """Start session (CREATED → ACTIVE).
+    """Start session (idempotent).
 
-    Transitions session from CREATED to ACTIVE state. Must be called
-    before messages can be exchanged.
+    As of v0.2.0, sessions are created in ACTIVE state, making this
+    endpoint redundant but kept for backwards compatibility.
+
+    Behavior:
+    - If session is ACTIVE: no-op, returns success
+    - If session is CREATED: transitions to ACTIVE (legacy sessions)
+    - If session is terminal: returns 400 error
 
     Args:
         session_id: Session identifier
@@ -296,7 +305,7 @@ async def start_session(
 
     Raises:
         HTTPException:
-            - 400 if session not in CREATED state
+            - 400 if session in terminal state (COMPLETED/FAILED/TERMINATED)
             - 404 if session not found
             - 500 for other errors
     """
