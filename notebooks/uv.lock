@@ -151,6 +151,7 @@ dependencies = [
     { name = "amplifier-core" },
     { name = "gitpython" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "pyyaml" },
 ]
 
@@ -159,6 +160,7 @@ requires-dist = [
     { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core" },
     { name = "gitpython", specifier = ">=3.1.45" },
     { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
 ]
 
@@ -168,6 +170,7 @@ dev = [
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-asyncio", specifier = ">=0.23.0" },
     { name = "ruff", specifier = ">=0.11.10" },
+    { name = "setuptools", specifier = ">=80.9.0" },
 ]
 
 [[package]]
