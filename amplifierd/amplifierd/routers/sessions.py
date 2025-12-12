@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
+import yaml
 from fastapi import APIRouter
 from fastapi import Body
 from fastapi import Depends
@@ -25,6 +26,7 @@ from amplifier_library.models.sessions import SessionStatus
 from amplifier_library.sessions.manager import SessionManager as SessionStateService
 from amplifier_library.storage import get_state_dir
 
+from ..models.context_messages import ContextMessage
 from ..models.mount_plans import MountPlan
 from ..services.amplified_directory_service import AmplifiedDirectoryService
 from ..services.mount_plan_service import MountPlanService
@@ -55,6 +57,84 @@ class SessionUpdateRequest(BaseModel):
 
 
 # --- Lifecycle Endpoints ---
+
+
+def _generate_profile_context_messages(
+    profile_name: str, compiled_profile_dir: Path, amplified_dir: Path, data_dir: Path
+) -> list[ContextMessage]:
+    """Generate profile context messages from profile + behavior instructions.
+
+    Args:
+        profile_name: Name of the profile
+        compiled_profile_dir: Directory containing compiled profile
+        amplified_dir: Amplified directory path for mention resolution
+        data_dir: Data directory path for security validation
+
+    Returns:
+        List of context messages from resolved at-mentions
+    """
+    try:
+        from amplifierd.services.mention_resolver import MentionResolver
+
+        # Load profile YAML to get instructions and behaviors
+        profile_yaml_path = compiled_profile_dir / "profile.yaml"
+        if not profile_yaml_path.exists():
+            logger.debug(f"Profile YAML not found at {profile_yaml_path}")
+            return []
+
+        profile_yaml = yaml.safe_load(profile_yaml_path.read_text())
+
+        # Start with profile instructions
+        all_instructions = []
+        profile_instructions = profile_yaml.get("instructions", "")
+        if profile_instructions:
+            all_instructions.append(profile_instructions)
+            logger.debug("Loaded profile instructions")
+
+        # Load behavior instructions
+        behaviors_list = profile_yaml.get("behaviors", [])
+        behavior_count = 0
+        for behavior_ref in behaviors_list:
+            behavior_id = behavior_ref.get("id") if isinstance(behavior_ref, dict) else behavior_ref
+            if not behavior_id:
+                continue
+
+            # Try loading behavior YAML from compiled profile
+            behavior_dir = compiled_profile_dir / "behaviors" / str(behavior_id)
+            behavior_yaml_path = behavior_dir / "behavior.yaml"
+
+            if not behavior_yaml_path.exists():
+                # Try alternative name
+                behavior_yaml_path = behavior_dir / f"{behavior_id}.yaml"
+
+            if behavior_yaml_path.exists():
+                behavior_yaml = yaml.safe_load(behavior_yaml_path.read_text())
+                behavior_instructions = behavior_yaml.get("instructions", "")
+                if behavior_instructions:
+                    all_instructions.append(behavior_instructions)
+                    behavior_count += 1
+                    logger.debug(f"Loaded instructions from behavior: {behavior_id}")
+            else:
+                logger.debug(f"Behavior YAML not found for: {behavior_id}")
+
+        logger.info(f"Loaded instructions from profile + {behavior_count}/{len(behaviors_list)} behaviors")
+
+        # Resolve mentions if any instructions found
+        if all_instructions:
+            resolver = MentionResolver(
+                compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir, data_dir=data_dir
+            )
+            combined_instructions = "\n\n".join(all_instructions)
+            profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
+            logger.info(f"Resolved {len(profile_context_messages)} context messages from profile instructions")
+            return profile_context_messages
+
+        return []
+
+    except Exception as e:
+        # Log error but don't fail - profile context is optional
+        logger.error(f"Failed to generate profile context messages for {profile_name}: {e}", exc_info=True)
+        return []
 
 
 @router.post("/", response_model=SessionMetadata, status_code=201)
@@ -136,35 +216,13 @@ async def create_session(
         mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
 
         # Resolve profile instruction mentions
-        profile_context_messages = []
-        try:
-            # Compiled profile is in share_dir/profiles/{profile_name}
-            from amplifier_library.storage import get_share_dir
-            from amplifierd.services.mention_resolver import MentionResolver
+        from amplifier_library.storage import get_share_dir
 
-            share_dir = get_share_dir()
-            compiled_profile_dir = share_dir / "profiles" / profile_name
-
-            # Extract agent instructions from mount plan
-            all_instructions = []
-            agents = mount_plan.get("agents", {})
-            for agent_data in agents.values():
-                if isinstance(agent_data, dict) and "content" in agent_data:
-                    all_instructions.append(agent_data["content"])
-
-            # Resolve mentions if any instructions found
-            if all_instructions:
-                resolver = MentionResolver(
-                    compiled_profile_dir=compiled_profile_dir, amplified_dir=Path(absolute_amplified_dir)
-                )
-                combined_instructions = "\n\n".join(all_instructions)
-                profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
-                logger.info(
-                    f"Resolved {len(profile_context_messages)} profile context messages from {len(agents)} agents"
-                )
-        except Exception as e:
-            # Log error but don't fail session creation
-            logger.warning(f"Failed to resolve profile instruction mentions: {e}")
+        share_dir = get_share_dir()
+        compiled_profile_dir = share_dir / "profiles" / profile_name
+        profile_context_messages = _generate_profile_context_messages(
+            profile_name, compiled_profile_dir, Path(absolute_amplified_dir), data_path
+        )
 
         # Generate session ID
         import uuid
@@ -921,7 +979,18 @@ async def change_session_profile(
             new_mount_plan["session"]["settings"] = {}
         new_mount_plan["session"]["settings"]["profile_name"] = profile_name
 
-        # 3. Change profile in ExecutionRunner (blocks if execution in progress)
+        # 3. Regenerate profile context messages for new profile
+        from amplifier_library.storage import get_share_dir
+
+        share_dir = get_share_dir()
+        new_compiled_profile_dir = share_dir / "profiles" / profile_name
+        profile_context_messages = _generate_profile_context_messages(
+            profile_name, new_compiled_profile_dir, absolute_amplified_dir, data_path
+        )
+
+        # Save to session directory (wrapped with mount plan persistence below for error handling)
+
+        # 4. Change profile in ExecutionRunner (blocks if execution in progress)
         from ..services.session_stream_registry import change_session_profile as do_change
 
         try:
@@ -933,18 +1002,30 @@ async def change_session_profile(
             logger.error(f"Profile change failed for {session_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Profile change failed: {str(e)}")
 
-        # 4. Persist mount plan to disk (critical for subsequent messages)
+        # 5. Persist mount plan and profile context to disk (critical for subsequent messages)
         state_dir = get_state_dir()
         mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
+        context_file = state_dir / "sessions" / session_id / "profile_context_messages.json"
 
         try:
+            # Write mount plan
             mount_plan_path.write_text(json.dumps(new_mount_plan, indent=2))
             logger.debug(f"Persisted new mount plan for {session_id} to {mount_plan_path}")
+
+            # Write or remove profile context messages
+            if profile_context_messages:
+                context_file.write_text(json.dumps([msg.model_dump() for msg in profile_context_messages], indent=2))
+                logger.info(f"Updated {len(profile_context_messages)} profile context messages for profile switch")
+            else:
+                # Remove old cache if new profile has no mentions
+                if context_file.exists():
+                    context_file.unlink()
+                    logger.info("Removed profile context messages (new profile has none)")
         except Exception as e:
-            logger.error(f"Failed to persist mount plan for {session_id}: {e}")
+            logger.error(f"Failed to persist profile change for {session_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to persist profile change to disk: {str(e)}")
 
-        # 5. Update SessionStreamManager with new mount plan
+        # 6. Update SessionStreamManager with new mount plan
         from ..services.session_stream_registry import get_stream_registry
 
         stream_registry = get_stream_registry()
@@ -955,7 +1036,7 @@ async def change_session_profile(
             logger.warning(f"Failed to update SessionStreamManager mount plan: {e}")
             # Non-fatal - new mount plan will be used when manager is recreated
 
-        # 6. Update session metadata
+        # 7. Update session metadata
         def update(meta: SessionMetadata) -> None:
             meta.profile_name = profile_name
 

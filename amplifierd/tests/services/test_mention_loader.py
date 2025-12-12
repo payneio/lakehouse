@@ -236,12 +236,14 @@ class TestMentionLoader:
         assert len(messages) == 0
 
     def test_invalid_context_mention_format(self, loader: MentionLoader, caplog: pytest.LogCaptureFixture) -> None:
-        """Handle invalid context mention format."""
+        """Handle context mention that doesn't resolve to existing file."""
+        # Note: Multiple colons are valid (split on first : only)
+        # This tests graceful handling of non-existent context
         text = "See @context:with:too:many:colons"
         messages = loader.load_mentions(text, relative_to=loader.amplified_dir)
 
         assert len(messages) == 0
-        assert "invalid" in caplog.text.lower()
+        assert "not found" in caplog.text.lower()
 
     def test_nested_mentions_in_multiple_files(self, loader: MentionLoader) -> None:
         """Follow nested mentions through multiple levels."""
@@ -397,3 +399,83 @@ class TestMentionLoader:
         # Should resolve to the actual context/ subdirectory (NOT using fallback)
         assert len(messages) == 1
         assert "Actually in context/ subdir" in messages[0].content
+
+    def test_cross_directory_reference_within_data_dir(self, tmp_path: Path) -> None:
+        """Allow references to sibling directories within data_dir."""
+        # Setup: data_dir with two sibling projects
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        project1 = data_dir / "project1"
+        project1.mkdir()
+        (project1 / "doc1.md").write_text("# Project 1 Doc\n\nThis is from project 1.")
+
+        project2 = data_dir / "project2"
+        project2.mkdir()
+        (project2 / "doc2.md").write_text("# Project 2 Doc\n\nSee @../project1/doc1.md")
+
+        profile_dir = tmp_path / "profile"
+        profile_dir.mkdir()
+
+        # Create loader with explicit data_dir
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=project2, data_dir=data_dir)
+
+        # Reference to sibling directory should work
+        text = "See @../project1/doc1.md"
+        messages = loader.load_mentions(text, relative_to=project2)
+
+        assert len(messages) == 1
+        assert "This is from project 1" in messages[0].content
+        assert "@../project1/doc1.md" in messages[0].content
+
+    def test_block_escape_outside_data_dir(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        """Block path traversal that escapes data_dir."""
+        # Setup: data_dir with a project
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        project = data_dir / "project"
+        project.mkdir()
+
+        profile_dir = tmp_path / "profile"
+        profile_dir.mkdir()
+
+        # Create sensitive file outside data_dir
+        sensitive = tmp_path / "sensitive.txt"
+        sensitive.write_text("Secret content")
+
+        # Create loader with explicit data_dir
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=project, data_dir=data_dir)
+
+        # Try to escape data_dir - should be blocked
+        text = "See @../../sensitive.txt"
+        messages = loader.load_mentions(text, relative_to=project)
+
+        assert len(messages) == 0, "Should block path traversal outside data_dir"
+        assert "path traversal" in caplog.text.lower() or "escapes" in caplog.text.lower()
+
+    def test_data_dir_defaults_to_parent_of_amplified_dir(self, tmp_path: Path) -> None:
+        """When data_dir not provided, defaults to amplified_dir.parent."""
+        # Setup: parent directory with sibling
+        parent_dir = tmp_path / "parent"
+        parent_dir.mkdir()
+
+        project1 = parent_dir / "project1"
+        project1.mkdir()
+        (project1 / "doc1.md").write_text("# Doc 1")
+
+        project2 = parent_dir / "project2"
+        project2.mkdir()
+
+        profile_dir = tmp_path / "profile"
+        profile_dir.mkdir()
+
+        # Create loader WITHOUT explicit data_dir - should default to parent_dir
+        loader = MentionLoader(compiled_profile_dir=profile_dir, amplified_dir=project2)
+
+        # Reference to sibling should work (within default data_dir)
+        text = "See @../project1/doc1.md"
+        messages = loader.load_mentions(text, relative_to=project2)
+
+        assert len(messages) == 1
+        assert "# Doc 1" in messages[0].content

@@ -42,15 +42,18 @@ class MentionLoader:
         self: "MentionLoader",
         compiled_profile_dir: Path,
         amplified_dir: Path,
+        data_dir: Path | None = None,
     ) -> None:
         """Initialize loader with resolution paths.
 
         Args:
             compiled_profile_dir: Path to compiled profile (for context resolution)
             amplified_dir: Path to amplified directory (for relative resolution)
+            data_dir: Path to data directory (for security validation). Defaults to amplified_dir.parent if not provided.
         """
         self.compiled_profile_dir = compiled_profile_dir
         self.amplified_dir = amplified_dir
+        self.data_dir = data_dir if data_dir is not None else amplified_dir.parent
 
     def load_mentions(
         self: "MentionLoader",
@@ -130,15 +133,20 @@ class MentionLoader:
         mention: str,
         relative_to: Path,
     ) -> Path | None:
-        """Resolve @mention to file path.
+        """Resolve @mention to file path with context-aware resolution.
 
         Two types:
-        1. @context-key:path → {compiled_profile_dir}/contexts/{context-key}/{path}
+        1. @context-key:path → Context-aware resolution based on source file location
         2. @path → {amplified_dir}/{path} (with security validation)
+
+        For @context-key:path mentions:
+        - If source file is in behaviors/{behavior_id}/ → Try behavior context first
+        - Always fallback to session/contexts/ if not found
+        - Strip 'context/' prefix for backward compatibility
 
         Args:
             mention: The @mention string to resolve
-            relative_to: Base path for relative resolution context
+            relative_to: Path of file being parsed (determines resolution context)
 
         Returns:
             Resolved file path, or None on resolution failure (graceful skip)
@@ -152,42 +160,59 @@ class MentionLoader:
 
             context_key, path = parts
 
-            # Resolve to PRE-COMPILED context directory
-            context_dir = self.compiled_profile_dir / "contexts" / context_key
+            # Determine if we're parsing a behavior file
+            behavior_id = self._extract_behavior_id(relative_to)
 
-            if not context_dir.exists():
-                logger.warning(f"Context '{context_key}' not found at {context_dir}")
-                return None
+            # Build search paths in priority order
+            search_paths = []
 
-            file_path = context_dir / path
+            if behavior_id:
+                # Try behavior-specific context first
+                behavior_context = (
+                    self.compiled_profile_dir / "behaviors" / behavior_id / "contexts" / context_key / path
+                )
+                search_paths.append(("behavior", behavior_context))
 
-            if not file_path.exists():
-                # Fallback: Try stripping 'context/' prefix for backward compatibility
+            # Try session-level context (new structure)
+            session_context = self.compiled_profile_dir / "session" / "contexts" / context_key / path
+            search_paths.append(("session", session_context))
+
+            # Fallback: Legacy structure without session/ subdirectory
+            legacy_context = self.compiled_profile_dir / "contexts" / context_key / path
+            search_paths.append(("legacy", legacy_context))
+
+            # Try each path in order
+            for source_type, file_path in search_paths:
+                if file_path.exists():
+                    logger.debug(f"Resolved context mention {mention} from {source_type} → {file_path}")
+                    return file_path
+
+                # Backward compatibility: Try stripping 'context/' prefix
                 if path.startswith("context/"):
                     fallback_path = path[len("context/") :]
-                    file_path = context_dir / fallback_path
-                    if file_path.exists():
+                    fallback_file = file_path.parent.parent / fallback_path
+                    if fallback_file.exists():
                         logger.debug(
-                            f"Resolved context mention {mention} using fallback "
-                            f"(stripped 'context/' prefix) → {file_path}"
+                            f"Resolved context mention {mention} from {source_type} "
+                            f"(stripped 'context/' prefix) → {fallback_file}"
                         )
-                        return file_path
+                        return fallback_file
 
-                logger.warning(f"Context file not found: {file_path}")
-                return None
-
-            logger.debug(f"Resolved context mention {mention} → {file_path}")
-            return file_path
+            logger.warning(f"Context file not found for {mention} (searched {len(search_paths)} locations)")
+            return None
 
         # Type 2: @path (relative to amplified_dir)
         path_str = mention.lstrip("@")
         resolved = (self.amplified_dir / path_str).resolve()
 
-        # Security: Prevent path traversal
+        # Security: Prevent path traversal outside data_dir
         try:
-            resolved.relative_to(self.amplified_dir.resolve())
+            resolved.relative_to(self.data_dir.resolve())
         except ValueError:
-            logger.warning(f"Path traversal blocked: {mention} escapes amplified_dir")
+            logger.warning(
+                f"Path traversal blocked: {mention} escapes data directory "
+                f"(resolved: {resolved}, data_dir: {self.data_dir})"
+            )
             return None
 
         if not resolved.exists():
@@ -196,6 +221,33 @@ class MentionLoader:
 
         logger.debug(f"Resolved file mention {mention} → {resolved}")
         return resolved
+
+    def _extract_behavior_id(self: "MentionLoader", file_path: Path) -> str | None:
+        """Extract behavior_id from file path if file is within a behavior directory.
+
+        Args:
+            file_path: Path of file being parsed
+
+        Returns:
+            behavior_id if file is in behaviors/{behavior_id}/, None otherwise
+
+        Example:
+            /profiles/basic/behaviors/web/agents/search.md → "web"
+            /profiles/basic/session/agents/main.md → None
+        """
+        try:
+            # Try to get relative path from compiled_profile_dir
+            relative = file_path.relative_to(self.compiled_profile_dir)
+            parts = relative.parts
+
+            # Check if path is: behaviors/{behavior_id}/...
+            if len(parts) >= 2 and parts[0] == "behaviors":
+                return parts[1]
+
+            return None
+        except ValueError:
+            # file_path is not within compiled_profile_dir
+            return None
 
     def _create_messages(
         self: "MentionLoader",

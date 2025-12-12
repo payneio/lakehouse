@@ -146,9 +146,14 @@ async def send_message_for_execution(
         # Resolve runtime mentions (AGENTS.md + user message)
         from pathlib import Path
 
+        from amplifier_library.config.loader import load_config
         from amplifier_library.storage import get_share_dir
 
         from ..services.mention_resolver import MentionResolver
+
+        # Get data directory from config
+        config = load_config()
+        data_dir = Path(config.data_path)
 
         # Get directories from mount plan
         amplified_dir = Path(mount_plan["session"]["settings"]["amplified_dir"])
@@ -162,6 +167,7 @@ async def send_message_for_execution(
         resolver = MentionResolver(
             compiled_profile_dir=compiled_profile_dir,
             amplified_dir=amplified_dir,
+            data_dir=data_dir,
         )
         runtime_context_messages = resolver.resolve_runtime_mentions(request.content)
         logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")

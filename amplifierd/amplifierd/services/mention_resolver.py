@@ -26,6 +26,7 @@ class MentionResolver:
         self: "MentionResolver",
         compiled_profile_dir: Path,
         amplified_dir: Path,
+        data_dir: Path | None = None,
         loader: MentionLoader | None = None,
     ) -> None:
         """Initialize resolver with context directories.
@@ -33,13 +34,16 @@ class MentionResolver:
         Args:
             compiled_profile_dir: Path to compiled profile directory
             amplified_dir: Path to amplified directory (project root)
+            data_dir: Path to data directory (for security validation). Defaults to amplified_dir.parent if not provided.
             loader: Optional MentionLoader instance (creates default if None)
         """
         self.compiled_profile_dir = compiled_profile_dir.resolve()
         self.amplified_dir = amplified_dir.resolve()
+        self.data_dir = data_dir.resolve() if data_dir is not None else amplified_dir.parent.resolve()
         self.loader = loader or MentionLoader(
             compiled_profile_dir=self.compiled_profile_dir,
             amplified_dir=self.amplified_dir,
+            data_dir=self.data_dir,
         )
 
     def resolve_profile_instructions(
