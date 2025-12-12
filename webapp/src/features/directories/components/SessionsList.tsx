@@ -28,12 +28,20 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
     },
   });
 
-  const handleCreateSession = () => {
-    // Create session in the current directory
-    // No profile_name - backend will use directory's default_profile
-    createSession.mutate({
-      amplified_dir: directoryPath,
-    });
+  const handleCreateSession = async () => {
+    try {
+      // Create session (already started by backend)
+      const newSession = await createSession.mutateAsync({
+        amplified_dir: directoryPath,
+      });
+
+      // Navigate to session
+      navigate(`/directories/sessions/${newSession.sessionId}`);
+
+    } catch (error) {
+      console.error('Failed to create session:', error);
+      // Cache invalidation in onSuccess will refresh the list
+    }
   };
 
   if (isLoading) {

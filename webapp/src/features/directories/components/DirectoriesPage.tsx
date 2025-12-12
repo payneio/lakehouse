@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Plus, FileText, Settings, Activity } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { SessionsList } from './SessionsList';
 import { AutomationsSection } from './AutomationsSection';
 import { WorkSection } from './WorkSection';
@@ -10,6 +11,7 @@ import { AgentInstructionsDialog } from './AgentInstructionsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useDirectories } from '../hooks/useDirectories';
 import * as api from '@/api';
+import { listAutomations } from '@/api/automations';
 import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from '@/types/api';
 
 export function DirectoriesPage() {
@@ -22,13 +24,21 @@ export function DirectoriesPage() {
   const [showAgentInstructions, setShowAgentInstructions] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showWork, setShowWork] = useState(false);
-  const [runningAutomationsCount, setRunningAutomationsCount] = useState(0);
   const [selectedDirectory, setSelectedDirectory] = useState<AmplifiedDirectory | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
   const { updateDirectory, deleteDirectory, createDirectory } = useDirectories();
+
+  // Fetch enabled automations count for badge
+  const { data: automationsData } = useQuery({
+    queryKey: ['automations', selectedPath, 'enabled'],
+    queryFn: () => listAutomations(selectedPath!, { enabled: true }),
+    enabled: !!selectedPath,
+  });
+
+  const enabledAutomationsCount = automationsData?.automations?.length || 0;
 
   // Fetch directory details when path is selected
   useEffect(() => {
@@ -159,9 +169,11 @@ export function DirectoriesPage() {
                   >
                     <Settings className="h-4 w-4" />
                     Automations
-                    <span className={`absolute -top-1 -right-1 h-5 w-5 rounded-full text-white text-xs flex items-center justify-center font-medium ${runningAutomationsCount > 0 ? 'bg-green-500' : 'bg-gray-400'}`}>
-                      3
-                    </span>
+                    {enabledAutomationsCount > 0 && (
+                      <span className="ml-2 px-2 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                        {enabledAutomationsCount}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setShowWork(true)}
@@ -290,8 +302,7 @@ export function DirectoriesPage() {
                 <DialogTitle>Automations</DialogTitle>
               </DialogHeader>
               <AutomationsSection
-                directoryPath={selectedPath!}
-                onRunningCountChange={setRunningAutomationsCount}
+                projectId={selectedPath!}
               />
             </DialogContent>
           </Dialog>

@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from amplifier_library.config.loader import load_config
 
 from .routers import amplified_directories_router
+from .routers import automations_router
 from .routers import directories_router
 from .routers import messages_router
 from .routers import modules_router
@@ -91,10 +92,44 @@ async def lifespan(app: FastAPI):
         logger.error(f"Startup cache handling failed: {e}")
         # Don't fail startup, just log the error
 
+    # Initialize automation scheduler
+    scheduler = None
+    try:
+        from amplifier_library.automations.manager import AutomationManager
+        from amplifier_library.sessions.manager import SessionManager
+        from amplifier_library.storage import get_state_dir
+
+        from .services.automation_scheduler import AutomationScheduler
+
+        state_dir = get_state_dir()
+        automation_manager = AutomationManager(storage_dir=state_dir)
+        session_manager = SessionManager(storage_dir=state_dir)
+
+        scheduler = AutomationScheduler(
+            automation_manager=automation_manager,
+            session_manager=session_manager,
+        )
+        await scheduler.start()
+        logger.info("Automation scheduler started")
+
+        # Store scheduler in app state for access from routers
+        app.state.automation_scheduler = scheduler
+    except Exception as e:
+        logger.error(f"Failed to start automation scheduler: {e}")
+        # Don't fail startup, just log the error
+
     yield
 
     # Shutdown
     logger.info("Shutting down amplifierd daemon")
+
+    # Stop automation scheduler
+    if scheduler is not None:
+        try:
+            await scheduler.stop()
+            logger.info("Automation scheduler stopped")
+        except Exception as e:
+            logger.error(f"Failed to stop automation scheduler: {e}")
 
 
 # Create FastAPI application
@@ -119,6 +154,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(amplified_directories_router)
+app.include_router(automations_router)
 app.include_router(directories_router)
 app.include_router(sessions_router)
 app.include_router(messages_router)

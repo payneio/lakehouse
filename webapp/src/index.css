@@ -150,4 +150,60 @@
     --tw-prose-bullets: hsl(210 40% 85%);
     --tw-prose-counters: hsl(210 40% 85%);
   }
+
+  /* Tighter spacing for lists in prose content */
+  .prose ul,
+  .prose ol {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    padding-left: 1.5em;
+    list-style-position: outside;
+  }
+
+  .prose ul {
+    list-style-type: disc;
+  }
+
+  .prose ol {
+    list-style-type: decimal;
+  }
+
+  .prose li {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+    padding-left: 0.25em;
+  }
+
+  .prose ul > li > p,
+  .prose ol > li > p {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+  }
+
+  /* Ensure nested lists are indented */
+  .prose ul ul,
+  .prose ul ol,
+  .prose ol ul,
+  .prose ol ol {
+    margin-top: 0.25em;
+    margin-bottom: 0.25em;
+    padding-left: 1.5em;
+  }
+
+  /* Nested list styles */
+  .prose ul ul {
+    list-style-type: circle;
+  }
+
+  .prose ul ul ul {
+    list-style-type: square;
+  }
+
+  .prose ol ol {
+    list-style-type: lower-alpha;
+  }
+
+  .prose ol ol ol {
+    list-style-type: lower-roman;
+  }
 }

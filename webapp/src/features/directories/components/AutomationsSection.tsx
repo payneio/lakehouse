@@ -1,8 +1,5 @@
 /**
- * AutomationsSection - Demo UI for workflow automation
- *
- * This is a demonstration component with mock data and simulated execution.
- * No backend integration - for UI preview only.
+ * AutomationsSection - Real automation management with backend integration
  */
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
@@ -10,9 +7,13 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Play,
   Trash2,
   Plus,
+  Power,
+  PowerOff,
+  Clock,
+  AlertCircle,
+  Edit,
 } from "lucide-react";
 import {
   Dialog,
@@ -22,118 +23,126 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-type WorkflowStatus = "never_run" | "running" | "success" | "failed";
-
-// Demo configuration constants
-const DEMO_EXECUTION_DELAY_MS = 2000;
-const DEMO_SUCCESS_RATE = 0.8;
-
-// Status display configuration
-const STATUS_CONFIG = {
-  success: { icon: CheckCircle, text: "Success", className: "text-green-600", animate: false },
-  failed: { icon: XCircle, text: "Failed", className: "text-red-600", animate: false },
-  running: { icon: Loader2, text: "Running", className: "text-blue-600", animate: true },
-  never_run: { icon: null, text: "Never run", className: "text-gray-500", animate: false },
-} as const;
-
-interface Workflow {
-  id: string;
-  name: string;
-  description: string;
-  status: WorkflowStatus;
-  last_run?: string;
-  schedule?: string;
-}
-
-const INITIAL_WORKFLOWS: Workflow[] = [
-  {
-    id: "1",
-    name: "Daily Summary Email",
-    description:
-      "Generates a comprehensive daily summary of project activities and sends via email",
-    status: "success",
-    last_run: new Date().toISOString(),
-    schedule: "Daily at 9:00 AM",
-  },
-  {
-    id: "2",
-    name: "Lead Dossier Generator",
-    description:
-      "Creates detailed dossiers for new customer leads including background research",
-    status: "never_run",
-    schedule: "On specific event",
-  },
-  {
-    id: "3",
-    name: "Weekly Performance Review",
-    description:
-      "Analyzes project performance metrics and generates insights report",
-    status: "failed",
-    last_run: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    schedule: "Weekly on Mondays",
-  },
-];
+import { useAutomations } from "@/hooks/useAutomations";
+import type { Automation, ScheduleConfig } from "@/api/automations";
+import { formatSchedule } from "@/api/automations";
 
 interface AutomationsSectionProps {
-  directoryPath: string; // Reserved for backend integration
-  onRunningCountChange?: (count: number) => void; // Callback when running workflow count changes
+  projectId: string;
 }
 
-export function AutomationsSection({
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  directoryPath, // Reserved for backend integration
-  onRunningCountChange,
-}: AutomationsSectionProps) {
-  const [workflows, setWorkflows] = useState<Workflow[]>(INITIAL_WORKFLOWS);
+export function AutomationsSection({ projectId }: AutomationsSectionProps) {
+  const {
+    automations,
+    isLoading,
+    isError,
+    error,
+    create,
+    update,
+    delete: deleteOp,
+    toggle,
+  } = useAutomations(projectId);
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [automationToEdit, setAutomationToEdit] = useState<Automation | null>(
+    null
+  );
+  const [automationToDelete, setAutomationToDelete] = useState<string | null>(
+    null
+  );
 
-  // Track running workflow count and notify parent
-  useEffect(() => {
-    const runningCount = workflows.filter((w) => w.status === "running").length;
-    onRunningCountChange?.(runningCount);
-  }, [workflows, onRunningCountChange]);
+  const handleAddAutomation = async (automation: {
+    name: string;
+    message: string;
+    schedule: ScheduleConfig;
+  }) => {
+    try {
+      await create.mutateAsync({
+        ...automation,
+        enabled: true,
+      });
+      setIsAddDialogOpen(false);
+    } catch (err) {
+      console.error("Failed to create automation:", err);
+    }
+  };
 
-  const handleRunWorkflow = (workflowId: string) => {
-    setWorkflows((prev) =>
-      prev.map((w) =>
-        w.id === workflowId
-          ? { ...w, status: "running" as WorkflowStatus }
-          : w
-      )
+  const handleEditAutomation = async (automation: {
+    name: string;
+    message: string;
+    schedule: ScheduleConfig;
+    enabled: boolean;
+  }) => {
+    if (!automationToEdit) return;
+
+    try {
+      await update.mutateAsync({
+        id: automationToEdit.id,
+        update: automation,
+      });
+      setIsEditDialogOpen(false);
+      setAutomationToEdit(null);
+    } catch (err) {
+      console.error("Failed to update automation:", err);
+    }
+  };
+
+  const handleDeleteAutomation = async (automationId: string) => {
+    try {
+      await deleteOp.mutateAsync(automationId);
+      setAutomationToDelete(null);
+    } catch (err) {
+      console.error("Failed to delete automation:", err);
+    }
+  };
+
+  const handleToggleAutomation = async (
+    automationId: string,
+    enabled: boolean
+  ) => {
+    try {
+      await toggle.mutateAsync({ id: automationId, enabled });
+    } catch (err) {
+      console.error("Failed to toggle automation:", err);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <div className="h-9 w-32 bg-muted animate-pulse rounded-md" />
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="border rounded-lg p-4 space-y-3 animate-pulse"
+            >
+              <div className="h-6 w-48 bg-muted rounded" />
+              <div className="h-4 w-full bg-muted rounded" />
+              <div className="h-4 w-32 bg-muted rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
     );
+  }
 
-    setTimeout(() => {
-      const success = Math.random() < DEMO_SUCCESS_RATE;
-      setWorkflows((prev) =>
-        prev.map((w) =>
-          w.id === workflowId
-            ? {
-                ...w,
-                status: (success ? "success" : "failed") as WorkflowStatus,
-                last_run: new Date().toISOString(),
-              }
-            : w
-        )
-      );
-    }, DEMO_EXECUTION_DELAY_MS);
-  };
-
-  const handleAddWorkflow = (workflow: Omit<Workflow, "id" | "status">) => {
-    const newWorkflow: Workflow = {
-      ...workflow,
-      id: crypto.randomUUID(),
-      status: "never_run",
-    };
-    setWorkflows((prev) => [...prev, newWorkflow]);
-    setIsAddDialogOpen(false);
-  };
-
-  const handleDeleteWorkflow = (workflowId: string) => {
-    setWorkflows((prev) => prev.filter((w) => w.id !== workflowId));
-    setWorkflowToDelete(null);
-  };
+  if (isError) {
+    return (
+      <div className="border border-destructive rounded-lg p-4">
+        <div className="flex items-center gap-2 text-destructive mb-2">
+          <AlertCircle className="h-5 w-5" />
+          <h4 className="font-semibold">Failed to load automations</h4>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {error instanceof Error ? error.message : "An unknown error occurred"}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -143,59 +152,82 @@ export function AutomationsSection({
           className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm"
         >
           <Plus className="h-4 w-4" />
-          Add Workflow
+          Add Automation
         </button>
       </div>
 
-      {workflows.length === 0 ? (
+      {automations.length === 0 ? (
         <div className="border rounded-lg p-8 text-center text-muted-foreground">
-          No workflows configured. Add your first automation to get started.
+          No automations configured. Add your first automation to get started.
         </div>
       ) : (
         <div className="space-y-4">
-          {workflows.map((workflow) => (
-            <WorkflowCard
-              key={workflow.id}
-              workflow={workflow}
-              onRun={handleRunWorkflow}
-              onDelete={(id) => setWorkflowToDelete(id)}
+          {automations.map((automation) => (
+            <AutomationCard
+              key={automation.id}
+              automation={automation}
+              onToggle={handleToggleAutomation}
+              onEdit={(automation) => {
+                setAutomationToEdit(automation);
+                setIsEditDialogOpen(true);
+              }}
+              onDelete={(id) => setAutomationToDelete(id)}
+              isTogglingDisabled={toggle.isPending}
             />
           ))}
         </div>
       )}
 
-      <AddWorkflowDialog
+      <AddAutomationDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
-        onAdd={handleAddWorkflow}
+        onAdd={handleAddAutomation}
+        isPending={create.isPending}
+      />
+
+      <EditAutomationDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onEdit={handleEditAutomation}
+        automation={automationToEdit}
+        isPending={update.isPending}
       />
 
       <Dialog
-        open={workflowToDelete !== null}
-        onOpenChange={(open) => !open && setWorkflowToDelete(null)}
+        open={automationToDelete !== null}
+        onOpenChange={(open) => !open && setAutomationToDelete(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Workflow</DialogTitle>
+            <DialogTitle>Delete Automation</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this workflow? This action cannot
-              be undone.
+              Are you sure you want to delete this automation? This action
+              cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <button
-              onClick={() => setWorkflowToDelete(null)}
+              onClick={() => setAutomationToDelete(null)}
               className="px-3 py-2 border rounded-md hover:bg-accent text-sm"
+              disabled={deleteOp.isPending}
             >
               Cancel
             </button>
             <button
               onClick={() =>
-                workflowToDelete && handleDeleteWorkflow(workflowToDelete)
+                automationToDelete && handleDeleteAutomation(automationToDelete)
               }
-              className="px-3 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 text-sm"
+              disabled={deleteOp.isPending}
+              className="px-3 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Delete
+              {deleteOp.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -204,46 +236,67 @@ export function AutomationsSection({
   );
 }
 
-interface WorkflowCardProps {
-  workflow: Workflow;
-  onRun: (id: string) => void;
+interface AutomationCardProps {
+  automation: Automation;
+  onToggle: (id: string, enabled: boolean) => void;
+  onEdit: (automation: Automation) => void;
   onDelete: (id: string) => void;
+  isTogglingDisabled: boolean;
 }
 
-function WorkflowCard({ workflow, onRun, onDelete }: WorkflowCardProps) {
-  const config = STATUS_CONFIG[workflow.status];
-  const Icon = config.icon;
-  const statusDisplay = {
-    icon: Icon ? <Icon className={`h-4 w-4 ${config.animate ? 'animate-spin' : ''}`} /> :
-                 <div className="h-4 w-4 rounded-full border-2 border-gray-500" />,
-    text: config.text,
-    className: config.className,
-  };
+function AutomationCard({
+  automation,
+  onToggle,
+  onEdit,
+  onDelete,
+  isTogglingDisabled,
+}: AutomationCardProps) {
+  const scheduleText = formatSchedule(automation.schedule);
 
   return (
     <div className="border rounded-lg p-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <h4 className="font-semibold truncate">{workflow.name}</h4>
-            <div className={`flex items-center gap-1 text-sm ${statusDisplay.className}`}>
-              {statusDisplay.icon}
-              <span>{statusDisplay.text}</span>
+            <h4 className="font-semibold truncate">{automation.name}</h4>
+            <div
+              className={`flex items-center gap-1 text-sm ${
+                automation.enabled ? "text-green-600" : "text-gray-500"
+              }`}
+            >
+              {automation.enabled ? (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Enabled</span>
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4" />
+                  <span>Disabled</span>
+                </>
+              )}
             </div>
           </div>
           <p className="text-sm text-muted-foreground mb-3">
-            {workflow.description}
+            {automation.message}
           </p>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            {workflow.schedule && (
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span className="font-medium">Schedule:</span> {scheduleText}
+            </div>
+            {automation.next_execution && automation.enabled && (
               <div>
-                <span className="font-medium">Schedule:</span> {workflow.schedule}
+                <span className="font-medium">Next run:</span>{" "}
+                {formatDistanceToNow(new Date(automation.next_execution), {
+                  addSuffix: true,
+                })}
               </div>
             )}
-            {workflow.last_run && (
+            {automation.last_execution && (
               <div>
                 <span className="font-medium">Last run:</span>{" "}
-                {formatDistanceToNow(new Date(workflow.last_run), {
+                {formatDistanceToNow(new Date(automation.last_execution), {
                   addSuffix: true,
                 })}
               </div>
@@ -252,17 +305,32 @@ function WorkflowCard({ workflow, onRun, onDelete }: WorkflowCardProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => onRun(workflow.id)}
-            disabled={workflow.status === "running"}
-            className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => onToggle(automation.id, !automation.enabled)}
+            disabled={isTogglingDisabled}
+            className={`flex items-center gap-2 px-3 py-2 border rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+              automation.enabled
+                ? "border-orange-600 text-orange-600 hover:bg-orange-50"
+                : "border-green-600 text-green-600 hover:bg-green-50"
+            }`}
+            title={automation.enabled ? "Disable automation" : "Enable automation"}
           >
-            <Play className="h-4 w-4" />
-            Run
+            {automation.enabled ? (
+              <PowerOff className="h-4 w-4" />
+            ) : (
+              <Power className="h-4 w-4" />
+            )}
+            {automation.enabled ? "Disable" : "Enable"}
           </button>
           <button
-            onClick={() => onDelete(workflow.id)}
-            disabled={workflow.status === "running"}
-            className="flex items-center gap-2 px-3 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => onEdit(automation)}
+            className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm"
+            title="Edit automation"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onDelete(automation.id)}
+            className="flex items-center gap-2 px-3 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive/10 text-sm"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -272,57 +340,89 @@ function WorkflowCard({ workflow, onRun, onDelete }: WorkflowCardProps) {
   );
 }
 
-interface AddWorkflowDialogProps {
+interface AddAutomationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd: (workflow: Omit<Workflow, "id" | "status">) => void;
+  onAdd: (automation: {
+    name: string;
+    message: string;
+    schedule: ScheduleConfig;
+  }) => void;
+  isPending: boolean;
 }
 
-function AddWorkflowDialog({
+function AddAutomationDialog({
   open,
   onOpenChange,
   onAdd,
-}: AddWorkflowDialogProps) {
+  isPending,
+}: AddAutomationDialogProps) {
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [schedule, setSchedule] = useState("Manual only");
+  const [message, setMessage] = useState("");
+  const [scheduleType, setScheduleType] = useState<"preset" | "custom">(
+    "preset"
+  );
+  const [presetSchedule, setPresetSchedule] = useState("daily_9am");
+  const [intervalValue, setIntervalValue] = useState("1");
+  const [intervalUnit, setIntervalUnit] = useState<"m" | "h" | "d">("h");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !description.trim()) return;
+    if (!name.trim() || !message.trim()) return;
+
+    let schedule: ScheduleConfig;
+
+    if (scheduleType === "preset") {
+      const presetMap: Record<string, ScheduleConfig> = {
+        daily_9am: { type: "cron", value: "0 9 * * *" },
+        weekly_monday: { type: "cron", value: "0 9 * * 1" },
+        every_hour: { type: "interval", value: "1h" },
+        every_30min: { type: "interval", value: "30m" },
+      };
+      schedule = presetMap[presetSchedule];
+    } else {
+      // Custom schedule
+      schedule = {
+        type: "interval",
+        value: `${intervalValue}${intervalUnit}`,
+      };
+    }
 
     onAdd({
       name: name.trim(),
-      description: description.trim(),
-      schedule: schedule === "Manual only" ? undefined : schedule,
+      message: message.trim(),
+      schedule,
     });
 
+    // Reset form
     setName("");
-    setDescription("");
-    setSchedule("Manual only");
+    setMessage("");
+    setScheduleType("preset");
+    setPresetSchedule("daily_9am");
   };
 
   const handleCancel = () => {
     setName("");
-    setDescription("");
-    setSchedule("Manual only");
+    setMessage("");
+    setScheduleType("preset");
+    setPresetSchedule("daily_9am");
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add Workflow</DialogTitle>
+          <DialogTitle>Add Automation</DialogTitle>
           <DialogDescription>
-            Create a new automation workflow for this project
+            Create a new scheduled automation for this project
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium">
-                Workflow Name
+                Automation Name
               </label>
               <input
                 id="name"
@@ -335,48 +435,406 @@ function AddWorkflowDialog({
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium">
-                Description
+              <label htmlFor="message" className="text-sm font-medium">
+                Prompt Message
               </label>
               <textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md min-h-[80px] resize-y"
-                placeholder="Describe what this workflow does..."
+                id="message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md min-h-[100px] resize-y"
+                placeholder="Enter the prompt that will be sent when this automation runs..."
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                This message will be sent to the AI agent when the automation
+                runs
+              </p>
             </div>
             <div className="space-y-2">
-              <label htmlFor="schedule" className="text-sm font-medium">
-                Schedule
-              </label>
-              <select
-                id="schedule"
-                value={schedule}
-                onChange={(e) => setSchedule(e.target.value)}
-                className="w-full px-3 py-2 border rounded-md"
-              >
-                <option value="Manual only">Manual only</option>
-                <option value="Daily at 9:00 AM">Daily at 9:00 AM</option>
-                <option value="Weekly on Mondays">Weekly on Mondays</option>
-                <option value="On specific event">On specific event</option>
-              </select>
+              <label className="text-sm font-medium">Schedule Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="preset"
+                    checked={scheduleType === "preset"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "custom")
+                    }
+                  />
+                  <span className="text-sm">Preset Schedules</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="custom"
+                    checked={scheduleType === "custom"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "custom")
+                    }
+                  />
+                  <span className="text-sm">Custom Interval</span>
+                </label>
+              </div>
             </div>
+
+            {scheduleType === "preset" ? (
+              <div className="space-y-2">
+                <label htmlFor="preset" className="text-sm font-medium">
+                  Schedule
+                </label>
+                <select
+                  id="preset"
+                  value={presetSchedule}
+                  onChange={(e) => setPresetSchedule(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                >
+                  <option value="daily_9am">Daily at 9:00 AM</option>
+                  <option value="weekly_monday">Weekly on Mondays at 9:00 AM</option>
+                  <option value="every_hour">Every hour</option>
+                  <option value="every_30min">Every 30 minutes</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Interval</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    value={intervalValue}
+                    onChange={(e) => setIntervalValue(e.target.value)}
+                    className="w-24 px-3 py-2 border rounded-md"
+                  />
+                  <select
+                    value={intervalUnit}
+                    onChange={(e) =>
+                      setIntervalUnit(e.target.value as "m" | "h" | "d")
+                    }
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="m">Minutes</option>
+                    <option value="h">Hours</option>
+                    <option value="d">Days</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <button
               type="button"
               onClick={handleCancel}
               className="px-3 py-2 border rounded-md hover:bg-accent text-sm"
+              disabled={isPending}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
+              disabled={isPending}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Workflow
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                  Creating...
+                </>
+              ) : (
+                "Add Automation"
+              )}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface EditAutomationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onEdit: (automation: {
+    name: string;
+    message: string;
+    schedule: ScheduleConfig;
+    enabled: boolean;
+  }) => void;
+  automation: Automation | null;
+  isPending: boolean;
+}
+
+function EditAutomationDialog({
+  open,
+  onOpenChange,
+  onEdit,
+  automation,
+  isPending,
+}: EditAutomationDialogProps) {
+  // Initialize state from automation prop
+  const getInitialState = () => {
+    if (!automation) {
+      return {
+        name: "",
+        message: "",
+        enabled: true,
+        scheduleType: "preset" as const,
+        presetSchedule: "daily_9am",
+        intervalValue: "1",
+        intervalUnit: "h" as const,
+      };
+    }
+
+    let scheduleType: "preset" | "custom" = "preset";
+    let presetSchedule = "daily_9am";
+    let intervalValue = "1";
+    let intervalUnit: "m" | "h" | "d" = "h";
+
+    if (automation.schedule.type === "cron") {
+      const cronToPreset: Record<string, string> = {
+        "0 9 * * *": "daily_9am",
+        "0 9 * * 1": "weekly_monday",
+        "0 * * * *": "every_hour",
+      };
+      presetSchedule = cronToPreset[automation.schedule.value] || "daily_9am";
+    } else if (automation.schedule.type === "interval") {
+      const match = automation.schedule.value.match(/^(\d+)([mhd])$/);
+      if (match) {
+        const presetIntervals = ["1h", "30m"];
+        if (presetIntervals.includes(automation.schedule.value)) {
+          presetSchedule =
+            automation.schedule.value === "1h" ? "every_hour" : "every_30min";
+        } else {
+          scheduleType = "custom";
+          intervalValue = match[1];
+          intervalUnit = match[2] as "m" | "h" | "d";
+        }
+      }
+    }
+
+    return {
+      name: automation.name,
+      message: automation.message,
+      enabled: automation.enabled,
+      scheduleType,
+      presetSchedule,
+      intervalValue,
+      intervalUnit,
+    };
+  };
+
+  const initialState = getInitialState();
+  const [name, setName] = useState(initialState.name);
+  const [message, setMessage] = useState(initialState.message);
+  const [enabled, setEnabled] = useState(initialState.enabled);
+  const [scheduleType, setScheduleType] = useState<"preset" | "custom">(
+    initialState.scheduleType
+  );
+  const [presetSchedule, setPresetSchedule] = useState(initialState.presetSchedule);
+  const [intervalValue, setIntervalValue] = useState(initialState.intervalValue);
+  const [intervalUnit, setIntervalUnit] = useState<"m" | "h" | "d">(
+    initialState.intervalUnit
+  );
+
+  // Reset form when dialog opens with new automation
+  useEffect(() => {
+    if (open && automation) {
+      const state = getInitialState();
+      setName(state.name);
+      setMessage(state.message);
+      setEnabled(state.enabled);
+      setScheduleType(state.scheduleType);
+      setPresetSchedule(state.presetSchedule);
+      setIntervalValue(state.intervalValue);
+      setIntervalUnit(state.intervalUnit);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, automation?.id]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !message.trim()) return;
+
+    let schedule: ScheduleConfig;
+
+    if (scheduleType === "preset") {
+      const presetMap: Record<string, ScheduleConfig> = {
+        daily_9am: { type: "cron", value: "0 9 * * *" },
+        weekly_monday: { type: "cron", value: "0 9 * * 1" },
+        every_hour: { type: "interval", value: "1h" },
+        every_30min: { type: "interval", value: "30m" },
+      };
+      schedule = presetMap[presetSchedule];
+    } else {
+      schedule = {
+        type: "interval",
+        value: `${intervalValue}${intervalUnit}`,
+      };
+    }
+
+    onEdit({
+      name: name.trim(),
+      message: message.trim(),
+      schedule,
+      enabled,
+    });
+  };
+
+  const handleCancel = () => {
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Automation</DialogTitle>
+          <DialogDescription>
+            Update the automation settings
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="edit-name" className="text-sm font-medium">
+                Automation Name
+              </label>
+              <input
+                id="edit-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                placeholder="e.g., Daily Report Generator"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="edit-message" className="text-sm font-medium">
+                Prompt Message
+              </label>
+              <textarea
+                id="edit-message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md min-h-[100px] resize-y"
+                placeholder="Enter the prompt that will be sent when this automation runs..."
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                This message will be sent to the AI agent when the automation
+                runs
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-enabled"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="edit-enabled" className="text-sm cursor-pointer">
+                  Enabled
+                </label>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Schedule Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="preset"
+                    checked={scheduleType === "preset"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "custom")
+                    }
+                  />
+                  <span className="text-sm">Preset Schedules</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="custom"
+                    checked={scheduleType === "custom"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "custom")
+                    }
+                  />
+                  <span className="text-sm">Custom Interval</span>
+                </label>
+              </div>
+            </div>
+
+            {scheduleType === "preset" ? (
+              <div className="space-y-2">
+                <label htmlFor="edit-preset" className="text-sm font-medium">
+                  Schedule
+                </label>
+                <select
+                  id="edit-preset"
+                  value={presetSchedule}
+                  onChange={(e) => setPresetSchedule(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                >
+                  <option value="daily_9am">Daily at 9:00 AM</option>
+                  <option value="weekly_monday">Weekly on Mondays at 9:00 AM</option>
+                  <option value="every_hour">Every hour</option>
+                  <option value="every_30min">Every 30 minutes</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Interval</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    value={intervalValue}
+                    onChange={(e) => setIntervalValue(e.target.value)}
+                    className="w-24 px-3 py-2 border rounded-md"
+                  />
+                  <select
+                    value={intervalUnit}
+                    onChange={(e) =>
+                      setIntervalUnit(e.target.value as "m" | "h" | "d")
+                    }
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="m">Minutes</option>
+                    <option value="h">Hours</option>
+                    <option value="d">Days</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-3 py-2 border rounded-md hover:bg-accent text-sm"
+              disabled={isPending}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Automation"
+              )}
             </button>
           </DialogFooter>
         </form>

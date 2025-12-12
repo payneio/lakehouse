@@ -23,10 +23,11 @@ def mock_session_metadata() -> SessionMetadata:
     """
     return SessionMetadata(
         session_id="test_session_123",
-        status=SessionStatus.CREATED,
+        status=SessionStatus.ACTIVE,
         profile_name="foundation/base",
         mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
     )
 
 
@@ -179,8 +180,9 @@ class TestSessionsAPI:
         assert response.status_code == 201
         data = response.json()
         assert data["sessionId"] == "test_session_123"
-        assert data["status"] == "created"
+        assert data["status"] == "active"
         assert data["profileName"] == "foundation/base"
+        assert data["startedAt"] is not None
 
         # Verify service was called
         mock_session_state_service.create_session.assert_called_once()
@@ -238,6 +240,27 @@ class TestSessionsAPI:
         # Assert
         assert response.status_code == 404
 
+    def test_start_session_already_active_is_noop(
+        self, client: TestClient, mock_session_state_service: Mock
+    ) -> None:
+        """Test POST /api/v1/sessions/{id}/start is no-op for ACTIVE sessions."""
+        # Should succeed without error
+        response = client.post("/api/v1/sessions/test_session_123/start")
+        assert response.status_code == 204
+        # Verify service method was called
+        mock_session_state_service.start_session.assert_called_once_with("test_session_123")
+
+    def test_start_session_rejects_terminal_state(
+        self, client: TestClient, mock_session_state_service: Mock
+    ) -> None:
+        """Test POST /api/v1/sessions/{id}/start returns 400 for terminal state."""
+        mock_session_state_service.start_session.side_effect = ValueError(
+            "Cannot start session in terminal state"
+        )
+        response = client.post("/api/v1/sessions/test_session_123/start")
+        assert response.status_code == 400
+        assert "terminal state" in response.json()["detail"].lower()
+
     def test_complete_session_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/{session_id}/complete transitions to COMPLETED."""
         # Make request
@@ -292,7 +315,7 @@ class TestSessionsAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["sessionId"] == "test_session_123"
-        assert data["status"] == "created"
+        assert data["status"] == "active"
         assert data["profileName"] == "foundation/base"
 
     def test_get_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
