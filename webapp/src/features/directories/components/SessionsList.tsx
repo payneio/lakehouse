@@ -25,6 +25,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
     mutationFn: (sessionId: string) => api.deleteSession(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-counts"] });
     },
   });
 
@@ -80,8 +81,11 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                   className="flex-1 text-left"
                 >
                   <div className="flex items-center gap-2">
+                    {session.isUnread && (
+                      <div className="w-2 h-2 bg-primary rounded-full" title="Unread" />
+                    )}
                     <MessageSquare className="h-4 w-4" />
-                    <span className="font-medium">
+                    <span className={session.isUnread ? "font-bold" : "font-medium"}>
                       {session.name ||
                         `Session from ${new Date(
                           session.createdAt

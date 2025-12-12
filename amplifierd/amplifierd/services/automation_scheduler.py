@@ -397,17 +397,34 @@ class AutomationScheduler:
             mount_plan["session"]["settings"]["profile_name"] = profile_name
             mount_plan["session"]["settings"]["automation_id"] = automation_id
 
-            # Create session with meaningful name
+            # Create session with meaningful name (marked as created by automation)
             self.session_manager.create_session(
                 session_id=session_id,
                 profile_name=profile_name,
                 mount_plan=mount_plan,
                 amplified_dir=automation.project_id,
                 name=session_name,
+                created_by="automation",  # Mark as automation-created for unread tracking
             )
 
-            # Start session
+            # Start session (no-op since sessions start as ACTIVE, but kept for compatibility)
             self.session_manager.start_session(session_id)
+
+            # Emit session:created event
+            from ..models.events import SessionCreatedEvent
+            from ..services.global_events import GlobalEventService
+
+            session_metadata = self.session_manager.get_session(session_id)
+            if session_metadata:
+                await GlobalEventService.emit(
+                    SessionCreatedEvent(
+                        session_id=session_id,
+                        session_name=session_metadata.name,
+                        project_id=automation.project_id,
+                        is_unread=session_metadata.is_unread,
+                        created_by="automation",
+                    )
+                )
 
             # Convert to library SessionMetadata for execution
             from amplifier_library.models.sessions import SessionMetadata as LibrarySessionMetadata

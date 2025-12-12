@@ -3,6 +3,7 @@ import { listProfiles } from "@/api/profiles";
 import { changeProfile } from "@/api/sessions";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
+import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, ArrowLeft, Play, RefreshCw } from "lucide-react";
@@ -45,6 +46,9 @@ export function SessionView() {
 
   // Initialize execution state
   const executionState = useExecutionState({ sessionId: sessionId || "" });
+
+  // Auto-mark session as read after viewing for 2 seconds
+  useMarkSessionRead(sessionId);
 
   // Log execution state for debugging
   React.useEffect(() => {

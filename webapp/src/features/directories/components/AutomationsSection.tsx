@@ -27,6 +27,7 @@ import {
 import { useAutomations } from "@/hooks/useAutomations";
 import type { Automation, ScheduleConfig } from "@/api/automations";
 import { formatSchedule } from "@/api/automations";
+import { generateTimeOfDayCron, parseTimeOfDayCron, type TimeOfDaySchedule } from "@/utils/cronUtils";
 
 interface AutomationsSectionProps {
   projectId: string;
@@ -388,12 +389,19 @@ function AddAutomationDialog({
 }: AddAutomationDialogProps) {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-  const [scheduleType, setScheduleType] = useState<"preset" | "custom">(
+  const [scheduleType, setScheduleType] = useState<"preset" | "interval" | "timeOfDay">(
     "preset"
   );
   const [presetSchedule, setPresetSchedule] = useState("daily_9am");
   const [intervalValue, setIntervalValue] = useState("1");
   const [intervalUnit, setIntervalUnit] = useState<"m" | "h" | "d">("h");
+
+  // Time-of-day state
+  const [timeOfDayHour, setTimeOfDayHour] = useState("9");
+  const [timeOfDayMinute, setTimeOfDayMinute] = useState("0");
+  const [timeOfDayPeriod, setTimeOfDayPeriod] = useState<"AM" | "PM">("AM");
+  const [timeOfDayFrequency, setTimeOfDayFrequency] = useState<"daily" | "weekdays" | "specific">("daily");
+  const [timeOfDayDays, setTimeOfDayDays] = useState<number[]>([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,8 +417,19 @@ function AddAutomationDialog({
         every_30min: { type: "interval", value: "30m" },
       };
       schedule = presetMap[presetSchedule];
+    } else if (scheduleType === "timeOfDay") {
+      // Generate cron from time-of-day inputs
+      const timeSchedule: TimeOfDaySchedule = {
+        hour: parseInt(timeOfDayHour),
+        minute: parseInt(timeOfDayMinute),
+        period: timeOfDayPeriod,
+        frequency: timeOfDayFrequency,
+        days: timeOfDayFrequency === "specific" ? timeOfDayDays : undefined,
+      };
+      const cronExpr = generateTimeOfDayCron(timeSchedule);
+      schedule = { type: "cron", value: cronExpr };
     } else {
-      // Custom schedule
+      // Custom interval
       schedule = {
         type: "interval",
         value: `${intervalValue}${intervalUnit}`,
@@ -428,6 +447,11 @@ function AddAutomationDialog({
     setMessage("");
     setScheduleType("preset");
     setPresetSchedule("daily_9am");
+    setTimeOfDayHour("9");
+    setTimeOfDayMinute("0");
+    setTimeOfDayPeriod("AM");
+    setTimeOfDayFrequency("daily");
+    setTimeOfDayDays([]);
   };
 
   const handleCancel = () => {
@@ -435,6 +459,11 @@ function AddAutomationDialog({
     setMessage("");
     setScheduleType("preset");
     setPresetSchedule("daily_9am");
+    setTimeOfDayHour("9");
+    setTimeOfDayMinute("0");
+    setTimeOfDayPeriod("AM");
+    setTimeOfDayFrequency("daily");
+    setTimeOfDayDays([]);
     onOpenChange(false);
   };
 
@@ -489,7 +518,7 @@ function AddAutomationDialog({
                     value="preset"
                     checked={scheduleType === "preset"}
                     onChange={(e) =>
-                      setScheduleType(e.target.value as "preset" | "custom")
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
                     }
                   />
                   <span className="text-sm">Preset Schedules</span>
@@ -497,18 +526,29 @@ function AddAutomationDialog({
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    value="custom"
-                    checked={scheduleType === "custom"}
+                    value="interval"
+                    checked={scheduleType === "interval"}
                     onChange={(e) =>
-                      setScheduleType(e.target.value as "preset" | "custom")
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
                     }
                   />
                   <span className="text-sm">Custom Interval</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="timeOfDay"
+                    checked={scheduleType === "timeOfDay"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
+                    }
+                  />
+                  <span className="text-sm">Specific Time</span>
+                </label>
               </div>
             </div>
 
-            {scheduleType === "preset" ? (
+            {scheduleType === "preset" && (
               <div className="space-y-2">
                 <label htmlFor="preset" className="text-sm font-medium">
                   Schedule
@@ -525,7 +565,9 @@ function AddAutomationDialog({
                   <option value="every_30min">Every 30 minutes</option>
                 </select>
               </div>
-            ) : (
+            )}
+
+            {scheduleType === "interval" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Interval</label>
                 <div className="flex gap-2">
@@ -550,6 +592,108 @@ function AddAutomationDialog({
                 </div>
               </div>
             )}
+
+            {scheduleType === "timeOfDay" && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Time</label>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={timeOfDayHour}
+                      onChange={(e) => setTimeOfDayHour(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm">:</span>
+                    <select
+                      value={timeOfDayMinute}
+                      onChange={(e) => setTimeOfDayMinute(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="0">00</option>
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="45">45</option>
+                    </select>
+                    <select
+                      value={timeOfDayPeriod}
+                      onChange={(e) => setTimeOfDayPeriod(e.target.value as "AM" | "PM")}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    All times are in UTC timezone
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Frequency</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="daily"
+                        checked={timeOfDayFrequency === "daily"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Every day</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="weekdays"
+                        checked={timeOfDayFrequency === "weekdays"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Weekdays (Mon-Fri)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="specific"
+                        checked={timeOfDayFrequency === "specific"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Specific days</span>
+                    </label>
+                    {timeOfDayFrequency === "specific" && (
+                      <div className="flex flex-wrap gap-3 ml-6">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
+                          <label key={day} className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={timeOfDayDays.includes(index)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTimeOfDayDays([...timeOfDayDays, index].sort());
+                                } else {
+                                  setTimeOfDayDays(timeOfDayDays.filter((d) => d !== index));
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <span className="text-sm">{day}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {timeOfDayFrequency === "specific" && timeOfDayDays.length === 0 && (
+                      <p className="text-xs text-destructive ml-6">
+                        Please select at least one day
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <button
@@ -562,7 +706,7 @@ function AddAutomationDialog({
             </button>
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || (scheduleType === "timeOfDay" && timeOfDayFrequency === "specific" && timeOfDayDays.length === 0)}
               className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isPending ? (
@@ -612,13 +756,23 @@ function EditAutomationDialog({
         presetSchedule: "daily_9am",
         intervalValue: "1",
         intervalUnit: "h" as const,
+        timeOfDayHour: "9",
+        timeOfDayMinute: "0",
+        timeOfDayPeriod: "AM" as const,
+        timeOfDayFrequency: "daily" as const,
+        timeOfDayDays: [] as number[],
       };
     }
 
-    let scheduleType: "preset" | "custom" = "preset";
+    let scheduleType: "preset" | "interval" | "timeOfDay" = "preset";
     let presetSchedule = "daily_9am";
     let intervalValue = "1";
     let intervalUnit: "m" | "h" | "d" = "h";
+    let timeOfDayHour = "9";
+    let timeOfDayMinute = "0";
+    let timeOfDayPeriod: "AM" | "PM" = "AM";
+    let timeOfDayFrequency: "daily" | "weekdays" | "specific" = "daily";
+    let timeOfDayDays: number[] = [];
 
     if (automation.schedule.type === "cron") {
       const cronToPreset: Record<string, string> = {
@@ -626,7 +780,20 @@ function EditAutomationDialog({
         "0 9 * * 1": "weekly_monday",
         "0 * * * *": "every_hour",
       };
-      presetSchedule = cronToPreset[automation.schedule.value] || "daily_9am";
+
+      // Try parsing as time-of-day cron first
+      const parsed = parseTimeOfDayCron(automation.schedule.value);
+      if (parsed) {
+        scheduleType = "timeOfDay";
+        timeOfDayHour = parsed.hour.toString();
+        timeOfDayMinute = parsed.minute.toString();
+        timeOfDayPeriod = parsed.period;
+        timeOfDayFrequency = parsed.frequency;
+        timeOfDayDays = parsed.days || [];
+      } else {
+        // Fall back to preset matching
+        presetSchedule = cronToPreset[automation.schedule.value] || "daily_9am";
+      }
     } else if (automation.schedule.type === "interval") {
       const match = automation.schedule.value.match(/^(\d+)([mhd])$/);
       if (match) {
@@ -635,7 +802,7 @@ function EditAutomationDialog({
           presetSchedule =
             automation.schedule.value === "1h" ? "every_hour" : "every_30min";
         } else {
-          scheduleType = "custom";
+          scheduleType = "interval";
           intervalValue = match[1];
           intervalUnit = match[2] as "m" | "h" | "d";
         }
@@ -650,6 +817,11 @@ function EditAutomationDialog({
       presetSchedule,
       intervalValue,
       intervalUnit,
+      timeOfDayHour,
+      timeOfDayMinute,
+      timeOfDayPeriod,
+      timeOfDayFrequency,
+      timeOfDayDays,
     };
   };
 
@@ -657,7 +829,7 @@ function EditAutomationDialog({
   const [name, setName] = useState(initialState.name);
   const [message, setMessage] = useState(initialState.message);
   const [enabled, setEnabled] = useState(initialState.enabled);
-  const [scheduleType, setScheduleType] = useState<"preset" | "custom">(
+  const [scheduleType, setScheduleType] = useState<"preset" | "interval" | "timeOfDay">(
     initialState.scheduleType
   );
   const [presetSchedule, setPresetSchedule] = useState(initialState.presetSchedule);
@@ -665,6 +837,11 @@ function EditAutomationDialog({
   const [intervalUnit, setIntervalUnit] = useState<"m" | "h" | "d">(
     initialState.intervalUnit
   );
+  const [timeOfDayHour, setTimeOfDayHour] = useState(initialState.timeOfDayHour);
+  const [timeOfDayMinute, setTimeOfDayMinute] = useState(initialState.timeOfDayMinute);
+  const [timeOfDayPeriod, setTimeOfDayPeriod] = useState<"AM" | "PM">(initialState.timeOfDayPeriod);
+  const [timeOfDayFrequency, setTimeOfDayFrequency] = useState<"daily" | "weekdays" | "specific">(initialState.timeOfDayFrequency);
+  const [timeOfDayDays, setTimeOfDayDays] = useState<number[]>(initialState.timeOfDayDays);
 
   // Reset form when dialog opens with new automation
   useEffect(() => {
@@ -677,6 +854,11 @@ function EditAutomationDialog({
       setPresetSchedule(state.presetSchedule);
       setIntervalValue(state.intervalValue);
       setIntervalUnit(state.intervalUnit);
+      setTimeOfDayHour(state.timeOfDayHour);
+      setTimeOfDayMinute(state.timeOfDayMinute);
+      setTimeOfDayPeriod(state.timeOfDayPeriod);
+      setTimeOfDayFrequency(state.timeOfDayFrequency);
+      setTimeOfDayDays(state.timeOfDayDays);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, automation?.id]);
@@ -695,7 +877,19 @@ function EditAutomationDialog({
         every_30min: { type: "interval", value: "30m" },
       };
       schedule = presetMap[presetSchedule];
+    } else if (scheduleType === "timeOfDay") {
+      // Generate cron from time-of-day inputs
+      const timeSchedule: TimeOfDaySchedule = {
+        hour: parseInt(timeOfDayHour),
+        minute: parseInt(timeOfDayMinute),
+        period: timeOfDayPeriod,
+        frequency: timeOfDayFrequency,
+        days: timeOfDayFrequency === "specific" ? timeOfDayDays : undefined,
+      };
+      const cronExpr = generateTimeOfDayCron(timeSchedule);
+      schedule = { type: "cron", value: cronExpr };
     } else {
+      // Custom interval
       schedule = {
         type: "interval",
         value: `${intervalValue}${intervalUnit}`,
@@ -780,7 +974,7 @@ function EditAutomationDialog({
                     value="preset"
                     checked={scheduleType === "preset"}
                     onChange={(e) =>
-                      setScheduleType(e.target.value as "preset" | "custom")
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
                     }
                   />
                   <span className="text-sm">Preset Schedules</span>
@@ -788,18 +982,29 @@ function EditAutomationDialog({
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    value="custom"
-                    checked={scheduleType === "custom"}
+                    value="interval"
+                    checked={scheduleType === "interval"}
                     onChange={(e) =>
-                      setScheduleType(e.target.value as "preset" | "custom")
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
                     }
                   />
                   <span className="text-sm">Custom Interval</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="timeOfDay"
+                    checked={scheduleType === "timeOfDay"}
+                    onChange={(e) =>
+                      setScheduleType(e.target.value as "preset" | "interval" | "timeOfDay")
+                    }
+                  />
+                  <span className="text-sm">Specific Time</span>
+                </label>
               </div>
             </div>
 
-            {scheduleType === "preset" ? (
+            {scheduleType === "preset" && (
               <div className="space-y-2">
                 <label htmlFor="edit-preset" className="text-sm font-medium">
                   Schedule
@@ -816,7 +1021,9 @@ function EditAutomationDialog({
                   <option value="every_30min">Every 30 minutes</option>
                 </select>
               </div>
-            ) : (
+            )}
+
+            {scheduleType === "interval" && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Interval</label>
                 <div className="flex gap-2">
@@ -841,6 +1048,108 @@ function EditAutomationDialog({
                 </div>
               </div>
             )}
+
+            {scheduleType === "timeOfDay" && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Time</label>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={timeOfDayHour}
+                      onChange={(e) => setTimeOfDayHour(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm">:</span>
+                    <select
+                      value={timeOfDayMinute}
+                      onChange={(e) => setTimeOfDayMinute(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="0">00</option>
+                      <option value="15">15</option>
+                      <option value="30">30</option>
+                      <option value="45">45</option>
+                    </select>
+                    <select
+                      value={timeOfDayPeriod}
+                      onChange={(e) => setTimeOfDayPeriod(e.target.value as "AM" | "PM")}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    All times are in UTC timezone
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Frequency</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="daily"
+                        checked={timeOfDayFrequency === "daily"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Every day</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="weekdays"
+                        checked={timeOfDayFrequency === "weekdays"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Weekdays (Mon-Fri)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="specific"
+                        checked={timeOfDayFrequency === "specific"}
+                        onChange={(e) => setTimeOfDayFrequency(e.target.value as "daily" | "weekdays" | "specific")}
+                      />
+                      <span className="text-sm">Specific days</span>
+                    </label>
+                    {timeOfDayFrequency === "specific" && (
+                      <div className="flex flex-wrap gap-3 ml-6">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, index) => (
+                          <label key={day} className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={timeOfDayDays.includes(index)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setTimeOfDayDays([...timeOfDayDays, index].sort());
+                                } else {
+                                  setTimeOfDayDays(timeOfDayDays.filter((d) => d !== index));
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <span className="text-sm">{day}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {timeOfDayFrequency === "specific" && timeOfDayDays.length === 0 && (
+                      <p className="text-xs text-destructive ml-6">
+                        Please select at least one day
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <button
@@ -853,7 +1162,7 @@ function EditAutomationDialog({
             </button>
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || (scheduleType === "timeOfDay" && timeOfDayFrequency === "specific" && timeOfDayDays.length === 0)}
               className="px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isPending ? (

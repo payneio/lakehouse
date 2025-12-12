@@ -4,8 +4,12 @@ import { HomePage } from '@/pages/Home'
 import { ProfilesPage } from '@/pages/Profiles'
 import { DirectoriesPage } from '@/pages/Directories'
 import { SessionView } from '@/features/session'
+import { useGlobalEvents } from '@/hooks/useGlobalEvents'
 
 function App() {
+  // Subscribe to global events app-wide
+  useGlobalEvents();
+
   return (
     <BrowserRouter>
       <Routes>

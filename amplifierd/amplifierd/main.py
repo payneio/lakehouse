@@ -16,6 +16,7 @@ from amplifier_library.config.loader import load_config
 from .routers import amplified_directories_router
 from .routers import automations_router
 from .routers import directories_router
+from .routers import events_router
 from .routers import messages_router
 from .routers import modules_router
 from .routers import mount_plans_router
@@ -156,6 +157,7 @@ app.add_middleware(
 app.include_router(amplified_directories_router)
 app.include_router(automations_router)
 app.include_router(directories_router)
+app.include_router(events_router)
 app.include_router(sessions_router)
 app.include_router(messages_router)
 app.include_router(status_router)

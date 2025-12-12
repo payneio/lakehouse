@@ -46,6 +46,7 @@ class SessionManager:
         parent_session_id: str | None = None,
         amplified_dir: str = ".",
         name: str | None = None,
+        created_by: str = "user",
     ) -> SessionMetadata:
         """Create new session in CREATED state.
 
@@ -56,6 +57,7 @@ class SessionManager:
             parent_session_id: Optional parent session for sub-sessions
             amplified_dir: Relative path to amplified directory (defaults to ".")
             name: Optional human-readable session name
+            created_by: Who created the session ("user" or "automation")
 
         Returns:
             SessionMetadata for created session
@@ -110,6 +112,8 @@ class SessionManager:
                 token_usage=None,
                 error_message=None,
                 error_details=None,
+                is_unread=created_by == "automation",  # Automations start unread
+                last_read_at=now if created_by == "user" else None,
             )
 
             # Write session.json atomically
@@ -208,6 +212,33 @@ class SessionManager:
 
         self._update_session(session_id, update)
         logger.info(f"Terminated session {session_id}")
+
+    def update_session_fields(self, session_id: str, **fields: Any) -> SessionMetadata:
+        """Update arbitrary session fields.
+
+        Args:
+            session_id: Session identifier
+            **fields: Fields to update on SessionMetadata
+
+        Returns:
+            Updated SessionMetadata
+
+        Raises:
+            FileNotFoundError: If session not found
+            ValueError: If field is invalid
+        """
+
+        def update(metadata: SessionMetadata) -> None:
+            for field, value in fields.items():
+                if not hasattr(metadata, field):
+                    raise ValueError(f"Invalid field: {field}")
+                setattr(metadata, field, value)
+
+        self._update_session(session_id, update)
+        updated = self.get_session(session_id)
+        if updated is None:
+            raise FileNotFoundError(f"Session {session_id} not found after update")
+        return updated
 
     # --- Transcript Management ---
 

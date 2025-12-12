@@ -13,9 +13,15 @@ interface DirectoriesListProps {
   onSelectDirectory: (path: string) => void;
   selectedPath?: string;
   compact?: boolean;
+  unreadCounts?: Record<string, number>;
 }
 
-export function DirectoriesList({ onSelectDirectory, selectedPath, compact = false }: DirectoriesListProps) {
+export function DirectoriesList({
+  onSelectDirectory,
+  selectedPath,
+  compact = false,
+  unreadCounts = {}
+}: DirectoriesListProps) {
   const { directories, isLoading, createDirectory } = useDirectories();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -104,6 +110,7 @@ export function DirectoriesList({ onSelectDirectory, selectedPath, compact = fal
                 selectedPath={selectedPath || null}
                 onToggle={handleToggle}
                 onSelect={handleSelect}
+                unreadCounts={unreadCounts}
               />
             ))}
           </div>
@@ -139,6 +146,7 @@ export function DirectoriesList({ onSelectDirectory, selectedPath, compact = fal
               selectedPath={selectedPath || null}
               onToggle={handleToggle}
               onSelect={handleSelect}
+              unreadCounts={unreadCounts}
             />
           ))}
         </div>

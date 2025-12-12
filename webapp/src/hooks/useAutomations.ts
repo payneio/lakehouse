@@ -114,6 +114,7 @@ export function useAutomations(projectId: string) {
       isPending: executeMutation.isPending,
       isError: executeMutation.isError,
       error: executeMutation.error,
+      variables: executeMutation.variables,
     },
 
     // Refetch

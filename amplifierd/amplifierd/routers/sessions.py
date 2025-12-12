@@ -27,8 +27,10 @@ from amplifier_library.sessions.manager import SessionManager as SessionStateSer
 from amplifier_library.storage import get_state_dir
 
 from ..models.context_messages import ContextMessage
+from ..models.events import SessionUpdatedEvent
 from ..models.mount_plans import MountPlan
 from ..services.amplified_directory_service import AmplifiedDirectoryService
+from ..services.global_events import GlobalEventService
 from ..services.mount_plan_service import MountPlanService
 from .mount_plans import get_mount_plan_service
 
@@ -270,6 +272,19 @@ async def create_session(
             )
             logger.info(f"Saved {len(profile_context_messages)} profile context messages to session {session_id}")
 
+        # Emit session:created event
+        from ..models.events import SessionCreatedEvent
+
+        await GlobalEventService.emit(
+            SessionCreatedEvent(
+                session_id=metadata.session_id,
+                session_name=metadata.name,
+                project_id=metadata.amplified_dir,
+                is_unread=metadata.is_unread,
+                created_by="user",
+            )
+        )
+
         logger.info(f"Created session {metadata.session_id} in '{amplified_dir}' with profile {profile_name}")
         return metadata
 
@@ -458,6 +473,42 @@ async def terminate_session(
 
 
 # --- Query Endpoints ---
+
+
+@router.get("/unread-counts", response_model=dict[str, int])
+async def get_unread_counts(
+    manager: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict[str, int]:
+    """Get count of unread sessions per project.
+
+    Args:
+        manager: Session state service dependency
+
+    Returns:
+        Dictionary mapping project_id to unread count
+        Example: {"project/path": 3, "another/project": 1}
+
+    Raises:
+        HTTPException:
+            - 500 for errors
+    """
+    try:
+        counts: dict[str, int] = {}
+
+        # Get all sessions
+        all_sessions = manager.list_sessions()
+
+        # Count unread sessions by project
+        for session in all_sessions:
+            if session.is_unread:
+                project_id = session.amplified_dir
+                counts[project_id] = counts.get(project_id, 0) + 1
+
+        return counts
+
+    except Exception as exc:
+        logger.error(f"Failed to get unread counts: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @router.get("/{session_id}", response_model=SessionMetadata)
@@ -709,6 +760,62 @@ async def append_message(
         raise
     except Exception as exc:
         logger.error(f"Failed to append message to {session_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+# --- Read/Unread Management ---
+
+
+@router.post("/{session_id}/mark-read", status_code=200)
+async def mark_session_read(
+    session_id: str,
+    manager: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict:
+    """Mark session as read.
+
+    Called by frontend when user views session for 2+ seconds.
+    Only updates if currently unread to avoid unnecessary writes.
+
+    Args:
+        session_id: Session identifier
+        manager: Session state service dependency
+
+    Returns:
+        Status dictionary with session_id
+
+    Raises:
+        HTTPException:
+            - 404 if session not found
+            - 500 for other errors
+    """
+    try:
+        session = manager.get_session(session_id)
+        if not session:
+            raise HTTPException(404, f"Session {session_id} not found")
+
+        # Only update if currently unread
+        if session.is_unread:
+            from datetime import UTC
+            from datetime import datetime
+
+            # Update metadata
+            manager.update_session_fields(session_id, is_unread=False, last_read_at=datetime.now(UTC))
+
+            # Emit global event
+            await GlobalEventService.emit(
+                SessionUpdatedEvent(
+                    project_id=session.amplified_dir, session_id=session_id, fields_changed=["is_unread"]
+                )
+            )
+
+            logger.info(f"Marked session {session_id} as read")
+
+        return {"status": "read", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Failed to mark session {session_id} as read: {exc}")
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 

@@ -6,9 +6,17 @@ interface TreeNodeProps {
   selectedPath: string | null;
   onToggle: (path: string) => void;
   onSelect: (path: string) => void;
+  unreadCounts?: Record<string, number>;
 }
 
-export function TreeNode({ node, selectedPath, onToggle, onSelect }: TreeNodeProps) {
+export function TreeNode({
+  node,
+  selectedPath,
+  onToggle,
+  onSelect,
+  unreadCounts = {}
+}: TreeNodeProps) {
+  const unreadCount = unreadCounts[node.fullPath] || 0;
   const hasChildren = node.children.length > 0;
   const isAmplified = node.directory !== null;
   const isSelected = isAmplified && node.fullPath === selectedPath;
@@ -71,6 +79,16 @@ export function TreeNode({ node, selectedPath, onToggle, onSelect }: TreeNodePro
         <span className={`flex-1 ${isIntermediate ? "font-normal" : "font-medium"}`}>
           {node.name}
         </span>
+
+        {/* Unread badge */}
+        {unreadCount > 0 && (
+          <span
+            className="ml-2 px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded-full font-medium"
+            title={`${unreadCount} unread session${unreadCount === 1 ? '' : 's'}`}
+          >
+            {unreadCount}
+          </span>
+        )}
       </div>
 
       {/* Render children if expanded */}
@@ -82,6 +100,7 @@ export function TreeNode({ node, selectedPath, onToggle, onSelect }: TreeNodePro
             selectedPath={selectedPath}
             onToggle={onToggle}
             onSelect={onSelect}
+            unreadCounts={unreadCounts}
           />
         ))}
     </>

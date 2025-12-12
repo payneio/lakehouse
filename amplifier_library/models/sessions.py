@@ -66,6 +66,8 @@ class SessionMetadata(CamelCaseModel):
     token_usage: int | None = Field(default=None, description="Total tokens consumed")
     error_message: str | None = Field(default=None, description="Error message if status is FAILED")
     error_details: dict[str, Any] | None = Field(default=None, description="Additional error context")
+    is_unread: bool = Field(default=False, description="Whether session has unread content")
+    last_read_at: datetime | None = Field(default=None, description="When session was last marked as read")
 
 
 class SessionMessage(CamelCaseModel):
