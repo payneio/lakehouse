@@ -23,7 +23,10 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Use instant scroll during streaming to prevent competing animations
+    // Smooth scroll for static messages provides polish without interference
+    const behavior = streamingContent ? 'instant' : 'smooth';
+    bottomRef.current?.scrollIntoView({ behavior });
   }, [messages, streamingContent]);
 
   if (messages.length === 0) {
@@ -84,7 +87,10 @@ export function MessageList({
             <Bot className="h-4 w-4 text-primary animate-pulse" />
           </div>
           <div className="max-w-[80%] space-y-2">
-            <div className="rounded-lg p-3 bg-muted">
+            <div
+              className="rounded-lg p-3 bg-muted will-change-contents transition-[height] duration-75"
+              style={{ contain: 'layout style' }}
+            >
               <div className="prose prose-sm dark:prose-invert max-w-none">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {streamingContent}
