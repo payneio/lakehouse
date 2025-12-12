@@ -1,22 +1,28 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Plus, FileText, Settings, Activity } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { SessionsList } from './SessionsList';
-import { AutomationsSection } from './AutomationsSection';
-import { WorkSection } from './WorkSection';
-import { EditDirectoryDialog } from './EditDirectoryDialog';
-import { CreateDirectoryDialog } from './CreateDirectoryDialog';
-import { AgentInstructionsDialog } from './AgentInstructionsDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { useDirectories } from '../hooks/useDirectories';
-import * as api from '@/api';
-import { listAutomations } from '@/api/automations';
-import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from '@/types/api';
+import * as api from "@/api";
+import { listAutomations } from "@/api/automations";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from "@/types/api";
+import { useQuery } from "@tanstack/react-query";
+import { Activity, FileText, Plus, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useDirectories } from "../hooks/useDirectories";
+import { AgentInstructionsDialog } from "./AgentInstructionsDialog";
+import { AutomationsSection } from "./AutomationsSection";
+import { CreateDirectoryDialog } from "./CreateDirectoryDialog";
+import { EditDirectoryDialog } from "./EditDirectoryDialog";
+import { SessionsList } from "./SessionsList";
+import { WorkSection } from "./WorkSection";
 
 export function DirectoriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedPath = searchParams.get('path') || undefined;
+  const selectedPath = searchParams.get("path") || undefined;
 
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -24,16 +30,18 @@ export function DirectoriesPage() {
   const [showAgentInstructions, setShowAgentInstructions] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showWork, setShowWork] = useState(false);
-  const [selectedDirectory, setSelectedDirectory] = useState<AmplifiedDirectory | null>(null);
+  const [selectedDirectory, setSelectedDirectory] =
+    useState<AmplifiedDirectory | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
-  const { updateDirectory, deleteDirectory, createDirectory } = useDirectories();
+  const { updateDirectory, deleteDirectory, createDirectory } =
+    useDirectories();
 
   // Fetch enabled automations count for badge
   const { data: automationsData } = useQuery({
-    queryKey: ['automations', selectedPath, 'enabled'],
+    queryKey: ["automations", selectedPath, "enabled"],
     queryFn: () => listAutomations(selectedPath!, { enabled: true }),
     enabled: !!selectedPath,
   });
@@ -54,7 +62,7 @@ export function DirectoriesPage() {
           }
         } catch (err) {
           if (!cancelled) {
-            console.error('Failed to fetch directory details:', err);
+            console.error("Failed to fetch directory details:", err);
           }
         } finally {
           if (!cancelled) {
@@ -77,7 +85,11 @@ export function DirectoriesPage() {
     setShowEditDialog(true);
   };
 
-  const handleEditSubmit = async (data: { name?: string; description?: string; default_profile?: string }) => {
+  const handleEditSubmit = async (data: {
+    name?: string;
+    description?: string;
+    default_profile?: string;
+  }) => {
     if (!selectedPath) return;
 
     setUpdateError(null);
@@ -108,7 +120,9 @@ export function DirectoriesPage() {
       setSelectedDirectory(updated);
       setShowEditDialog(false);
     } catch (err) {
-      setUpdateError(err instanceof Error ? err.message : 'Failed to update directory');
+      setUpdateError(
+        err instanceof Error ? err.message : "Failed to update directory"
+      );
     }
   };
 
@@ -128,7 +142,7 @@ export function DirectoriesPage() {
       setSearchParams({});
       setSelectedDirectory(null);
     } catch (err) {
-      console.error('Failed to delete directory:', err);
+      console.error("Failed to delete directory:", err);
     }
   };
 
@@ -138,7 +152,9 @@ export function DirectoriesPage() {
       await createDirectory.mutateAsync(data);
       setShowCreateDialog(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create directory');
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create directory"
+      );
     }
   };
 
@@ -148,7 +164,9 @@ export function DirectoriesPage() {
         <div className="space-y-8">
           {isFetchingDetails ? (
             <div className="flex items-center justify-center p-8">
-              <div className="text-muted-foreground">Loading project details...</div>
+              <div className="text-muted-foreground">
+                Loading project details...
+              </div>
             </div>
           ) : selectedDirectory ? (
             <div className="space-y-6">
@@ -161,7 +179,7 @@ export function DirectoriesPage() {
                     className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm"
                   >
                     <FileText className="h-4 w-4" />
-                    Agent Instructions
+                    Project Instructions
                   </button>
                   <button
                     onClick={() => setShowAutomations(true)}
@@ -256,11 +274,10 @@ export function DirectoriesPage() {
             <DialogTitle>Delete Directory</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p>
-              Are you sure you want to delete this directory?
-            </p>
+            <p>Are you sure you want to delete this directory?</p>
             <p className="text-sm text-muted-foreground">
-              This will remove the amplified marker file. The directory itself will not be deleted.
+              This will remove the amplified marker file. The directory itself
+              will not be deleted.
             </p>
           </div>
           <DialogFooter>
@@ -276,7 +293,7 @@ export function DirectoriesPage() {
               className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50"
               disabled={deleteDirectory.isPending}
             >
-              {deleteDirectory.isPending ? 'Deleting...' : 'Delete'}
+              {deleteDirectory.isPending ? "Deleting..." : "Delete"}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -301,9 +318,7 @@ export function DirectoriesPage() {
               <DialogHeader>
                 <DialogTitle>Automations</DialogTitle>
               </DialogHeader>
-              <AutomationsSection
-                projectId={selectedPath!}
-              />
+              <AutomationsSection projectId={selectedPath!} />
             </DialogContent>
           </Dialog>
 

@@ -14,6 +14,7 @@ import {
   Clock,
   AlertCircle,
   Edit,
+  Play,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,6 +42,7 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
     update,
     delete: deleteOp,
     toggle,
+    execute,
   } = useAutomations(projectId);
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -108,6 +110,14 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
     }
   };
 
+  const handleExecuteAutomation = async (automationId: string) => {
+    try {
+      await execute.mutateAsync(automationId);
+    } catch (err) {
+      console.error("Failed to execute automation:", err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -172,7 +182,9 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
                 setIsEditDialogOpen(true);
               }}
               onDelete={(id) => setAutomationToDelete(id)}
+              onExecute={handleExecuteAutomation}
               isTogglingDisabled={toggle.isPending}
+              isExecuting={execute.isPending && execute.variables === automation.id}
             />
           ))}
         </div>
@@ -241,7 +253,9 @@ interface AutomationCardProps {
   onToggle: (id: string, enabled: boolean) => void;
   onEdit: (automation: Automation) => void;
   onDelete: (id: string) => void;
+  onExecute: (id: string) => void;
   isTogglingDisabled: boolean;
+  isExecuting: boolean;
 }
 
 function AutomationCard({
@@ -249,7 +263,9 @@ function AutomationCard({
   onToggle,
   onEdit,
   onDelete,
+  onExecute,
   isTogglingDisabled,
+  isExecuting,
 }: AutomationCardProps) {
   const scheduleText = formatSchedule(automation.schedule);
 
@@ -304,6 +320,19 @@ function AutomationCard({
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => onExecute(automation.id)}
+            disabled={isExecuting}
+            className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Run automation now"
+          >
+            {isExecuting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {isExecuting ? "Running..." : "Run Now"}
+          </button>
           <button
             onClick={() => onToggle(automation.id, !automation.enabled)}
             disabled={isTogglingDisabled}

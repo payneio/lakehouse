@@ -200,6 +200,28 @@ export async function toggleAutomation(
 }
 
 /**
+ * Execute an automation immediately (manual trigger)
+ */
+export async function executeAutomation(
+  projectId: string,
+  automationId: string
+): Promise<{ session_id: string; status: string }> {
+  const response = await fetch(
+    `${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}/automations/${encodeURIComponent(automationId)}/execute/`,
+    {
+      method: "POST",
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `Failed to execute automation: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Get execution history for an automation
  */
 export async function getExecutionHistory(

@@ -476,6 +476,75 @@ async def toggle_automation(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
+@router.post("/{automation_id}/execute", response_model=dict)
+async def execute_automation(
+    project_id: str,
+    automation_id: str,
+    manager: Annotated[AutomationManager, Depends(get_automation_manager)],
+    scheduler: Annotated["AutomationScheduler | None", Depends(get_automation_scheduler)] = None,
+) -> dict:
+    """Manually execute an automation immediately.
+
+    Creates a session and runs the automation message, regardless of schedule.
+    Useful for testing automations or running them on-demand.
+
+    Args:
+        project_id: Path to amplified directory
+        automation_id: Automation identifier
+        manager: Automation manager dependency
+        scheduler: Automation scheduler dependency
+
+    Returns:
+        dict with session_id and status
+        Example: {"session_id": "auto_abc123", "status": "executing"}
+
+    Raises:
+        HTTPException:
+            - 404 if automation not found or doesn't belong to project
+            - 503 if scheduler not available
+            - 500 for other errors
+
+    Example:
+        ```
+        POST /api/v1/projects/my-project/automations/abc-123/execute
+        ```
+
+        Response:
+        ```json
+        {
+            "session_id": "auto_abc123",
+            "status": "executing"
+        }
+        ```
+    """
+    try:
+        # Check automation exists and belongs to project
+        automation = manager.get_automation(automation_id)
+        if automation is None:
+            raise HTTPException(status_code=404, detail=f"Automation {automation_id} not found")
+
+        if automation.project_id != project_id:
+            raise HTTPException(status_code=404, detail=f"Automation {automation_id} not found in project {project_id}")
+
+        # Verify scheduler is available
+        if scheduler is None:
+            raise HTTPException(status_code=503, detail="Automation scheduler not available")
+
+        # Execute the automation
+        session_id = await scheduler.execute_now(automation_id)
+
+        logger.info(f"Manual execution of automation {automation_id} created session {session_id}")
+        return {"session_id": session_id, "status": "executing"}
+
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(f"Failed to execute automation {automation_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
 @router.get("/{automation_id}/executions", response_model=ExecutionHistory)
 async def get_execution_history(
     project_id: str,

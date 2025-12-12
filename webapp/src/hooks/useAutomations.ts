@@ -8,6 +8,7 @@ import {
   updateAutomation,
   deleteAutomation,
   toggleAutomation,
+  executeAutomation,
   type AutomationCreate,
   type AutomationUpdate,
 } from "@/api/automations";
@@ -60,6 +61,14 @@ export function useAutomations(projectId: string) {
     },
   });
 
+  // Execute automation mutation (run now)
+  const executeMutation = useMutation({
+    mutationFn: (id: string) => executeAutomation(projectId, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automations", projectId] });
+    },
+  });
+
   return {
     // Data
     automations: query.data?.automations || [],
@@ -98,6 +107,13 @@ export function useAutomations(projectId: string) {
       isPending: toggleMutation.isPending,
       isError: toggleMutation.isError,
       error: toggleMutation.error,
+    },
+    execute: {
+      mutate: executeMutation.mutate,
+      mutateAsync: executeMutation.mutateAsync,
+      isPending: executeMutation.isPending,
+      isError: executeMutation.isError,
+      error: executeMutation.error,
     },
 
     // Refetch

@@ -171,6 +171,40 @@ class AutomationScheduler:
 
         logger.info(f"Reloaded {len(automations)} enabled automations")
 
+    async def execute_now(self, automation_id: str) -> str:
+        """Execute automation immediately, bypassing schedule.
+
+        Creates session and runs automation message on-demand.
+        Useful for testing automations or running them manually.
+
+        Args:
+            automation_id: Automation to execute
+
+        Returns:
+            Session ID that was created
+
+        Raises:
+            ValueError: If automation not found or invalid
+        """
+        logger.info(f"Manual execution requested for automation {automation_id}")
+
+        # Verify automation exists
+        automation = self.automation_manager.get_automation(automation_id)
+        if automation is None:
+            raise ValueError(f"Automation {automation_id} not found")
+
+        # Execute using existing private method
+        await self._execute_automation(automation_id)
+
+        # Get the session ID from the most recent execution
+        executions = self.automation_manager.get_execution_history(automation_id=automation_id, limit=1)
+        if not executions:
+            raise ValueError(f"Automation {automation_id} executed but no session created")
+
+        session_id = executions[0].session_id
+        logger.info(f"Manual execution of automation {automation_id} created session {session_id}")
+        return session_id
+
     def _parse_schedule(self, schedule_type: str, value: str):
         """Parse schedule configuration into APScheduler trigger.
 

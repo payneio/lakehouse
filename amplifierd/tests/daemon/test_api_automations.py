@@ -968,3 +968,117 @@ class TestErrorHandling:
         response = client.get("/api/v1/projects/test-project/automations/auto-123/executions")
 
         assert response.status_code == 500
+
+
+@pytest.mark.integration
+class TestExecuteAutomation:
+    """Test manual automation execution endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_execute_automation_success(
+        self, client: TestClient, mock_automation_manager: Mock, mock_automation: Automation
+    ) -> None:
+        """Test POST /automations/{id}/execute successfully executes automation."""
+        mock_automation_manager.get_automation.return_value = mock_automation
+
+        # Mock scheduler
+        mock_scheduler = AsyncMock()
+        mock_scheduler.execute_now = AsyncMock(return_value="auto_abc123")
+
+        app.dependency_overrides[get_automation_scheduler] = lambda: mock_scheduler
+
+        try:
+            response = client.post("/api/v1/projects/test-project/automations/auto-123/execute")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["session_id"] == "auto_abc123"
+            assert data["status"] == "executing"
+
+            # Verify scheduler.execute_now was called
+            mock_scheduler.execute_now.assert_awaited_once_with("auto-123")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_execute_automation_not_found(
+        self, client: TestClient, mock_automation_manager: Mock
+    ) -> None:
+        """Test POST /automations/{id}/execute returns 404 for missing automation."""
+        mock_automation_manager.get_automation.return_value = None
+
+        mock_scheduler = AsyncMock()
+        app.dependency_overrides[get_automation_scheduler] = lambda: mock_scheduler
+
+        try:
+            response = client.post("/api/v1/projects/test-project/automations/nonexistent/execute")
+
+            assert response.status_code == 404
+            assert "not found" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_execute_automation_wrong_project(
+        self, client: TestClient, mock_automation_manager: Mock
+    ) -> None:
+        """Test POST /automations/{id}/execute returns 404 for wrong project."""
+        # Mock automation with different project_id
+        wrong_project_automation = Automation(
+            id="auto-123",
+            project_id="different-project",
+            name="Test",
+            message="Test",
+            schedule=ScheduleConfig(type="cron", value="0 9 * * *"),
+            enabled=True,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        mock_automation_manager.get_automation.return_value = wrong_project_automation
+
+        mock_scheduler = AsyncMock()
+        app.dependency_overrides[get_automation_scheduler] = lambda: mock_scheduler
+
+        try:
+            response = client.post("/api/v1/projects/test-project/automations/auto-123/execute")
+
+            assert response.status_code == 404
+            assert "test-project" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_execute_automation_scheduler_unavailable(
+        self, client: TestClient, mock_automation_manager: Mock, mock_automation: Automation
+    ) -> None:
+        """Test POST /automations/{id}/execute returns 503 when scheduler unavailable."""
+        mock_automation_manager.get_automation.return_value = mock_automation
+
+        # No scheduler available
+        app.dependency_overrides[get_automation_scheduler] = lambda: None
+
+        try:
+            response = client.post("/api/v1/projects/test-project/automations/auto-123/execute")
+
+            assert response.status_code == 503
+            assert "not available" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_execute_automation_execution_fails(
+        self, client: TestClient, mock_automation_manager: Mock, mock_automation: Automation
+    ) -> None:
+        """Test POST /automations/{id}/execute returns 400 when execution fails."""
+        mock_automation_manager.get_automation.return_value = mock_automation
+
+        # Mock scheduler that fails during execution
+        mock_scheduler = AsyncMock()
+        mock_scheduler.execute_now = AsyncMock(side_effect=ValueError("Execution failed"))
+
+        app.dependency_overrides[get_automation_scheduler] = lambda: mock_scheduler
+
+        try:
+            response = client.post("/api/v1/projects/test-project/automations/auto-123/execute")
+
+            assert response.status_code == 400
+            assert "Execution failed" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()

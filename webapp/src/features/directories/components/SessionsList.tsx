@@ -1,8 +1,8 @@
-import * as api from '@/api';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Plus, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router';
-import { useSessions } from '../hooks/useDirectories';
+import * as api from "@/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router";
+import { useSessions } from "../hooks/useDirectories";
 
 interface SessionsListProps {
   directoryPath: string;
@@ -17,14 +17,14 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
     mutationFn: (data: { profile_name?: string; amplified_dir?: string }) =>
       api.createSession(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
     },
   });
 
   const deleteSession = useMutation({
     mutationFn: (sessionId: string) => api.deleteSession(sessionId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
     },
   });
 
@@ -37,9 +37,8 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
 
       // Navigate to session
       navigate(`/directories/sessions/${newSession.sessionId}`);
-
     } catch (error) {
-      console.error('Failed to create session:', error);
+      console.error("Failed to create session:", error);
       // Cache invalidation in onSuccess will refresh the list
     }
   };
@@ -58,7 +57,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
           className="flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm disabled:opacity-50"
         >
           <Plus className="h-4 w-4" />
-          {createSession.isPending ? 'Creating...' : 'New Session'}
+          {createSession.isPending ? "Creating..." : "New Session"}
         </button>
       </div>
 
@@ -75,17 +74,19 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
             >
               <div className="flex items-start justify-between gap-4">
                 <button
-                  onClick={() => navigate(`/directories/sessions/${session.sessionId}`)}
+                  onClick={() =>
+                    navigate(`/directories/sessions/${session.sessionId}`)
+                  }
                   className="flex-1 text-left"
                 >
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
                     <span className="font-medium">
-                      {session.name || `Session from ${new Date(session.createdAt).toLocaleDateString()}`}
+                      {session.name ||
+                        `Session from ${new Date(
+                          session.createdAt
+                        ).toLocaleDateString()}`}
                     </span>
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Profile: {session.profileName} • Status: {session.status}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     Created: {new Date(session.createdAt).toLocaleString()}
@@ -94,7 +95,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (confirm('Delete this session?')) {
+                    if (confirm("Delete this session?")) {
                       deleteSession.mutate(session.sessionId);
                     }
                   }}

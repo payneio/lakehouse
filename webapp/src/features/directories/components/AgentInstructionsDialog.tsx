@@ -66,9 +66,7 @@ function AgentInstructionsForm({
       }, 1500);
     } catch (error) {
       setSaveStatus("error");
-      setSaveError(
-        error instanceof Error ? error.message : "Failed to save"
-      );
+      setSaveError(error instanceof Error ? error.message : "Failed to save");
     }
   };
 
@@ -79,7 +77,7 @@ function AgentInstructionsForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Agent Instructions</DialogTitle>
+        <DialogTitle>Project Instructions</DialogTitle>
       </DialogHeader>
 
       <div className="space-y-3">
@@ -87,7 +85,7 @@ function AgentInstructionsForm({
           value={editedContent}
           onChange={(e) => setEditedContent(e.target.value)}
           className="w-full min-h-[400px] p-3 font-mono text-xs border rounded-md bg-muted resize-y"
-          placeholder="Enter agent instructions..."
+          placeholder="Enter project instructions for the assistant..."
         />
 
         {saveStatus === "success" && (
