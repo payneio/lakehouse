@@ -1,8 +1,0 @@
-registries:
-- description: Lakehouse local component registry
-  id: lakehouse
-  uri: /data/repos/lakehouse/registry
-- description: Microsoft registry
-  id: microsoft
-  uri: git+https://github.com/payneio/amplifier-registry@main
-
