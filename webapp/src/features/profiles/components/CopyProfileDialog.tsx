@@ -21,6 +21,8 @@ export function CopyProfileDialog({ sourceName, onClose, onSuccess }: CopyProfil
       copyProfile(sourceName, newName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      // Invalidate all profile details to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['profile-detail'] });
       if (onSuccess) onSuccess();
     },
   });

@@ -68,14 +68,14 @@ export function ModuleConfigEditor({
         onClick={onToggle}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         aria-expanded={isExpanded}
-        aria-label="Toggle module configuration editor"
+        aria-label="Toggle configuration editor"
       >
         {isExpanded ? (
           <ChevronDown className="h-4 w-4" />
         ) : (
           <ChevronRight className="h-4 w-4" />
         )}
-        <span>Module Configuration</span>
+        <span>Configuration</span>
         {config && !isExpanded && (
           <span className="text-xs">(configured)</span>
         )}
@@ -91,7 +91,7 @@ export function ModuleConfigEditor({
             placeholder='{"key": "value", "enabled": true}'
             rows={5}
             className="w-full px-3 py-2 border rounded-md text-sm font-mono"
-            aria-label="Module configuration JSON"
+            aria-label="Configuration JSON"
             aria-describedby="config-validation-status"
           />
 

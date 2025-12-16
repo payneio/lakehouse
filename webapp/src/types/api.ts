@@ -33,6 +33,7 @@ export interface ModuleConfig {
 export interface BehaviorRef {
   id: string;
   source: string;
+  config?: Record<string, unknown>;
 }
 
 export interface SessionConfig {

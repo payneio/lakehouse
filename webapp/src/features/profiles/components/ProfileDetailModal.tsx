@@ -133,6 +133,16 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
                           Source: {behavior.source}
                         </div>
                       )}
+                      {behavior.config && Object.keys(behavior.config).length > 0 && (
+                        <details className="mt-2">
+                          <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">
+                            Configuration
+                          </summary>
+                          <pre className="text-xs mt-1 overflow-x-auto bg-background p-2 rounded">
+                            {JSON.stringify(behavior.config, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                     </div>
                   ))}
                 </div>

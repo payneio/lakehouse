@@ -12,10 +12,10 @@ class CreateProfileRequest(CamelCaseModel):
     version: str = Field(default="1.0.0", description="Profile version")
     description: str = Field(description="Profile description")
     providers: list["ModuleConfig"] = Field(default_factory=list, description="Provider modules")
-    tools: list["ModuleConfig"] = Field(default_factory=list, description="Tool modules")
-    hooks: list["ModuleConfig"] = Field(default_factory=list, description="Hook modules")
+    behaviors: list["BehaviorRef"] = Field(default_factory=list, description="Behavior references")
     orchestrator: "ModuleConfig | None" = Field(default=None, description="Orchestrator module")
     context: "ModuleConfig | None" = Field(default=None, description="Context manager module")
+    instruction: str | None = Field(default=None, description="Profile system instruction (markdown body)")
 
 
 class UpdateProfileRequest(CamelCaseModel):
@@ -24,12 +24,9 @@ class UpdateProfileRequest(CamelCaseModel):
     version: str | None = Field(default=None, description="Profile version")
     description: str | None = Field(default=None, description="Profile description")
     providers: list["ModuleConfig"] | None = Field(default=None, description="Provider modules")
-    tools: list["ModuleConfig"] | None = Field(default=None, description="Tool modules")
-    hooks: list["ModuleConfig"] | None = Field(default=None, description="Hook modules")
+    behaviors: list["BehaviorRef"] | None = Field(default=None, description="Behavior references")
     orchestrator: "ModuleConfig | None" = Field(default=None, description="Orchestrator module")
     context: "ModuleConfig | None" = Field(default=None, description="Context manager module")
-    agents: dict[str, str] | None = Field(default=None, description="Agent file references (name -> ref)")
-    contexts: dict[str, str] | None = Field(default=None, description="Context directory references (name -> ref)")
     instruction: str | None = Field(default=None, description="Profile system instruction (markdown body)")
 
 
@@ -96,3 +93,4 @@ class BehaviorRef(CamelCaseModel):
 
     id: str = Field(description="Behavior identifier")
     source: str = Field(description="Behavior source URI (amp://, git+, file://)")
+    config: dict[str, object] | None = Field(default=None, description="Behavior-specific configuration")

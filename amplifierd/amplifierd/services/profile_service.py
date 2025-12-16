@@ -266,21 +266,15 @@ class ProfileService:
                 {"id": p.module, "source": p.source, "config": p.config or {}} for p in request.providers
             ]
 
-        # Add tools with configs
-        if request.tools:
-            profile_yaml["tools"] = [
-                {"id": t.module, "source": t.source, "config": t.config or {}} for t in request.tools
+        # Add behaviors with configs
+        if request.behaviors:
+            profile_yaml["behaviors"] = [
+                {"id": b.id, "source": b.source, "config": b.config or {}} for b in request.behaviors
             ]
 
-        # Add hooks with configs
-        if request.hooks:
-            profile_yaml["hooks"] = [
-                {"id": h.module, "source": h.source, "config": h.config or {}} for h in request.hooks
-            ]
-
-        # Add empty agents and contexts (user can add later)
-        profile_yaml["agents"] = {}
-        profile_yaml["contexts"] = []
+        # Add instruction if provided
+        if request.instruction:
+            profile_yaml["instructions"] = request.instruction
 
         # Write profile.yaml (source)
         (profile_dir / "profile.yaml").write_text(yaml.dump(profile_yaml, default_flow_style=False))
@@ -708,7 +702,11 @@ class ProfileService:
             behaviors = []
             for behavior in source_data.get("behaviors", []):
                 if isinstance(behavior, dict):
-                    behaviors.append(BehaviorRef(id=behavior.get("id", ""), source=behavior.get("source", "")))
+                    behaviors.append(
+                        BehaviorRef(
+                            id=behavior.get("id", ""), source=behavior.get("source", ""), config=behavior.get("config")
+                        )
+                    )
 
             # Extract components as refs (not expanded)
             providers = []
@@ -982,24 +980,10 @@ class ProfileService:
                 {"id": p.module, "source": p.source, "config": p.config or {}} for p in providers
             ]
 
-        # Add tools (use request values or keep current)
-        tools = request.tools if request.tools is not None else current.tools
-        if tools:
-            profile_yaml["tools"] = [{"id": t.module, "source": t.source, "config": t.config or {}} for t in tools]
-
-        # Add hooks (use request values or keep current)
-        hooks = request.hooks if request.hooks is not None else current.hooks
-        if hooks:
-            profile_yaml["hooks"] = [{"id": h.module, "source": h.source, "config": h.config or {}} for h in hooks]
-
-        # Add agents (use request values or keep current)
-        agents = request.agents if request.agents is not None else current.agents
-        profile_yaml["agents"] = agents
-
-        # Add contexts (use request values or keep current)
-        contexts = request.contexts if request.contexts is not None else current.contexts
-        if contexts:
-            profile_yaml["contexts"] = [{"id": k, "source": v} for k, v in contexts.items()]
+        # Add behaviors (use request values or keep current)
+        behaviors = request.behaviors if request.behaviors is not None else current.behaviors
+        if behaviors:
+            profile_yaml["behaviors"] = [{"id": b.id, "source": b.source, "config": b.config or {}} for b in behaviors]
 
         # Add instruction (use request value or keep current)
         instruction = request.instruction if request.instruction is not None else current.instruction

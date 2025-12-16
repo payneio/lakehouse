@@ -34,8 +34,9 @@ export function ProfilesPage() {
   const updateMutation = useMutation({
     mutationFn: ({ name, data }: { name: string; data: UpdateProfileRequest }) =>
       api.updateProfile(name, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-detail', variables.name] });
       setEditingProfile(null);
     },
   });
@@ -184,12 +185,9 @@ export function ProfilesPage() {
             version: editingProfile.version,
             description: editingProfile.description,
             providers: editingProfile.providers,
-            tools: editingProfile.tools,
-            hooks: editingProfile.hooks,
+            behaviors: editingProfile.behaviors,
             orchestrator: editingProfile.session?.orchestrator,
             context: editingProfile.session?.contextManager,
-            agents: editingProfile.agents,
-            contexts: editingProfile.contexts,
             instruction: editingProfile.instruction,
           }}
           mode="edit"

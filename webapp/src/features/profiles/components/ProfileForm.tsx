@@ -23,10 +23,12 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
 
   const [expandedConfigs, setExpandedConfigs] = useState<{
     providers: Set<number>;
+    behaviors: Set<number>;
     orchestrator: boolean;
     context: boolean;
   }>({
     providers: new Set(),
+    behaviors: new Set(),
     orchestrator: false,
     context: false,
   });
@@ -91,10 +93,26 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
     setFormData({ ...formData, behaviors: updated });
   };
 
-  const updateBehavior = (index: number, field: 'id' | 'source', value: string) => {
+  const updateBehavior = (
+    index: number,
+    field: 'id' | 'source' | 'config',
+    value: string | Record<string, unknown> | undefined
+  ) => {
     const updated = [...(formData.behaviors || [])];
     updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, behaviors: updated });
+  };
+
+  const toggleBehaviorConfig = (index: number) => {
+    setExpandedConfigs(prev => {
+      const updated = new Set(prev.behaviors);
+      if (updated.has(index)) {
+        updated.delete(index);
+      } else {
+        updated.add(index);
+      }
+      return { ...prev, behaviors: updated };
+    });
   };
 
   const toggleSingleConfig = (field: 'orchestrator' | 'context') => {
@@ -225,6 +243,8 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
               setShowSelector={setShowSelector}
               componentRefs={componentRefs}
               loadingRefs={loadingRefs}
+              expandedConfigs={expandedConfigs.behaviors}
+              onToggleConfig={(i) => toggleBehaviorConfig(i)}
             />
           </div>
 
@@ -383,11 +403,13 @@ interface BehaviorListSectionProps {
   behaviors: BehaviorRef[];
   onAdd: (uri?: string) => void;
   onRemove: (index: number) => void;
-  onUpdate: (index: number, field: 'id' | 'source', value: string) => void;
+  onUpdate: (index: number, field: 'id' | 'source' | 'config', value: string | Record<string, unknown> | undefined) => void;
   showSelector: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null };
   setShowSelector: (state: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null }) => void;
   componentRefs?: ComponentRefsResponse;
   loadingRefs: boolean;
+  expandedConfigs: Set<number>;
+  onToggleConfig: (index: number) => void;
 }
 
 function BehaviorListSection({
@@ -399,6 +421,8 @@ function BehaviorListSection({
   setShowSelector,
   componentRefs,
   loadingRefs,
+  expandedConfigs,
+  onToggleConfig,
 }: BehaviorListSectionProps) {
   const isShowingSelector = showSelector.section === 'behaviors';
 
@@ -471,6 +495,12 @@ function BehaviorListSection({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+              <ModuleConfigEditor
+                config={behavior.config}
+                onChange={(config) => onUpdate(i, 'config', config)}
+                isExpanded={expandedConfigs.has(i)}
+                onToggle={() => onToggleConfig(i)}
+              />
             </div>
           ))
         )}
