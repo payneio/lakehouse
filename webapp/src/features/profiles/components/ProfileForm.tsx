@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Trash2 } from 'lucide-react';
-import type { CreateProfileRequest, UpdateProfileRequest, ModuleConfig, ComponentRefsResponse } from '@/types/api';
-import { KeyValueEditor } from './KeyValueEditor';
+import type { CreateProfileRequest, UpdateProfileRequest, ModuleConfig, BehaviorRef, ComponentRefsResponse } from '@/types/api';
 import { ComponentSelector } from './ComponentSelector';
 import { ModuleConfigEditor } from './ModuleConfigEditor';
+
 interface ProfileFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,90 +18,57 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
   const componentRefs = undefined;
   const loadingRefs = false;
   const [showSelector, setShowSelector] = useState<{
-    section: 'providers' | 'tools' | 'hooks' | 'orchestrator' | 'context' | 'agents' | 'contexts' | null;
+    section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null;
   }>({ section: null });
 
   const [expandedConfigs, setExpandedConfigs] = useState<{
     providers: Set<number>;
-    tools: Set<number>;
-    hooks: Set<number>;
     orchestrator: boolean;
     context: boolean;
   }>({
     providers: new Set(),
-    tools: new Set(),
-    hooks: new Set(),
     orchestrator: false,
     context: false,
   });
 
-  const [formData, setFormData] = useState<CreateProfileRequest & {
-    agentsArray?: { key: string; value: string }[];
-    contextsArray?: { key: string; value: string }[];
-  }>({
+  const [formData, setFormData] = useState<CreateProfileRequest>({
     name: initialData?.name || '',
     version: initialData?.version || '1.0.0',
     description: initialData?.description || '',
     providers: initialData?.providers || [],
-    tools: initialData?.tools || [],
-    hooks: initialData?.hooks || [],
+    behaviors: initialData?.behaviors || [],
     orchestrator: initialData?.orchestrator,
     context: initialData?.context,
-    agentsArray: initialData?.agents
-      ? Object.entries(initialData.agents).map(([key, value]) => ({ key, value }))
-      : [],
-    contextsArray: initialData?.contexts
-      ? Object.entries(initialData.contexts).map(([key, value]) => ({ key, value }))
-      : [],
     instruction: initialData?.instruction || '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Convert key-value arrays to dicts
-    const agents = Object.fromEntries(
-      (formData.agentsArray || []).filter(a => a.key && a.value).map(a => [a.key, a.value])
-    );
-
-    const contexts = Object.fromEntries(
-      (formData.contextsArray || []).filter(c => c.key && c.value).map(c => [c.key, c.value])
-    );
-
     if (mode === 'edit') {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { name, agentsArray, contextsArray, ...updateData } = formData;
-      onSubmit({
-        ...updateData,
-        agents: Object.keys(agents).length > 0 ? agents : undefined,
-        contexts: Object.keys(contexts).length > 0 ? contexts : undefined,
-      });
+      const { name, ...updateData } = formData;
+      onSubmit(updateData);
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { agentsArray, contextsArray, ...createData } = formData;
-      onSubmit({
-        ...createData,
-        agents: Object.keys(agents).length > 0 ? agents : undefined,
-        contexts: Object.keys(contexts).length > 0 ? contexts : undefined,
-      });
+      onSubmit(formData);
     }
   };
 
-  const addModule = (section: 'providers' | 'tools' | 'hooks', uri?: string) => {
+  const addModule = (section: 'providers', uri?: string) => {
     setFormData({
       ...formData,
       [section]: [...(formData[section] || []), { module: '', source: uri || '' }],
     });
   };
 
-  const removeModule = (section: 'providers' | 'tools' | 'hooks', index: number) => {
+  const removeModule = (section: 'providers', index: number) => {
     const updated = [...(formData[section] || [])];
     updated.splice(index, 1);
     setFormData({ ...formData, [section]: updated });
   };
 
   const updateModule = (
-    section: 'providers' | 'tools' | 'hooks',
+    section: 'providers',
     index: number,
     field: 'module' | 'source' | 'config',
     value: string | Record<string, unknown> | undefined
@@ -111,13 +78,31 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
     setFormData({ ...formData, [section]: updated });
   };
 
+  const addBehavior = (uri?: string) => {
+    setFormData({
+      ...formData,
+      behaviors: [...(formData.behaviors || []), { id: '', source: uri || '' }],
+    });
+  };
+
+  const removeBehavior = (index: number) => {
+    const updated = [...(formData.behaviors || [])];
+    updated.splice(index, 1);
+    setFormData({ ...formData, behaviors: updated });
+  };
+
+  const updateBehavior = (index: number, field: 'id' | 'source', value: string) => {
+    const updated = [...(formData.behaviors || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormData({ ...formData, behaviors: updated });
+  };
 
   const toggleSingleConfig = (field: 'orchestrator' | 'context') => {
     setExpandedConfigs(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
   const toggleListConfig = (
-    section: 'providers' | 'tools' | 'hooks',
+    section: 'providers',
     index: number
   ) => {
     setExpandedConfigs(prev => {
@@ -130,7 +115,6 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
       return { ...prev, [section]: updated };
     });
   };
-
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -230,68 +214,16 @@ export function ProfileForm({ isOpen, onClose, onSubmit, initialData, mode }: Pr
             />
           </div>
 
-          {/* Tools */}
+          {/* Behaviors */}
           <div className="pt-4 border-t">
-            <ModuleListSection
-              title="Tools"
-              modules={formData.tools || []}
-              onAdd={(uri) => addModule('tools', uri)}
-              onRemove={(i) => removeModule('tools', i)}
-              onUpdate={(i, field, value) => updateModule('tools', i, field, value)}
+            <BehaviorListSection
+              behaviors={formData.behaviors || []}
+              onAdd={(uri) => addBehavior(uri)}
+              onRemove={(i) => removeBehavior(i)}
+              onUpdate={(i, field, value) => updateBehavior(i, field, value)}
               showSelector={showSelector}
               setShowSelector={setShowSelector}
               componentRefs={componentRefs}
-              loadingRefs={loadingRefs}
-              expandedConfigs={expandedConfigs.tools}
-              onToggleConfig={(i) => toggleListConfig('tools', i)}
-            />
-          </div>
-
-          {/* Hooks */}
-          <div className="pt-4 border-t">
-            <ModuleListSection
-              title="Hooks"
-              modules={formData.hooks || []}
-              onAdd={(uri) => addModule('hooks', uri)}
-              onRemove={(i) => removeModule('hooks', i)}
-              onUpdate={(i, field, value) => updateModule('hooks', i, field, value)}
-              showSelector={showSelector}
-              setShowSelector={setShowSelector}
-              componentRefs={componentRefs}
-              loadingRefs={loadingRefs}
-              expandedConfigs={expandedConfigs.hooks}
-              onToggleConfig={(i) => toggleListConfig('hooks', i)}
-            />
-          </div>
-
-          {/* Agents */}
-          <div className="pt-4 border-t">
-            <KeyValueEditor
-              label="Agents"
-              items={formData.agentsArray || []}
-              onChange={(items) => setFormData({ ...formData, agentsArray: items })}
-              keyPlaceholder="agent-name"
-              valuePlaceholder="@agents/agent.md or https://..."
-              components={componentRefs?.agents}
-              showSelector={showSelector.section === 'agents'}
-              onShowSelector={() => setShowSelector({ section: 'agents' })}
-              onHideSelector={() => setShowSelector({ section: null })}
-              loadingRefs={loadingRefs}
-            />
-          </div>
-
-          {/* Contexts */}
-          <div className="pt-4 border-t">
-            <KeyValueEditor
-              label="Contexts"
-              items={formData.contextsArray || []}
-              onChange={(items) => setFormData({ ...formData, contextsArray: items })}
-              keyPlaceholder="context-name"
-              valuePlaceholder="@contexts/dir or git+https://..."
-              components={componentRefs?.contexts}
-              showSelector={showSelector.section === 'contexts'}
-              onShowSelector={() => setShowSelector({ section: 'contexts' })}
-              onHideSelector={() => setShowSelector({ section: null })}
               loadingRefs={loadingRefs}
             />
           </div>
@@ -339,8 +271,8 @@ interface ModuleListSectionProps {
   onAdd: (uri?: string) => void;
   onRemove: (index: number) => void;
   onUpdate: (index: number, field: 'module' | 'source' | 'config', value: string | Record<string, unknown> | undefined) => void;
-  showSelector: { section: 'providers' | 'tools' | 'hooks' | 'orchestrator' | 'context' | 'agents' | 'contexts' | null };
-  setShowSelector: (state: { section: 'providers' | 'tools' | 'hooks' | 'orchestrator' | 'context' | 'agents' | 'contexts' | null }) => void;
+  showSelector: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null };
+  setShowSelector: (state: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null }) => void;
   componentRefs?: ComponentRefsResponse;
   loadingRefs: boolean;
   expandedConfigs: Set<number>;
@@ -360,14 +292,12 @@ function ModuleListSection({
   expandedConfigs,
   onToggleConfig,
 }: ModuleListSectionProps) {
-  const sectionKey = title.toLowerCase() as 'providers' | 'tools' | 'hooks';
+  const sectionKey = title.toLowerCase() as 'providers';
   const isShowingSelector = showSelector.section === sectionKey;
 
   const getComponentsForSection = () => {
     if (!componentRefs) return [];
     if (title === 'Providers') return componentRefs.providers;
-    if (title === 'Tools') return componentRefs.tools;
-    if (title === 'Hooks') return componentRefs.hooks;
     return [];
   };
 
@@ -441,6 +371,106 @@ function ModuleListSection({
                 isExpanded={expandedConfigs.has(i)}
                 onToggle={() => onToggleConfig(i)}
               />
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface BehaviorListSectionProps {
+  behaviors: BehaviorRef[];
+  onAdd: (uri?: string) => void;
+  onRemove: (index: number) => void;
+  onUpdate: (index: number, field: 'id' | 'source', value: string) => void;
+  showSelector: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null };
+  setShowSelector: (state: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null }) => void;
+  componentRefs?: ComponentRefsResponse;
+  loadingRefs: boolean;
+}
+
+function BehaviorListSection({
+  behaviors,
+  onAdd,
+  onRemove,
+  onUpdate,
+  showSelector,
+  setShowSelector,
+  componentRefs,
+  loadingRefs,
+}: BehaviorListSectionProps) {
+  const isShowingSelector = showSelector.section === 'behaviors';
+
+  const getComponentsForSection = () => {
+    if (!componentRefs) return [];
+    return componentRefs.behaviors || [];
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-sm font-medium">Behaviors</label>
+        {!isShowingSelector ? (
+          <button
+            type="button"
+            onClick={() => setShowSelector({ section: 'behaviors' })}
+            disabled={loadingRefs}
+            className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+        ) : (
+          <ComponentSelector
+            components={getComponentsForSection()}
+            onSelect={(uri) => {
+              if (uri !== null) {
+                onAdd(uri);
+              } else {
+                onAdd();
+              }
+              setShowSelector({ section: null });
+            }}
+            placeholder="Select or add new..."
+          />
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {behaviors.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed">
+            No behaviors configured
+          </div>
+        ) : (
+          behaviors.map((behavior, i) => (
+            <div key={i} className="border rounded-md p-3">
+              <div className="flex gap-2 items-start">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={behavior.id}
+                    onChange={(e) => onUpdate(i, 'id', e.target.value)}
+                    placeholder="Behavior ID"
+                    className="px-3 py-2 border rounded-md text-sm"
+                    required
+                  />
+                  <input
+                    type="text"
+                    value={behavior.source || ''}
+                    onChange={(e) => onUpdate(i, 'source', e.target.value)}
+                    placeholder="amp://, git+https://, file://..."
+                    className="px-3 py-2 border rounded-md text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  className="p-2 text-destructive hover:text-destructive/80"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           ))
         )}

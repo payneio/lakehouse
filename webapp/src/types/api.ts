@@ -30,6 +30,11 @@ export interface ModuleConfig {
   config?: Record<string, unknown>;
 }
 
+export interface BehaviorRef {
+  id: string;
+  source: string;
+}
+
 export interface SessionConfig {
   orchestrator: ModuleConfig;
   contextManager?: ModuleConfig;
@@ -47,12 +52,14 @@ export interface ProfileDetails {
   isActive: boolean;
   inheritanceChain?: string[];
   providers: ModuleConfig[];
-  tools: ModuleConfig[];
-  hooks: ModuleConfig[];
+  behaviors: BehaviorRef[];
   session?: SessionConfig;
+  instruction?: string;
+  // Legacy fields (v2 profiles)
+  tools?: ModuleConfig[];
+  hooks?: ModuleConfig[];
   agents?: Record<string, string>;
   context?: Record<string, string>;
-  instruction?: string;
 }
 
 export interface DirectoryMetadata {
@@ -126,12 +133,9 @@ export interface CreateProfileRequest {
   version?: string;
   description?: string;
   providers?: ModuleConfig[];
-  tools?: ModuleConfig[];
-  hooks?: ModuleConfig[];
+  behaviors?: BehaviorRef[];
   orchestrator?: ModuleConfig;
   context?: ModuleConfig;
-  agents?: Record<string, string>;
-  contexts?: Record<string, string>;
   instruction?: string;
 }
 
@@ -139,12 +143,9 @@ export interface UpdateProfileRequest {
   version?: string;
   description?: string;
   providers?: ModuleConfig[];
-  tools?: ModuleConfig[];
-  hooks?: ModuleConfig[];
+  behaviors?: BehaviorRef[];
   orchestrator?: ModuleConfig;
   context?: ModuleConfig;
-  agents?: Record<string, string>;
-  contexts?: Record<string, string>;
   instruction?: string;
 }
 
@@ -173,8 +174,5 @@ export interface ComponentRefsResponse {
   orchestrators: ComponentRef[];
   contextManagers: ComponentRef[];
   providers: ComponentRef[];
-  tools: ComponentRef[];
-  hooks: ComponentRef[];
-  agents: ComponentRef[];
-  contexts: ComponentRef[];
+  behaviors: ComponentRef[];
 }

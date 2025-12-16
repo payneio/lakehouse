@@ -50,7 +50,8 @@ export function useMarkSessionRead(sessionId: string | undefined) {
       console.log('[useMarkSessionRead] Clearing timer for session:', sessionId);
       clearTimeout(timer);
     };
-  }, [sessionId, markRead]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]); // markRead omitted intentionally - stable mutation object
 
   // Return mutation in case manual marking is needed
   return markRead;

@@ -4,6 +4,7 @@ import { changeProfile } from "@/api/sessions";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
+import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, ArrowLeft, Play, RefreshCw } from "lucide-react";
@@ -40,6 +41,35 @@ export function SessionView() {
   const [isSending, setIsSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string>("");
   const [executionPanelOpen, setExecutionPanelOpen] = React.useState(false);
+
+  // Scroll container for header visibility (use state so effect re-runs when set)
+  const [scrollContainer, setScrollContainer] = React.useState<HTMLDivElement | null>(null);
+
+  // Track scroll direction for mobile header visibility
+  const scrollDirection = useScrollDirection(10, scrollContainer);
+
+  // Force hide header on message received, resume scroll behavior on scroll
+  const [forceHideHeader, setForceHideHeader] = React.useState(false);
+
+  // Update visibility logic to include force-hide check
+  const isHeaderVisible = !forceHideHeader && scrollDirection === 'up';
+
+  // Debug logging for header visibility
+  React.useEffect(() => {
+    console.log('[SessionView] Header visibility state:', {
+      scrollDirection,
+      forceHideHeader,
+      isHeaderVisible
+    });
+  }, [scrollDirection, forceHideHeader, isHeaderVisible]);
+
+  // Clear force-hide when user scrolls (resume normal behavior)
+  React.useEffect(() => {
+    if (forceHideHeader) {
+      setForceHideHeader(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollDirection]); // Only run when scroll direction changes, not when forceHideHeader changes
 
   // SSE messages ONLY (don't duplicate transcript)
   const [sseMessages, setSseMessages] = React.useState<SessionMessage[]>([]);
@@ -149,6 +179,7 @@ export function SessionView() {
       // Assistant message start
       eventStream.on("assistant_message_start", () => {
         setStreamingContent("");
+        setForceHideHeader(true);
       }),
 
       // Content streaming
@@ -323,7 +354,15 @@ export function SessionView() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b p-4">
+      <div
+        className={`
+          border-b p-4
+          transition-transform duration-300 ease-in-out
+          lg:relative lg:translate-y-0
+          fixed top-0 left-0 right-0 z-50 bg-background
+          ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}
+        `}
+      >
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -378,7 +417,7 @@ export function SessionView() {
               </div>
             </div>
           </div>
-          {/* Execution Panel Toggle */}
+          {/* Execution Panel Toggle - hidden on mobile, shown in header on desktop */}
           <button
             onClick={() => {
               console.log(
@@ -387,7 +426,7 @@ export function SessionView() {
               );
               setExecutionPanelOpen(!executionPanelOpen);
             }}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+            className="hidden lg:flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
             title="Toggle execution trace"
           >
             <Activity className="h-4 w-4" />
@@ -408,6 +447,7 @@ export function SessionView() {
 
       {/* Messages */}
       <MessageList
+        onContainerMount={setScrollContainer}
         messages={allMessages}
         streamingContent={streamingContent}
         currentActivity={(() => {
@@ -434,7 +474,7 @@ export function SessionView() {
       {/* Approval dialog */}
       <ApprovalDialog sessionId={sessionId || ""} />
 
-      {/* Execution Panel */}
+      {/* Execution Panel (has its own mobile button) */}
       <ExecutionPanel
         executionState={executionState.getState()}
         isOpen={executionPanelOpen}

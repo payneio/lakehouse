@@ -121,67 +121,6 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
               </div>
             )}
 
-            {profile.tools.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">Tools ({profile.tools.length})</h4>
-                <div className="space-y-2">
-                  {profile.tools.map((t, i) => (
-                    <ModuleDisplay key={i} module={t} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.hooks.length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">Hooks ({profile.hooks.length})</h4>
-                <div className="space-y-2">
-                  {profile.hooks.map((h, i) => (
-                    <ModuleDisplay key={i} module={h} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.agents && Object.keys(profile.agents).length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">Agents ({Object.keys(profile.agents).length})</h4>
-                <div className="space-y-2">
-                  {Object.entries(profile.agents).map(([name, ref]) => (
-                    <div key={name} className="border rounded-lg p-3 bg-muted/50">
-                      <div className="font-mono text-sm font-semibold">{name}</div>
-                      <div className="text-xs text-muted-foreground mt-1 break-all">{ref}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.context && Object.keys(profile.context).length > 0 && (
-              <div>
-                <h4 className="font-semibold mb-2">Context ({Object.keys(profile.context).length})</h4>
-                <div className="space-y-2">
-                  {Object.entries(profile.context).map(([name, ref]) => (
-                    <div key={name} className="border rounded-lg p-3 bg-muted/50">
-                      <div className="font-mono text-sm font-semibold">{name}</div>
-                      <div className="text-xs text-muted-foreground mt-1 break-all">{ref}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.instruction && (
-              <div>
-                <h4 className="font-semibold mb-2">System Instruction</h4>
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  <pre className="text-sm whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
-                    {profile.instruction}
-                  </pre>
-                </div>
-              </div>
-            )}
-
             {profile.behaviors && profile.behaviors.length > 0 && (
               <div>
                 <h4 className="font-semibold mb-2">Behaviors ({profile.behaviors.length})</h4>
@@ -196,6 +135,17 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {profile.instruction && (
+              <div>
+                <h4 className="font-semibold mb-2">System Instruction</h4>
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <pre className="text-sm whitespace-pre-wrap font-mono overflow-x-auto max-h-96 overflow-y-auto">
+                    {profile.instruction}
+                  </pre>
                 </div>
               </div>
             )}

@@ -29,9 +29,19 @@ pnpm preview
 ```
 ## Environment Variables
 
-Create a `.env` file:
+Create a `.env` file (defaults shown):
 
+```bash
+VITE_API_URL=http://localhost:8420
 ```
-VITE_API_URL=http://localhost:8421
-```
+
+### LAN Access
+
+To access the webapp from other devices on your network:
+
+1. Configure daemon for LAN access
+2. Create `.env.local` with your machine's network address
+3. Restart the webapp
+
+**📖 See [../LAN.md](../LAN.md) for complete setup instructions, troubleshooting, and security considerations.**
 

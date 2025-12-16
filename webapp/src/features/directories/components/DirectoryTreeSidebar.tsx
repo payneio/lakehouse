@@ -2,7 +2,11 @@ import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { DirectoriesList } from './DirectoriesList';
 import { useUnreadCounts } from '@/hooks/useUnreadCounts';
 
-export function DirectoryTreeSidebar() {
+interface DirectoryTreeSidebarProps {
+  onNavigate?: () => void;
+}
+
+export function DirectoryTreeSidebar({ onNavigate }: DirectoryTreeSidebarProps) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -15,6 +19,7 @@ export function DirectoryTreeSidebar() {
 
   const handleSelectDirectory = (path: string) => {
     navigate(`/directories?path=${encodeURIComponent(path)}`);
+    onNavigate?.();
   };
 
   return (

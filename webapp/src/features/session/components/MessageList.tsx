@@ -12,13 +12,15 @@ interface MessageListProps {
   streamingContent?: string;
   currentActivity?: CurrentActivity | null;
   currentTurnThinking?: ThinkingBlock[];
+  onContainerMount?: (element: HTMLDivElement | null) => void;
 }
 
 export function MessageList({
   messages,
   streamingContent,
   currentActivity,
-  currentTurnThinking = []
+  currentTurnThinking = [],
+  onContainerMount
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -38,7 +40,7 @@ export function MessageList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-4 p-4">
+    <div ref={onContainerMount} className="flex-1 overflow-y-auto space-y-4 p-4 pt-[88px] lg:pt-4">
       {messages.map((message, idx) => {
         const isUser = message.role === 'user';
         return (

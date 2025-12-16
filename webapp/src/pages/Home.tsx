@@ -12,12 +12,20 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+interface SystemInfo {
+  daemonPath: string;
+  daemonPid: number;
+  webappPath: string;
+  webappUrl: string;
+}
+
 export function HomePage() {
   const [apiStatus, setApiStatus] = useState<
     "checking" | "connected" | "error"
   >("checking");
   const [apiVersion, setApiVersion] = useState<string>("");
   const [dataPath, setDataPath] = useState<string>("");
+  const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
 
   useEffect(() => {
     // Check API connection on mount
@@ -31,6 +39,23 @@ export function HomePage() {
         setApiStatus("connected");
         setApiVersion(data.version || "unknown");
         setDataPath(data.rootDir || "");
+
+        // Fetch system info for debugging
+        try {
+          const infoResponse = await fetch(`${BASE_URL}/api/info`, {
+            mode: "cors",
+          });
+          const infoData = await infoResponse.json();
+          setSystemInfo({
+            daemonPath: infoData.daemon_path,
+            daemonPid: infoData.daemon_pid,
+            webappPath: infoData.webapp_path,
+            webappUrl: infoData.webapp_url,
+          });
+        } catch {
+          // System info is optional, don't fail if it's not available
+          console.warn("Could not fetch system info");
+        }
       } catch {
         setApiStatus("error");
       }
@@ -57,6 +82,11 @@ export function HomePage() {
             version={apiVersion}
             dataPath={dataPath}
           />
+
+          {/* Debug Info */}
+          {systemInfo && (
+            <DebugInfo systemInfo={systemInfo} />
+          )}
 
           {/* Primary CTA */}
           <div className="pt-4">
@@ -336,5 +366,51 @@ function ResourceLink({ icon, title, href, isPlaceholder }: ResourceLinkProps) {
       {icon}
       <span className="text-sm">{title}</span>
     </Link>
+  );
+}
+
+interface DebugInfoProps {
+  systemInfo: SystemInfo;
+}
+
+function DebugInfo({ systemInfo }: DebugInfoProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className="mt-4 max-w-3xl mx-auto">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+      >
+        <Settings className="h-3 w-3" />
+        {isExpanded ? "Hide" : "Show"} system info
+      </button>
+
+      {isExpanded && (
+        <div className="mt-3 p-4 border rounded-lg bg-muted/30 text-left space-y-2">
+          <div className="text-xs font-mono space-y-1">
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground min-w-[100px]">Daemon:</span>
+              <span className="break-all">{systemInfo.daemonPath}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground min-w-[100px]">Daemon PID:</span>
+              <span>{systemInfo.daemonPid}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground min-w-[100px]">Webapp:</span>
+              <span className="break-all">{systemInfo.webappPath}</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-muted-foreground min-w-[100px]">Webapp URL:</span>
+              <span>{systemInfo.webappUrl}</span>
+            </div>
+          </div>
+          <div className="pt-2 border-t text-xs text-muted-foreground">
+            This info helps with debugging. Daemon and webapp paths show where the services are running from.
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

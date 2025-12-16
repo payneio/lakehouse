@@ -100,14 +100,14 @@ export function ExecutionPanel({ executionState, isOpen, onClose, onOpen }: Exec
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          {/* Mobile: Bottom edge button */}
+          {/* Mobile: Bottom edge button - positioned above input area */}
           <button
             onClick={(e) => {
               console.log('[ExecutionPanel] Mobile button clicked - opening panel');
               e.stopPropagation();
               handleOpen();
             }}
-            className="md:hidden fixed bottom-4 right-4 bg-blue-600 text-white rounded-full px-4 py-2 shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2"
+            className="md:hidden fixed bottom-20 right-4 bg-blue-600 text-white rounded-full px-4 py-2 shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2"
             aria-label="Open execution panel"
           >
             <span className="text-sm font-medium">
