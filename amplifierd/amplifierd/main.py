@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from amplifier_library.config.loader import load_config
 
+from .config.loader import load_config as load_daemon_config
 from .routers import amplified_directories_router
 from .routers import automations_router
 from .routers import directories_router
@@ -141,17 +142,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware for local development
+# Add CORS middleware - origins configured in daemon.yaml
+daemon_config = load_daemon_config()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:5174",  # Alternative port
-    ],
+    allow_origins=daemon_config.daemon.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 
 # Include routers
 app.include_router(amplified_directories_router)
@@ -181,4 +181,29 @@ async def root() -> dict[str, str]:
         "description": "REST API daemon for amplifier-core",
         "docs": "/docs",
         "openapi": "/openapi.json",
+    }
+
+
+@app.get("/api/info")
+async def info() -> dict[str, str | int]:
+    """Get daemon and webapp location info.
+
+    Returns:
+        Dictionary with daemon/webapp paths and status
+    """
+    import os
+
+    # Get daemon info
+    daemon_path = str(Path(__file__).parent.parent)
+    daemon_pid = os.getpid()
+
+    # Get webapp info
+    webapp_path = str(Path(__file__).parent.parent.parent / "webapp")
+    webapp_url = "http://localhost:5173"
+
+    return {
+        "daemon_path": daemon_path,
+        "daemon_pid": daemon_pid,
+        "webapp_path": webapp_path,
+        "webapp_url": webapp_url,
     }

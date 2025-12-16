@@ -222,10 +222,9 @@ async def create_session(
         mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
 
         # Resolve profile instruction mentions
-        from amplifier_library.storage import get_share_dir
+        from amplifier_library.storage.paths import get_profiles_dir
 
-        share_dir = get_share_dir()
-        compiled_profile_dir = share_dir / "profiles" / profile_name
+        compiled_profile_dir = get_profiles_dir() / profile_name
         profile_context_messages = _generate_profile_context_messages(
             profile_name, compiled_profile_dir, Path(absolute_amplified_dir), data_path
         )
@@ -1096,10 +1095,9 @@ async def change_session_profile(
         new_mount_plan["session"]["settings"]["profile_name"] = profile_name
 
         # 3. Regenerate profile context messages for new profile
-        from amplifier_library.storage import get_share_dir
+        from amplifier_library.storage.paths import get_profiles_dir
 
-        share_dir = get_share_dir()
-        new_compiled_profile_dir = share_dir / "profiles" / profile_name
+        new_compiled_profile_dir = get_profiles_dir() / profile_name
         profile_context_messages = _generate_profile_context_messages(
             profile_name, new_compiled_profile_dir, absolute_amplified_dir, data_path
         )

@@ -30,10 +30,10 @@ log_level: "info"
 workers: 1
 
 # Data directory root
-# Default: "/data" (defined in DaemonSettings class)
+# Default: "~/amplifier" (defined in DaemonSettings class)
 # Can be overridden with AMPLIFIERD_DATA_PATH environment variable
 # Supports: absolute paths (/data), ~ for home directory (~), relative paths (./data)
-# data_path: "/data"
+# data_path: "~/amplifier"
 """
 
 

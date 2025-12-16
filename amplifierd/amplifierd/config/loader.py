@@ -110,22 +110,29 @@ def _apply_env_overrides(config: Config) -> Config:
     # Check for daemon overrides
     daemon_overrides = {}
     for key in [
+        "host",
+        "port",
+        "workers",
+        "log_level",
+        "cors_origins",
         "watch_for_changes",
         "watch_interval_seconds",
         "cache_ttl_hours",
         "enable_metrics",
-        "log_level",
     ]:
         env_var = f"AMPLIFIERD_DAEMON_{key.upper()}"
         if env_var in os.environ:
             value = os.environ[env_var]
             # Parse value based on type
-            if key == "watch_interval_seconds":
+            if key == "port" or key == "workers" or key == "watch_interval_seconds":
                 daemon_overrides[key] = int(value)
             elif key == "cache_ttl_hours":
                 daemon_overrides[key] = int(value) if value.lower() != "none" else None
-            elif key == "log_level":
-                daemon_overrides[key] = value.upper()
+            elif key in ("host", "log_level"):
+                daemon_overrides[key] = value
+            elif key == "cors_origins":
+                # Parse comma-separated list
+                daemon_overrides[key] = [origin.strip() for origin in value.split(",")]
             else:
                 daemon_overrides[key] = value.lower() in ("true", "1", "yes")
             logger.info(f"Environment override: daemon.{key} = {daemon_overrides[key]}")

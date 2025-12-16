@@ -18,17 +18,42 @@ from amplifierd.module_resolver import DaemonModuleSourceResolver
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_mount_plan_with_real_profile():
-    """Test mount plan loading with actual compiled profile."""
+    """Integration test verifying mount plan works with real compiled profiles.
+
+    This test validates that the DaemonModuleSourceResolver can locate and resolve
+    all modules referenced in a mount plan when using compiled profile directories.
+
+    Environment Requirements:
+    - Compiled profile directories in {share_dir}/profiles/
+    - Valid mount plan configuration file
+    - foundation/base profile compiled and available
+
+    What This Tests:
+    - Mount plan structure validation
+    - Module resolver can find orchestrator, context, providers, tools, hooks
+    - All module paths exist and are accessible
+
+    To Run Locally:
+    1. Ensure daemon has been run at least once to create .amplifierd/share
+    2. Compile required profiles
+    3. Run: pytest -m integration tests/daemon/test_mount_plan_integration.py
+    """
     # Use real share directory
     share_dir = Path("/data/repos/msft/payneio/amplifierd/.amplifierd/share")
 
     if not share_dir.exists():
-        pytest.skip("Share directory not found - run profile compilation first")
+        pytest.skip(
+            "Integration test requires compiled profiles. "
+            "Run amplifierd daemon at least once to create share directory structure."
+        )
 
     # Check if foundation/base profile exists
     profile_dir = share_dir / "profiles" / "foundation" / "base"
     if not profile_dir.exists():
-        pytest.skip("foundation/base profile not compiled - compile profile first")
+        pytest.skip(
+            "Integration test requires foundation/base profile. "
+            "Ensure profile compilation has completed successfully."
+        )
 
     # Create resolver
     resolver = DaemonModuleSourceResolver(share_dir)
@@ -109,17 +134,44 @@ async def test_mount_plan_with_real_profile():
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_amplifier_session_with_resolver():
-    """Test creating AmplifierSession with resolver (requires actual profile)."""
+    """Integration test for AmplifierSession initialization with DaemonModuleSourceResolver.
+
+    This test verifies that all modules in a mount plan can be successfully resolved
+    and are ready for AmplifierSession initialization.
+
+    Environment Requirements:
+    - Compiled profiles in .amplifierd/share/profiles/
+    - foundation/base profile available
+    - Example mount plan file present
+
+    What This Tests:
+    - All module types (orchestrator, context, providers, tools, hooks) can be resolved
+    - Module paths are valid and accessible
+    - Resolver integration readiness for AmplifierSession
+
+    Note: Full AmplifierSession integration pending - currently tests module resolution only.
+
+    To Run Locally:
+    1. Start amplifierd daemon to initialize share directory
+    2. Ensure profiles are compiled
+    3. Run: pytest -m integration tests/daemon/test_mount_plan_integration.py
+    """
 
     # Use real share directory
     share_dir = Path("/data/repos/msft/payneio/amplifierd/.amplifierd/share")
 
     if not share_dir.exists():
-        pytest.skip("Share directory not found")
+        pytest.skip(
+            "Integration test requires share directory. "
+            "Run amplifierd daemon to initialize required directory structure."
+        )
 
     profile_dir = share_dir / "profiles" / "foundation" / "base"
     if not profile_dir.exists():
-        pytest.skip("foundation/base profile not compiled")
+        pytest.skip(
+            "Integration test requires foundation/base profile. "
+            "Compile profiles before running integration tests."
+        )
 
     # Load mount plan
     mount_plan_file = Path("working/example-mount-plan-with-resolver.json")

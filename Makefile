@@ -116,7 +116,7 @@ daemon-clean:
 
 webapp-dev:
 	@echo "Starting webapp development server..."
-	cd webapp && pnpm run dev
+	cd webapp && pnpm run dev --host
 
 webapp-test:
 	@echo "Checking for webapp tests..."

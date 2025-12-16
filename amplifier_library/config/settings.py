@@ -48,25 +48,55 @@ class DaemonSettings(BaseSettings):
     log_level: str = "info"
     workers: int = 1
 
-    data_path: str = "/data"
+    data_path: str = "~/amplifier"
 
     @field_validator('data_path')
     @classmethod
     def expand_and_resolve_path(cls, v: str) -> str:
-        """Expand ~ and resolve to absolute path.
+        """Expand ~ and resolve to absolute path, creating if needed.
 
         This allows users to specify paths like:
-        - "~" or "~/data" (expands to user home)
+        - "~" or "~/amplifier" (expands to user home)
         - "./data" (resolves relative to cwd)
         - "/data" (absolute paths pass through)
+
+        The directory will be created with restrictive permissions (700)
+        if it doesn't exist.
 
         Args:
             v: Path string (may contain ~ or be relative)
 
         Returns:
             Absolute path as string
+
+        Raises:
+            ValueError: If path exists but is not a directory
+            PermissionError: If directory cannot be created
         """
-        return str(Path(v).expanduser().resolve())
+        import logging
+        from pathlib import Path
+
+        logger = logging.getLogger(__name__)
+        path = Path(v).expanduser().resolve()
+
+        # If path exists, validate it's a directory
+        if path.exists():
+            if not path.is_dir():
+                raise ValueError(f"Data path exists but is not a directory: {path}")
+            return str(path)
+
+        # Create directory with restrictive permissions
+        try:
+            path.mkdir(mode=0o700, parents=False, exist_ok=True)
+            logger.info(f"Created data directory: {path} (permissions: 700)")
+            logger.info(f"Amplified directories within this path will become available projects")
+        except FileNotFoundError:
+            # Parent directory doesn't exist - don't create it
+            raise ValueError(f"Parent directory does not exist for data path: {path}")
+        except PermissionError as e:
+            raise PermissionError(f"Cannot create data directory: {path}") from e
+
+        return str(path)
 
     # Profile compilation behavior on startup
     auto_profile_build_on_start: bool = True

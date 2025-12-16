@@ -380,6 +380,7 @@ class AutomationScheduler:
 
             # Generate mount plan
             from amplifier_library.storage import get_share_dir
+            from amplifier_library.storage.paths import get_profiles_dir
 
             from ..services.mount_plan_service import MountPlanService
 
@@ -438,7 +439,7 @@ class AutomationScheduler:
             # Resolve runtime mentions
             from ..services.mention_resolver import MentionResolver
 
-            compiled_profile_dir = share_dir / "profiles" / profile_name
+            compiled_profile_dir = get_profiles_dir() / profile_name
             resolver = MentionResolver(
                 compiled_profile_dir=compiled_profile_dir,
                 amplified_dir=Path(absolute_amplified_dir),

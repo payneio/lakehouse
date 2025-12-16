@@ -7,7 +7,8 @@ import logging
 import sys
 
 import uvicorn
-from amplifier_library.config.loader import load_config
+
+from .config.loader import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +23,15 @@ def main() -> None:
         config = load_config()
 
         # Configure logging level
-        log_level = config.log_level.lower()
+        log_level = config.daemon.log_level.lower()
 
         # Start uvicorn server
         uvicorn.run(
             "amplifierd.main:app",
-            host=config.host,
-            port=config.port,
+            host=config.daemon.host,
+            port=config.daemon.port,
             log_level=log_level,
-            workers=config.workers,
+            workers=config.daemon.workers,
         )
 
     except KeyboardInterrupt:

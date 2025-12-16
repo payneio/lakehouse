@@ -200,10 +200,12 @@ class TestDaemonSettings:
 class TestDaemonSettingsPathExpansion:
     """Test DaemonSettings path expansion validator."""
 
-    def test_data_path_absolute_unchanged(self) -> None:
+    def test_data_path_absolute_unchanged(self, tmp_path: Path) -> None:
         """Absolute paths should remain unchanged."""
-        settings = DaemonSettings(data_path="/absolute/path")
-        assert settings.data_path == "/absolute/path"
+        test_dir = tmp_path / "absolute_path"
+        test_dir.mkdir()
+        settings = DaemonSettings(data_path=str(test_dir))
+        assert settings.data_path == str(test_dir)
 
     def test_data_path_tilde_expansion(self) -> None:
         """Tilde should expand to user home directory."""
@@ -238,8 +240,35 @@ class TestDaemonSettingsPathExpansion:
         expected = str(Path.home() / "custom")
         assert settings.data_path == expected
 
-    def test_data_path_default_is_absolute(self) -> None:
-        """Default data_path should be absolute."""
+    def test_data_path_default_is_home_amplifier(self) -> None:
+        """Default data_path should be ~/amplifier expanded to absolute."""
         settings = DaemonSettings()
-        # Default is "/data" which is already absolute
-        assert settings.data_path.startswith("/")
+        expected = str(Path("~/amplifier").expanduser().resolve())
+        assert settings.data_path == expected
+
+    def test_data_path_creates_directory(self, tmp_path: Path) -> None:
+        """data_path should auto-create if it doesn't exist."""
+        new_dir = tmp_path / "new_amplifier"
+        assert not new_dir.exists()
+
+        settings = DaemonSettings(data_path=str(new_dir))
+
+        assert new_dir.exists()
+        assert new_dir.is_dir()
+        # Check permissions (700 = owner rwx only)
+        assert oct(new_dir.stat().st_mode)[-3:] == '700'
+
+    def test_data_path_fails_if_file_exists(self, tmp_path: Path) -> None:
+        """data_path should fail if path exists as a file."""
+        file_path = tmp_path / "amplifier_file"
+        file_path.touch()
+
+        with pytest.raises(ValueError, match="not a directory"):
+            DaemonSettings(data_path=str(file_path))
+
+    def test_data_path_fails_if_parent_missing(self, tmp_path: Path) -> None:
+        """data_path should fail if parent directory doesn't exist."""
+        missing_parent = tmp_path / "missing" / "amplifier"
+
+        with pytest.raises(ValueError, match="Parent directory does not exist"):
+            DaemonSettings(data_path=str(missing_parent))

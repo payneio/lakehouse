@@ -46,6 +46,38 @@ class StartupConfig(BaseModel):
 class DaemonConfig(BaseModel):
     """Configuration for daemon runtime behavior."""
 
+    # Uvicorn server settings
+    host: str = Field(
+        default="127.0.0.1",
+        description="Host to bind to (use '0.0.0.0' for LAN access)",
+    )
+    port: int = Field(
+        default=8420,
+        ge=1024,
+        le=65535,
+        description="Port to listen on",
+    )
+    workers: int = Field(
+        default=1,
+        ge=1,
+        le=16,
+        description="Number of uvicorn workers",
+    )
+    log_level: str = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+
+    # CORS settings
+    cors_origins: list[str] = Field(
+        default=[
+            "http://localhost:5173",  # Vite dev server
+            "http://localhost:5174",  # Alternative port
+        ],
+        description="CORS allowed origins - add your LAN hostname/IP if accessing from network (e.g., 'http://civil.lan:5173')",
+    )
+
+    # Cache and monitoring settings
     watch_for_changes: bool = Field(
         default=False,
         description="Watch for file system changes and auto-rebuild (future feature)",
@@ -64,10 +96,6 @@ class DaemonConfig(BaseModel):
     enable_metrics: bool = Field(
         default=True,
         description="Enable collection of performance metrics",
-    )
-    log_level: str = Field(
-        default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
 
 

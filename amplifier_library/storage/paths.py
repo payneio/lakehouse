@@ -19,8 +19,10 @@ def get_home_dir() -> Path:
     Returns:
         Path to root directory (default: .amplifierd)
     """
-    root = os.environ.get("AMPLIFIERD_HOME", ".amplifierd")
-    return Path(root).resolve()
+    env_home = os.environ.get("AMPLIFIERD_HOME")
+    if env_home:
+        return Path(env_home).resolve()
+    return Path.home() / ".amplifierd"
 
 
 def get_config_dir() -> Path:
@@ -93,7 +95,7 @@ def get_log_dir() -> Path:
         >>> log_dir = get_log_dir()
         >>> assert log_dir.name == "amplifierd" or "AMPLIFIERD_LOG_DIR" in os.environ
     """
-    log_dir: Path = get_home_dir() / "logs" / "amplifierd"
+    log_dir: Path = get_state_dir() / "logs" / "amplifierd"
 
     env_override: str | None = os.environ.get("AMPLIFIERD_LOG_DIR")
     if env_override is not None:

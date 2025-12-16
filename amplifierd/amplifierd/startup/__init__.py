@@ -80,6 +80,7 @@ async def handle_startup_updates(config: StartupConfig) -> None:
         from amplifier_library.services.registry_service import RegistryService
         from amplifier_library.storage import get_cache_dir
         from amplifier_library.storage import get_share_dir
+        from amplifier_library.storage.paths import get_profiles_dir
         from amplifierd.services.ref_resolution import RefResolutionService
 
         # STEP 1: Refresh registries
@@ -129,7 +130,7 @@ async def handle_startup_updates(config: StartupConfig) -> None:
         logger.info(f"Parsed {len(profile_refs)} profile references")
 
         # STEP 3.5: Delete existing registry profiles (will be rebuilt)
-        profiles_dir = share_dir / "profiles"
+        profiles_dir = get_profiles_dir()
         logger.info("Deleting existing registry profiles for rebuild...")
         if profiles_dir.exists():
             for profile_dir in profiles_dir.iterdir():

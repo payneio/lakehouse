@@ -147,7 +147,7 @@ async def send_message_for_execution(
         from pathlib import Path
 
         from amplifier_library.config.loader import load_config
-        from amplifier_library.storage import get_share_dir
+        from amplifier_library.storage.paths import get_profiles_dir
 
         from ..services.mention_resolver import MentionResolver
 
@@ -160,8 +160,7 @@ async def send_message_for_execution(
         profile_name = mount_plan["session"]["settings"]["profile_name"]
 
         # Get compiled profile directory
-        share_dir = get_share_dir()
-        compiled_profile_dir = share_dir / "profiles" / profile_name
+        compiled_profile_dir = get_profiles_dir() / profile_name
 
         # Resolve runtime mentions
         resolver = MentionResolver(
