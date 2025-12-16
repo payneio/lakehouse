@@ -61,6 +61,7 @@ class SessionStreamManager:
         # ExecutionRunner (created on-demand)
         self._runner: ExecutionRunner | None = None
         self._runner_initialized = False
+        self._hooks_mounted = False
 
         logger.info(f"Created SessionStreamManager for {session_id}")
 
@@ -89,6 +90,7 @@ class SessionStreamManager:
                 session_id=self.session_id,
             )
             self._runner_initialized = False
+            self._hooks_mounted = False
             logger.info(f"Created ExecutionRunner for session {self.session_id}")
 
         if not self._runner_initialized:
@@ -98,6 +100,12 @@ class SessionStreamManager:
                 await self._runner._ensure_session()
             logger.info(f"AmplifierSession initialized for session {self.session_id}")
             self._runner_initialized = True
+
+        # Always ensure hooks are mounted when session is available
+        if self._runner is not None and self._runner._session is not None and not self._hooks_mounted:
+            await self.mount_hooks(self._runner)
+            self._hooks_mounted = True
+            logger.info(f"Hooks mounted for session {self.session_id}")
 
         return self._runner
 
@@ -148,6 +156,7 @@ class SessionStreamManager:
             await self._runner.cleanup()
             self._runner = None
         self._runner_initialized = False
+        self._hooks_mounted = False
         logger.info(f"Updated mount plan for session {self.session_id}")
 
     async def cleanup(self: "SessionStreamManager") -> None:
@@ -156,4 +165,5 @@ class SessionStreamManager:
             await self._runner.cleanup()
             self._runner = None
         self._runner_initialized = False
+        self._hooks_mounted = False
         logger.info(f"Cleaned up SessionStreamManager for {self.session_id}")
