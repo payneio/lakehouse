@@ -26,7 +26,13 @@ dependencies = [
     "anthropic>=0.75.0",
     "bs4>=0.0.2",
     "apscheduler>=3.10.0",
+    "psutil>=5.9.0",
+    "click>=8.1.0",
 ]
+
+[project.scripts]
+lakehouse = "amplifierd.cli:main"
+amplifierd = "amplifierd.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["amplifierd*"]

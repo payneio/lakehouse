@@ -41,19 +41,38 @@ uvicorn amplifierd.main:app --host 0.0.0.0 --port 8420
 
 ### Configuration
 
-Configuration is loaded from `~/.config/amplifierd/daemon.yaml`:
+Configuration is loaded from `.amplifierd/config/daemon.yaml`:
 
 ```yaml
-# Server settings
-host: "127.0.0.1"
-port: 8420
-log_level: "info"
-workers: 1
+# Startup behavior
+startup:
+  auto_discover_profiles: true
+  auto_compile_profiles: true
+  check_cache_on_startup: true
+  update_stale_caches: false
+  parallel_compilation: true
+  max_parallel_workers: 4
 
-# Data directory root (default: /data)
-# Supports: absolute paths (/data), ~ for home directory (~), relative paths (./data)
-data_path: "/data"
+# Runtime settings
+daemon:
+  # Server settings
+  host: "127.0.0.1"  # Use "0.0.0.0" for LAN access
+  port: 8420
+  workers: 1
+  log_level: "INFO"
+
+  # CORS configuration
+  cors_origins:
+    - "http://localhost:5173"  # Add your LAN URLs here for network access
+
+  # Cache and monitoring
+  watch_for_changes: false
+  watch_interval_seconds: 60
+  cache_ttl_hours: null
+  enable_metrics: true
 ```
+
+**For LAN access:** See [../LAN.md](../LAN.md) for complete setup including CORS configuration.
 
 Environment variables override YAML settings (prefixed with `AMPLIFIERD_`):
 
