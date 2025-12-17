@@ -1051,6 +1051,93 @@ async def get_execution_trace(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
+class SessionEventsResponse(BaseModel):
+    """Response model for raw session events."""
+
+    events: list[dict[str, Any]]
+    total: int
+    has_more: bool = PydanticField(alias="hasMore")
+
+    model_config = {"populate_by_name": True}
+
+
+@router.get("/{session_id}/events")
+async def get_session_events(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+    limit: int = 500,
+    offset: int = 0,
+    level: str | None = None,
+    event_type: str | None = None,
+) -> SessionEventsResponse:
+    """Get raw events from session's events.jsonl file.
+
+    Returns events in chronological order with optional filtering.
+    Useful for debugging and detailed event inspection.
+
+    Args:
+        session_id: Session identifier
+        limit: Maximum events to return (default 500)
+        offset: Number of events to skip (default 0)
+        level: Filter by log level (INFO, DEBUG, WARNING, ERROR)
+        event_type: Filter by event type prefix (e.g., "tool:", "llm:")
+
+    Returns:
+        SessionEventsResponse with events array, total count, and hasMore flag
+
+    Raises:
+        HTTPException:
+            - 404 if session not found
+            - 500 for read errors
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        state_dir = get_state_dir()
+        events_file = state_dir / "sessions" / session_id / "events.jsonl"
+
+        if not events_file.exists():
+            return SessionEventsResponse(events=[], total=0, hasMore=False)
+
+        # Read and parse all events
+        all_events: list[dict[str, Any]] = []
+        with open(events_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                    all_events.append(event)
+                except json.JSONDecodeError:
+                    # Skip malformed lines
+                    continue
+
+        # Apply filters
+        filtered_events = all_events
+        if level:
+            level_upper = level.upper()
+            filtered_events = [e for e in filtered_events if e.get("lvl", "").upper() == level_upper]
+        if event_type:
+            # Support prefix matching (e.g., "tool:" matches "tool:pre", "tool:post")
+            filtered_events = [e for e in filtered_events if e.get("event", "").startswith(event_type)]
+
+        # Pagination
+        total = len(filtered_events)
+        paginated = filtered_events[offset : offset + limit]
+        has_more = offset + limit < total
+
+        return SessionEventsResponse(events=paginated, total=total, hasMore=has_more)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Failed to load events for {session_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
 @router.post("/{session_id}/change-profile", response_model=SessionMetadata)
 async def change_session_profile(
     session_id: str,

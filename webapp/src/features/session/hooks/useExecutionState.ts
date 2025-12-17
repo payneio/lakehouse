@@ -74,7 +74,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   // Initialize state with historical trace (in effect, not during render)
   useEffect(() => {
     if (historicalTrace?.turns && !initializedRef.current) {
-      console.log('[useExecutionState] Initializing with historical trace:', historicalTrace.turns.length, 'turns');
       stateRef.current.turns = historicalTrace.turns;
       initializedRef.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync ref state to React after async data load
@@ -114,7 +113,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
 
   // Start new turn
   const startTurn = useCallback((userMessage: string) => {
-    console.log('[useExecutionState] Starting turn with message:', userMessage);
     const turn: Turn = {
       id: generateId(),
       userMessage,
@@ -127,7 +125,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
 
     stateRef.current.currentTurn = turn;
     stateRef.current.turns.push(turn);
-    console.log('[useExecutionState] Current turns count:', stateRef.current.turns.length);
     forceUpdate();
   }, [forceUpdate]);
 
@@ -145,14 +142,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   // Add tool to current turn
   const addTool = useCallback(
     (toolName: string, toolInput?: Record<string, unknown>, parallelGroupId?: string) => {
-      console.log('[useExecutionState] addTool called with:', {
-        toolName,
-        toolInput,
-        parallelGroupId
-      });
-
       if (!stateRef.current.currentTurn) {
-        console.warn('[useExecutionState] No current turn when adding tool');
         return;
       }
 
@@ -171,21 +161,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
         subAgentName,
       };
 
-      console.log('[useExecutionState] Created tool object:', tool);
-
       stateRef.current.currentTurn.tools.push(tool);
-
-      console.log('[useExecutionState] Tool added. Current turn state:', {
-        toolCount: stateRef.current.currentTurn.tools.length,
-        tools: stateRef.current.currentTurn.tools.map(t => ({
-          id: t.id,
-          name: t.name,
-          parallelGroupId: t.parallelGroupId,
-          status: t.status
-        }))
-      });
-
-      // Trigger re-render
       forceUpdate();
     },
     [forceUpdate]
@@ -194,14 +170,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   // Update tool status
   const updateTool = useCallback(
     (toolName: string, parallelGroupId: string | undefined, updates: Partial<ToolCall>) => {
-      console.log('[useExecutionState] updateTool called with:', {
-        toolName,
-        parallelGroupId,
-        updates
-      });
-
       if (!stateRef.current.currentTurn) {
-        console.warn('[useExecutionState] No current turn when updating tool');
         return;
       }
 
@@ -217,18 +186,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
       });
 
       if (tool) {
-        console.log('[useExecutionState] Tool BEFORE update:', {
-          id: tool.id,
-          name: tool.name,
-          parallelGroupId: tool.parallelGroupId,
-          status: tool.status,
-          result: tool.result,
-          duration: tool.duration
-        });
-
-        console.log('[useExecutionState] Setting result to:', updates.result);
-        console.log('[useExecutionState] Result type:', typeof updates.result);
-
         Object.assign(tool, updates);
 
         // Calculate duration if endTime is set
@@ -236,32 +193,12 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
           tool.duration = updates.endTime - tool.startTime;
         }
 
-        console.log('[useExecutionState] Tool AFTER update:', {
-          id: tool.id,
-          name: tool.name,
-          parallelGroupId: tool.parallelGroupId,
-          status: tool.status,
-          result: tool.result,
-          duration: tool.duration
-        });
-
-        console.log('[useExecutionState] Tool.result after update:', tool.result);
-
         // Update metrics if tool completed
         if (updates.status === 'completed' || updates.status === 'error') {
           stateRef.current.metrics = calculateMetrics();
         }
 
-        // Trigger re-render
         forceUpdate();
-      } else {
-        console.warn('[useExecutionState] Tool not found with name:', toolName, 'parallelGroupId:', parallelGroupId);
-        console.warn('[useExecutionState] Available tools:', stateRef.current.currentTurn.tools.map(t => ({
-          id: t.id,
-          name: t.name,
-          parallelGroupId: t.parallelGroupId,
-          status: t.status
-        })));
       }
     },
     [calculateMetrics, forceUpdate]
@@ -285,30 +222,12 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   // Get current activity (for inline display)
   const getCurrentActivity = useCallback((): CurrentActivity | null => {
     const currentTurn = stateRef.current.currentTurn;
-    console.log('[getCurrentActivity] Current turn:', currentTurn ? {
-      id: currentTurn.id,
-      status: currentTurn.status,
-      toolsCount: currentTurn.tools.length,
-      tools: currentTurn.tools.map(t => ({
-        id: t.id,
-        name: t.name,
-        status: t.status
-      }))
-    } : null);
-
     if (!currentTurn) return null;
 
     // Check for active tool
     const activeTool = currentTurn.tools.find(
       (t) => t.status === 'starting' || t.status === 'running'
     );
-
-    console.log('[getCurrentActivity] Active tool:', activeTool ? {
-      id: activeTool.id,
-      name: activeTool.name,
-      status: activeTool.status,
-      isSubAgent: activeTool.isSubAgent
-    } : null);
 
     if (activeTool) {
       if (activeTool.isSubAgent) {

@@ -66,3 +66,39 @@ export const updateSession = (
     method: 'PATCH',
     body: JSON.stringify(updates),
   });
+
+// Session events types
+export interface SessionEvent {
+  event: string;
+  lvl?: string;
+  ts: string;
+  data?: Record<string, unknown>;
+  session_id?: string;
+}
+
+export interface SessionEventsResponse {
+  events: SessionEvent[];
+  total: number;
+  hasMore: boolean;
+}
+
+export const getSessionEvents = (
+  sessionId: string,
+  params?: {
+    limit?: number;
+    offset?: number;
+    level?: string;
+    eventType?: string;
+  }
+) => {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+  if (params?.level) searchParams.set('level', params.level);
+  if (params?.eventType) searchParams.set('event_type', params.eventType);
+
+  const query = searchParams.toString();
+  return fetchApi<SessionEventsResponse>(
+    `/api/v1/sessions/${sessionId}/events${query ? `?${query}` : ''}`
+  );
+};

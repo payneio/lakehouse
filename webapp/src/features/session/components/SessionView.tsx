@@ -7,7 +7,7 @@ import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, Play, RefreshCw } from "lucide-react";
+import { Activity, ArrowLeft, FileText, Play, RefreshCw } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router";
 import { useExecutionState } from "../hooks/useExecutionState";
@@ -16,6 +16,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ExecutionPanel } from "./ExecutionPanel";
 import { MessageInput } from "./MessageInput";
 import { MessageList } from "./MessageList";
+import { SessionLogDialog } from "./SessionLogDialog";
 import { ToolCallDisplay } from "./ToolCallDisplay";
 
 interface MessageEventData {
@@ -41,6 +42,7 @@ export function SessionView() {
   const [isSending, setIsSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string>("");
   const [executionPanelOpen, setExecutionPanelOpen] = React.useState(false);
+  const [logDialogOpen, setLogDialogOpen] = React.useState(false);
 
   // Scroll container for header visibility (use state so effect re-runs when set)
   const [scrollContainer, setScrollContainer] = React.useState<HTMLDivElement | null>(null);
@@ -53,15 +55,6 @@ export function SessionView() {
 
   // Update visibility logic to include force-hide check
   const isHeaderVisible = !forceHideHeader && scrollDirection === 'up';
-
-  // Debug logging for header visibility
-  React.useEffect(() => {
-    console.log('[SessionView] Header visibility state:', {
-      scrollDirection,
-      forceHideHeader,
-      isHeaderVisible
-    });
-  }, [scrollDirection, forceHideHeader, isHeaderVisible]);
 
   // Clear force-hide when user scrolls (resume normal behavior)
   React.useEffect(() => {
@@ -85,16 +78,6 @@ export function SessionView() {
 
   // Auto-mark session as read after viewing for 2 seconds
   useMarkSessionRead(sessionId);
-
-  // Log execution state for debugging
-  React.useEffect(() => {
-    const state = executionState.getState();
-    console.log("[SessionView] Execution state:", {
-      turnsCount: state.turns.length,
-      currentTurn: state.currentTurn,
-      metrics: state.metrics,
-    });
-  }, [executionState]);
 
   // Fetch available profiles
   const { data: profiles } = useQuery({
@@ -163,21 +146,15 @@ export function SessionView() {
     const unsubscribers = [
       // User message saved
       eventStream.on("user_message_saved", (data: unknown) => {
-        console.log("[SessionView] user_message_saved event:", data);
         const msgData = data as MessageEventData;
-        setSseMessages((prev) => {
-          const updated = [
-            ...prev,
-            {
-              role: "user" as const,
-              content: msgData.content,
-              timestamp: msgData.timestamp,
-            },
-          ];
-          return updated;
-        });
-        // Start new execution turn
-        console.log("[SessionView] Calling executionState.startTurn");
+        setSseMessages((prev) => [
+          ...prev,
+          {
+            role: "user" as const,
+            content: msgData.content,
+            timestamp: msgData.timestamp,
+          },
+        ]);
         executionStateRef.current.startTurn(msgData.content);
       }),
 
@@ -217,7 +194,6 @@ export function SessionView() {
 
       // Tool call events
       eventStream.on("hook:tool:pre", (data: unknown) => {
-        console.log("[SessionView] hook:tool:pre event:", data);
         const eventData = data as {
           hook_data?: {
             tool_name: string;
@@ -227,48 +203,36 @@ export function SessionView() {
         };
         const toolData = eventData.hook_data;
         if (toolData) {
-          console.log("[SessionView] Extracted tool data:", toolData);
-          console.log("[SessionView] Calling executionState.addTool");
           executionStateRef.current.addTool(
             toolData.tool_name,
             toolData.tool_input,
             toolData.parallel_group_id
           );
-        } else {
-          console.warn("[SessionView] No hook_data in tool:pre event");
         }
       }),
 
       eventStream.on("hook:tool:post", (data: unknown) => {
-        console.log("[SessionView] ======= RAW hook:tool:post event =======");
-        console.log("[SessionView] Full event data:", JSON.stringify(data, null, 2));
-
         const eventData = data as {
           hook_data?: {
             tool_name: string;
             parallel_group_id?: string;
-            result?: unknown;  // Loop module sends "result", not "tool_result"
+            result?: unknown;
             is_error?: boolean;
           };
         };
 
         const toolData = eventData.hook_data;
         if (toolData) {
-          console.log("[SessionView] Extracted tool data:", toolData);
-          console.log("[SessionView] Result being passed to updateTool:", toolData.result);
-          console.log("[SessionView] Calling updateTool with name:", toolData.tool_name, "parallelGroupId:", toolData.parallel_group_id);
           executionStateRef.current.updateTool(
             toolData.tool_name,
             toolData.parallel_group_id,
             {
               status: toolData.is_error ? "error" : "completed",
               endTime: Date.now(),
-              result: toolData.result,  // Use "result" field from loop module
+              result: toolData.result,
               error: toolData.is_error ? String(toolData.result) : undefined,
             }
           );
-        } else {
-          console.warn("[SessionView] No hook_data in tool:post event");
         }
       }),
 
@@ -423,18 +387,21 @@ export function SessionView() {
           </div>
           {/* Execution Panel Toggle - hidden on mobile, shown in header on desktop */}
           <button
-            onClick={() => {
-              console.log(
-                "[SessionView] Toggle execution panel. Currently:",
-                executionPanelOpen
-              );
-              setExecutionPanelOpen(!executionPanelOpen);
-            }}
+            onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
             className="hidden lg:flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
             title="Toggle execution trace"
           >
             <Activity className="h-4 w-4" />
             <span className="hidden sm:inline">Trace</span>
+          </button>
+          {/* Log button */}
+          <button
+            onClick={() => setLogDialogOpen(true)}
+            className="hidden lg:flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+            title="View session events log"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Log</span>
           </button>
           {needsStart && (
             <button
@@ -454,11 +421,7 @@ export function SessionView() {
         onContainerMount={setScrollContainer}
         messages={allMessages}
         streamingContent={streamingContent}
-        currentActivity={(() => {
-          const activity = executionState.getCurrentActivity();
-          console.log("[SessionView] Current activity:", activity);
-          return activity;
-        })()}
+        currentActivity={executionState.getCurrentActivity()}
         currentTurnThinking={
           executionState.getState().currentTurn?.thinking || []
         }
@@ -484,6 +447,13 @@ export function SessionView() {
         isOpen={executionPanelOpen}
         onClose={() => setExecutionPanelOpen(false)}
         onOpen={() => setExecutionPanelOpen(true)}
+      />
+
+      {/* Session Log Dialog */}
+      <SessionLogDialog
+        sessionId={sessionId || ""}
+        open={logDialogOpen}
+        onClose={() => setLogDialogOpen(false)}
       />
     </div>
   );
