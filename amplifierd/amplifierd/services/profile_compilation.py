@@ -641,12 +641,14 @@ class ProfileCompilationService:
             for prov_item in provs:
                 if isinstance(prov_item, dict):
                     prov_id = prov_item.get("id")
+                    # Get inline config from provider item, then overlay any config from provider_config_map
+                    prov_config = dict(prov_item.get("config", {}))
+                    prov_config.update(provider_config_map.get(prov_id, {}))
                 else:
                     prov_id = prov_item
+                    prov_config = provider_config_map.get(prov_id, {})
 
-                providers.append(
-                    {"module": prov_id, "source": profile_name, "config": provider_config_map.get(prov_id, {})}
-                )
+                providers.append({"module": prov_id, "source": profile_name, "config": prov_config})
 
             mount_plan["providers"] = providers
 
@@ -656,9 +658,11 @@ class ProfileCompilationService:
         for behavior_id in sorted_behavior_ids:
             behavior_def = behavior_defs.get(behavior_id, {})
             for tool_item in behavior_def.get("tools", []):
-                # Extract tool ID from dict object or string URI
+                # Extract tool ID and inline config from dict object or string URI
+                inline_config: dict = {}
                 if isinstance(tool_item, dict):
                     tool_id = tool_item.get("id")
+                    inline_config = tool_item.get("config", {})
                 elif isinstance(tool_item, str):
                     # Extract from URI
                     filename = tool_item.split("/")[-1]
@@ -670,8 +674,10 @@ class ProfileCompilationService:
                     continue
                 seen_tools.add(tool_id)
 
-                # Build tool config
-                tool_config = {"working_dir": working_dir} if working_dir else {}
+                # Build tool config: start with inline config, add working_dir, then overlay from config
+                tool_config = dict(inline_config)
+                if working_dir:
+                    tool_config["working_dir"] = working_dir
                 for key, value in config.items():
                     if key.startswith(f"{tool_id}."):
                         tool_config[key.split(".", 1)[1]] = value
@@ -687,9 +693,11 @@ class ProfileCompilationService:
         for behavior_id in sorted_behavior_ids:
             behavior_def = behavior_defs.get(behavior_id, {})
             for hook_item in behavior_def.get("hooks", []):
-                # Extract hook ID from dict object or string URI
+                # Extract hook ID and inline config from dict object or string URI
+                inline_config: dict = {}
                 if isinstance(hook_item, dict):
                     hook_id = hook_item.get("id")
+                    inline_config = hook_item.get("config", {})
                 elif isinstance(hook_item, str):
                     # Extract from URI
                     filename = hook_item.split("/")[-1]
@@ -701,8 +709,8 @@ class ProfileCompilationService:
                     continue
                 seen_hooks.add(hook_id)
 
-                # Build hook config
-                hook_config = {}
+                # Build hook config: start with inline config, then overlay from config
+                hook_config = dict(inline_config)
                 for key, value in config.items():
                     if key.startswith(f"hook.{hook_id}."):
                         hook_config[key.split(".", 2)[2]] = value

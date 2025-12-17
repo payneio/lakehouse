@@ -11,6 +11,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Annotated
+from typing import Any
 
 import yaml
 from fastapi import APIRouter
@@ -35,6 +36,49 @@ from ..services.mount_plan_service import MountPlanService
 from .mount_plans import get_mount_plan_service
 
 logger = logging.getLogger(__name__)
+
+
+def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplified_dir: str) -> None:
+    """Inject runtime configuration into mount plan.
+
+    Modifies mount_plan in-place to add runtime-specific configuration that
+    cannot be known at profile compilation time:
+    - working_dir for tools (derived from amplified_dir)
+    - session_log_template for hooks-logging (points to amplifierd session dir)
+
+    Args:
+        mount_plan: Mount plan to modify (modified in-place)
+        session_id: Session identifier for path templates
+        amplified_dir: Absolute path to amplified directory
+    """
+    # 1. Inject working_dir into tool configs
+    # This ensures tools resolve relative paths against the session's working directory
+    if "tools" in mount_plan:
+        for tool in mount_plan["tools"]:
+            if "config" not in tool:
+                tool["config"] = {}
+            # Only set if not explicitly configured in profile
+            if "working_dir" not in tool["config"]:
+                tool["config"]["working_dir"] = amplified_dir
+
+    # 2. Inject session_log_template for hooks-logging
+    # This ensures events.jsonl is written to amplifierd's session directory
+    # instead of the default ~/.amplifier/projects/... path
+    state_dir = get_state_dir()
+    session_log_path = str(state_dir / "sessions" / "{session_id}" / "events.jsonl")
+
+    if "hooks" in mount_plan:
+        for hook in mount_plan["hooks"]:
+            # Mount plans use "module" key, but some may use "id"
+            hook_id = hook.get("module", "") or hook.get("id", "")
+            # Match hooks-logging by module/id or by checking the source
+            if hook_id == "hooks-logging" or "hooks-logging" in hook.get("source", ""):
+                if "config" not in hook:
+                    hook["config"] = {}
+                # Always override to ensure logs go to amplifierd session dir
+                hook["config"]["session_log_template"] = session_log_path
+                logger.debug(f"Injected session_log_template for hooks-logging: {session_log_path}")
+
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
@@ -243,15 +287,8 @@ async def create_session(
         mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
         mount_plan["session"]["settings"]["profile_name"] = profile_name
 
-        # Inject working_dir into tool configs (derived from amplified_dir)
-        # This ensures tools resolve relative paths against the session's working directory
-        if "tools" in mount_plan:
-            for tool in mount_plan["tools"]:
-                if "config" not in tool:
-                    tool["config"] = {}
-                # Only set if not explicitly configured in profile
-                if "working_dir" not in tool["config"]:
-                    tool["config"]["working_dir"] = absolute_amplified_dir
+        # Inject runtime configuration (working_dir for tools, session_log_template for hooks-logging)
+        _inject_runtime_config(mount_plan, session_id, absolute_amplified_dir)
 
         # Create session with mount plan
         metadata = session_service.create_session(
@@ -1093,6 +1130,9 @@ async def change_session_profile(
         if "settings" not in new_mount_plan["session"]:
             new_mount_plan["session"]["settings"] = {}
         new_mount_plan["session"]["settings"]["profile_name"] = profile_name
+
+        # Inject runtime configuration (working_dir for tools, session_log_template for hooks-logging)
+        _inject_runtime_config(new_mount_plan, session_id, str(absolute_amplified_dir))
 
         # 3. Regenerate profile context messages for new profile
         from amplifier_library.storage.paths import get_profiles_dir
