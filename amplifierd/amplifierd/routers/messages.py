@@ -184,18 +184,21 @@ async def send_message_for_execution(
             {"role": "user", "content": request.content, "timestamp": datetime.now(UTC).isoformat()},
         )
 
-        # Get runner
+        # Get runner (handles hook mounting internally via _hooks_mounted flag)
         runner = await manager.get_runner(session)
 
-        # Mount hooks if needed
-        if runner._session is not None:
-            await manager.mount_hooks(runner)
-
-        # Emit assistant_message_start
+        # Emit assistant_message_start to SSE subscribers
         await manager.emitter.emit(
             "assistant_message_start",
             {"timestamp": datetime.now(UTC).isoformat()},
         )
+
+        # Also emit through hooks system for ExecutionTraceHook
+        if manager.hook_registry:
+            await manager.hook_registry.emit(
+                "assistant_message:start",
+                {"user_message": request.content, "timestamp": datetime.now(UTC).isoformat()},
+            )
 
         # Execute in background task - don't block response
         async def execute_and_emit():
@@ -219,6 +222,13 @@ async def send_message_for_execution(
                             "timestamp": datetime.now(UTC).isoformat(),
                         },
                     )
+
+                    # Also emit through hooks system for ExecutionTraceHook
+                    if manager.hook_registry:
+                        await manager.hook_registry.emit(
+                            "assistant_message:complete",
+                            {"content": full_response, "timestamp": datetime.now(UTC).isoformat()},
+                        )
             except Exception as e:
                 logger.error(f"Execution error in background task: {e}")
                 await manager.emitter.emit("execution_error", {"error": str(e)})

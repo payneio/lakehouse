@@ -3,8 +3,10 @@
 Manages streaming infrastructure for a single session including:
 - EventQueueEmitter for multi-subscriber events
 - StreamingHookRegistry for hook events
-- ExecutionTraceHook for persistence
 - ExecutionRunner lifecycle
+
+Note: Execution trace persistence is handled by hooks-logging (amplifier_core)
+which writes to events.jsonl. Trace is aggregated on-the-fly when requested.
 """
 
 import asyncio
@@ -12,10 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from amplifier_library.execution.runner import ExecutionRunner
-from amplifier_library.storage import get_state_dir
 
-from ..hooks import DEFAULT_STREAMING_HOOKS
-from ..hooks import ExecutionTraceHook
 from ..hooks import StreamingHookRegistry
 from ..streaming import EventQueueEmitter  # type: ignore[attr-defined]
 
@@ -48,15 +47,8 @@ class SessionStreamManager:
 
         # Create streaming infrastructure
         self.emitter = EventQueueEmitter()
-        self.hook_registry = StreamingHookRegistry(
-            sse_emitter=self.emitter,
-            stream_events=DEFAULT_STREAMING_HOOKS,
-        )
-
-        # Create execution trace hook for persistence
-        state_dir = get_state_dir()
-        session_dir = state_dir / "sessions" / session_id
-        self.trace_hook = ExecutionTraceHook(session_dir)
+        # StreamingHookRegistry created in mount_hooks() to wrap the session's registry
+        self.hook_registry: StreamingHookRegistry | None = None
 
         # ExecutionRunner (created on-demand)
         self._runner: ExecutionRunner | None = None
@@ -112,22 +104,28 @@ class SessionStreamManager:
     async def mount_hooks(self: "SessionStreamManager", runner: ExecutionRunner) -> None:
         """Mount streaming hooks to runner's coordinator.
 
+        Wraps the session's existing HookRegistry with StreamingHookRegistry
+        to add SSE streaming while preserving the registry's state (including
+        _defaults like session_id and parent_id set by amplifier_core).
+
         Args:
             runner: ExecutionRunner to mount hooks on
         """
         if runner._session is not None:
-            # Replace the default HookRegistry with our StreamingHookRegistry
+            # Wrap the existing HookRegistry with our StreamingHookRegistry
+            # This preserves _defaults (session_id, parent_id) set by amplifier_core
+            existing_registry = runner._session.coordinator.hooks
+            self.hook_registry = StreamingHookRegistry(
+                wrapped=existing_registry,
+                sse_emitter=self.emitter,
+                stream_events=None,  # Use defaults
+            )
+
+            # Replace with wrapped registry
             runner._session.coordinator.mount_points["hooks"] = self.hook_registry
             runner._session.coordinator.hooks = self.hook_registry
 
-            # Register execution trace hook for persistence
-            self.hook_registry.register("assistant_message:start", self.trace_hook.on_assistant_message_start)
-            self.hook_registry.register("tool:pre", self.trace_hook.on_tool_pre)
-            self.hook_registry.register("tool:post", self.trace_hook.on_tool_post)
-            self.hook_registry.register("thinking:delta", self.trace_hook.on_thinking_delta)
-            self.hook_registry.register("assistant_message:complete", self.trace_hook.on_assistant_message_complete)
-
-            logger.info(f"Mounted StreamingHookRegistry and ExecutionTraceHook for session {self.session_id}")
+            logger.info(f"Mounted StreamingHookRegistry (wrapping existing registry) for session {self.session_id}")
 
     def subscribe(self: "SessionStreamManager") -> asyncio.Queue:
         """Create new SSE subscriber queue.

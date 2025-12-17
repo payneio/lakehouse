@@ -60,10 +60,11 @@ export function TurnItem({ turn, turnNumber }: TurnItemProps) {
   const status = getStatusDisplay();
   const durationText = `${duration}ms`;
 
-  // Truncate user message for display
-  const displayMessage = turn.userMessage.length > 50
-    ? turn.userMessage.substring(0, 50) + '...'
-    : turn.userMessage;
+  // Truncate user message for display (handle undefined for legacy data)
+  const userMessage = turn.userMessage ?? '';
+  const displayMessage = userMessage.length > 50
+    ? userMessage.substring(0, 50) + '...'
+    : userMessage;
 
   return (
     <AccordionItem value={turn.id}>
@@ -88,10 +89,10 @@ export function TurnItem({ turn, turnNumber }: TurnItemProps) {
       <AccordionContent>
         <div className="space-y-4">
           {/* Full user message */}
-          {turn.userMessage.length > 50 && (
+          {userMessage.length > 50 && (
             <div className="text-sm">
               <div className="font-medium text-muted-foreground mb-1">User Message:</div>
-              <div className="bg-gray-50 p-2 rounded">{turn.userMessage}</div>
+              <div className="bg-gray-50 p-2 rounded">{userMessage}</div>
             </div>
           )}
 

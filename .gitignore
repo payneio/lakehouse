@@ -108,3 +108,9 @@ amplifierd/.compilation_meta.json
 amplifierd/.amplifierd/share/profiles
 
 
+
+/working/foreman-demo
+/working/foreman-demo-using-cli-orchestration
+/working/foreman-demo-using-multi-context-workflow-orchestrator
+/working/profile-compilation-demo
+

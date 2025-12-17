@@ -77,6 +77,12 @@ export function SessionView() {
   // Initialize execution state
   const executionState = useExecutionState({ sessionId: sessionId || "" });
 
+  // Use ref to avoid re-subscribing SSE handlers when executionState changes
+  const executionStateRef = React.useRef(executionState);
+  React.useEffect(() => {
+    executionStateRef.current = executionState;
+  }, [executionState]);
+
   // Auto-mark session as read after viewing for 2 seconds
   useMarkSessionRead(sessionId);
 
@@ -150,8 +156,7 @@ export function SessionView() {
   }, [transcript, sseMessages]);
 
   // Wire up SSE event handlers
-  // Note: Only depend on sessionId and stable 'on' function (from useCallback),
-  // not the full eventStream object which changes on every state update
+  // Note: Use executionStateRef to avoid re-subscribing when executionState changes
   React.useEffect(() => {
     if (!sessionId) return;
 
@@ -173,7 +178,7 @@ export function SessionView() {
         });
         // Start new execution turn
         console.log("[SessionView] Calling executionState.startTurn");
-        executionState.startTurn(msgData.content);
+        executionStateRef.current.startTurn(msgData.content);
       }),
 
       // Assistant message start
@@ -207,7 +212,7 @@ export function SessionView() {
         setStreamingContent("");
         setIsSending(false);
         // Complete execution turn
-        executionState.completeTurn();
+        executionStateRef.current.completeTurn();
       }),
 
       // Tool call events
@@ -224,7 +229,7 @@ export function SessionView() {
         if (toolData) {
           console.log("[SessionView] Extracted tool data:", toolData);
           console.log("[SessionView] Calling executionState.addTool");
-          executionState.addTool(
+          executionStateRef.current.addTool(
             toolData.tool_name,
             toolData.tool_input,
             toolData.parallel_group_id
@@ -252,7 +257,7 @@ export function SessionView() {
           console.log("[SessionView] Extracted tool data:", toolData);
           console.log("[SessionView] Result being passed to updateTool:", toolData.result);
           console.log("[SessionView] Calling updateTool with name:", toolData.tool_name, "parallelGroupId:", toolData.parallel_group_id);
-          executionState.updateTool(
+          executionStateRef.current.updateTool(
             toolData.tool_name,
             toolData.parallel_group_id,
             {
@@ -272,7 +277,7 @@ export function SessionView() {
         const eventData = data as { hook_data?: { delta: string } };
         const thinkingData = eventData.hook_data;
         if (thinkingData?.delta) {
-          executionState.addThinking(thinkingData.delta);
+          executionStateRef.current.addThinking(thinkingData.delta);
         }
       }),
     ];
@@ -280,8 +285,7 @@ export function SessionView() {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, eventStream.on, executionState]); // Include executionState handlers
+  }, [sessionId, eventStream.on]); // Removed executionState - use ref instead
 
   const handleSend = async (message: string) => {
     setIsSending(true);

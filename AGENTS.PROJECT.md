@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository is an experimental exploration of building an **Intelligent Computation Platform** (the Amplifier Computing Platform or ACP). It demonstrates what it might look like for users to interact naturally with their computers through AI agents that work directly on their personal data, build custom tools on the fly, and proactively manage workflows.
+This repository contains Lakehouse, an **Intelligent Computation Platform** (the Amplifier Computing Platform or ACP). Lakehouse is an experimental project that demonstrates what it might look like for users to interact naturally with their computers through AI agents that work directly on their personal data, build custom tools on the fly, and proactively manage workflows.
 
 **Vision Document**: See @amplifierd/docs/the-amplifier-computation-platform.md for the complete vision.
 
@@ -20,21 +20,16 @@ This repository is an experimental exploration of building an **Intelligent Comp
    - Business logic layer between daemon transport and Amplifier Core execution
    - See @amplifier_library/README.md for architecture details
 
-3. **amplifier/** - Memory System
-   - Modular memory system following "bricks and studs" philosophy
-   - Independent from daemon and library
-   - See @amplifier/README.md for architecture details
-
-4. **webapp/** - React Web Application
+3. **webapp/** - React Web Application
    - Modern React + TypeScript UI for interacting with the daemon
    - Tech stack: React 19, TypeScript, Vite, TanStack Query, Tailwind CSS
    - See @webapp/README.md for development details
 
-5. **notebooks/** - Jupyter Notebooks
+4. **notebooks/** - Jupyter Notebooks
    - Demonstrations of amplifier-core and amplifierd usage
    - Learning resources and examples
 
-6. **guides/** - Documentation
+5. **guides/** - Documentation
    - Guides about Amplifier v2 concepts and usage
 
 ## Key Concepts
@@ -112,7 +107,7 @@ make webapp-dev
 
 Visit http://localhost:5174 in your browser.
 
-**Configuration**: A `.amplifierd` directory is created where you run the daemon. Configure the `data_dir` in `.amplifierd/config/daemon.yaml` to specify where ACP can access your data.
+**Configuration**: A `.amplifierd` directory is created, by default at `~/.amplifierd`. Configure the `data_dir` in `.amplifierd/config/daemon.yaml` to specify where ACP can access your data.
 
 ## Development Commands
 

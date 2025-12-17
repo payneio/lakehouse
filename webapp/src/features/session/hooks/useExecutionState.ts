@@ -22,6 +22,15 @@ import type {
   CurrentActivity,
 } from '../types/execution';
 
+// Browser-compatible UUID generation (crypto.randomUUID may not be available in all contexts)
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
 interface ExecutionTraceResponse {
   turns: Turn[];
 }
@@ -31,8 +40,6 @@ interface UseExecutionStateOptions {
 }
 
 export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
-  console.log('[useExecutionState] Initializing for session:', sessionId);
-
   // Use ref to avoid re-renders during SSE updates
   const stateRef = useRef<ExecutionState>({
     turns: [],
@@ -67,10 +74,13 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   // Initialize state with historical trace (in effect, not during render)
   useEffect(() => {
     if (historicalTrace?.turns && !initializedRef.current) {
+      console.log('[useExecutionState] Initializing with historical trace:', historicalTrace.turns.length, 'turns');
       stateRef.current.turns = historicalTrace.turns;
       initializedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync ref state to React after async data load
+      forceUpdate();
     }
-  }, [historicalTrace]);
+  }, [historicalTrace, forceUpdate]);
 
   // Calculate metrics from current state
   const calculateMetrics = useCallback((): SessionMetrics => {
@@ -106,7 +116,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   const startTurn = useCallback((userMessage: string) => {
     console.log('[useExecutionState] Starting turn with message:', userMessage);
     const turn: Turn = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       userMessage,
       assistantMessageId: null,
       status: 'active',
@@ -151,7 +161,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
       const subAgentName = isSubAgent ? (toolInput?.subagent_type as string) : undefined;
 
       const tool: ToolCall = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: toolName,
         parallelGroupId,
         status: 'starting',
@@ -262,7 +272,7 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
     if (!stateRef.current.currentTurn) return;
 
     const thinking: ThinkingBlock = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       content,
       timestamp: Date.now(),
     };
@@ -325,9 +335,11 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   }, []);
 
   // Get current state (safe getter function)
-  // Include updateCounter in dependency so this returns fresh state reference
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const getState = useCallback(() => stateRef.current, [updateCounter]);
+  // Return a NEW object reference when updateCounter changes, so React re-renders children
+  const getState = useCallback(() => ({
+    ...stateRef.current,
+    turns: [...stateRef.current.turns],  // New array reference for proper React diffing
+  }), [updateCounter]);
 
   // Return stable API using useMemo
   return useMemo(

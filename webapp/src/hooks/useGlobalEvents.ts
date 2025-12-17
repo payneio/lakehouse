@@ -15,7 +15,7 @@ export function useGlobalEvents() {
 
   useEffect(() => {
     console.log('[useGlobalEvents] Connecting to global event stream');
-    const eventSource = new EventSource(`${BASE_URL}/api/v1/events`);
+    const eventSource = new EventSource(`${BASE_URL}/api/v1/events`, { withCredentials: true });
 
     // Handle session:created events
     eventSource.addEventListener('session:created', (e) => {
