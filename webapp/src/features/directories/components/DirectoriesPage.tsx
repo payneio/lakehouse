@@ -1,5 +1,6 @@
 import * as api from "@/api";
 import { listAutomations } from "@/api/automations";
+import { MobileMenuButton } from "@/components/layout/MobileMenuButton";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, FileText, Plus, Settings } from "lucide-react";
+import { Activity, Clock, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDirectories } from "../hooks/useDirectories";
@@ -171,66 +172,95 @@ export function DirectoriesPage() {
           ) : selectedDirectory ? (
             <div className="space-y-6">
               {/* Header with dialog buttons */}
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Sessions</h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowAgentInstructions(true)}
-                    className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Project Instructions
-                  </button>
-                  <button
-                    onClick={() => setShowAutomations(true)}
-                    className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm relative"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Automations
-                    {enabledAutomationsCount > 0 && (
-                      <span className="ml-2 px-2 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                        {enabledAutomationsCount}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setShowWork(true)}
-                    className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm relative"
-                  >
-                    <Activity className="h-4 w-4" />
-                    Work
-                    <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-medium">
-                      2
-                    </span>
-                  </button>
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <MobileMenuButton />
+                  <h2 className="text-xl font-semibold">Project</h2>
+                </div>
+                <div className="flex gap-1 sm:gap-2 flex-wrap justify-end">
                   <button
                     onClick={handleEdit}
-                    className="flex items-center gap-2 px-3 py-2 border rounded-md hover:bg-accent text-sm"
+                    className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 border rounded-md hover:bg-accent text-sm"
+                    title="Edit"
                   >
-                    Edit
+                    <Pencil className="h-4 w-4 sm:hidden" />
+                    <span className="hidden sm:inline">Edit</span>
                   </button>
                   <button
                     onClick={handleDelete}
-                    className="flex items-center gap-2 px-3 py-2 border border-destructive text-destructive rounded-md hover:bg-destructive hover:text-destructive-foreground text-sm"
+                    className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 border border-destructive text-destructive rounded-md hover:bg-destructive hover:text-destructive-foreground text-sm"
+                    title="Delete"
                   >
-                    Delete
+                    <Trash2 className="h-4 w-4 sm:hidden" />
+                    <span className="hidden sm:inline">Delete</span>
                   </button>
                 </div>
               </div>
 
-              {/* Sessions list inline */}
+              {/* Project name and description */}
+              <div>
+                <h1 className="text-2xl font-bold">
+                  {(selectedDirectory.metadata?.name as string) || selectedPath?.split("/").pop() || "Untitled Project"}
+                </h1>
+                {selectedDirectory.metadata?.description && (
+                  <p className="text-muted-foreground mt-1">
+                    {selectedDirectory.metadata.description as string}
+                  </p>
+                )}
+                <p className="text-sm text-muted-foreground mt-1 font-mono">
+                  {selectedPath}
+                </p>
+              </div>
+
+              {/* Project Actions */}
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowAgentInstructions(true)}
+                  className="flex items-center gap-1 px-3 py-2 border rounded-md hover:bg-accent text-sm"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Instructions</span>
+                </button>
+                <button
+                  onClick={() => setShowAutomations(true)}
+                  className="flex items-center gap-1 px-3 py-2 border rounded-md hover:bg-accent text-sm relative"
+                >
+                  <Clock className="h-4 w-4" />
+                  <span>Automations</span>
+                  {enabledAutomationsCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                      {enabledAutomationsCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowWork(true)}
+                  className="flex items-center gap-1 px-3 py-2 border rounded-md hover:bg-accent text-sm relative"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span>Work</span>
+                  <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-medium">
+                    2
+                  </span>
+                </button>
+              </div>
+
+              {/* Chat Sessions */}
               <SessionsList directoryPath={selectedPath} />
             </div>
           ) : null}
         </div>
       ) : (
         <div className="max-w-2xl mx-auto">
-          <div className="text-center py-12 space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Projects Dashboard</h1>
-              <p className="text-muted-foreground">
-                Manage your amplified directories and chat sessions
-              </p>
+          <div className="py-12 space-y-6">
+            <div className="flex items-center gap-3">
+              <MobileMenuButton />
+              <div>
+                <h1 className="text-3xl font-bold mb-2">Projects Dashboard</h1>
+                <p className="text-muted-foreground">
+                  Manage your amplified directories and chat sessions
+                </p>
+              </div>
             </div>
             <div className="flex justify-center">
               <button

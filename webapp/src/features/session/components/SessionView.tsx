@@ -334,85 +334,84 @@ export function SessionView() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex-shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <SessionNameEdit
               sessionId={sessionId || ""}
               currentName={session.name}
               createdAt={session.createdAt}
             />
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span>Status: {session.status}</span>
-              {/* Profile dropdown */}
-              <div className="flex items-center gap-2">
-                <span>Profile:</span>
-                <select
-                  value={session.profileName}
-                  onChange={(e) => handleProfileChange(e.target.value)}
-                  disabled={
-                    !canChangeProfile || changeProfileMutation.isPending
-                  }
-                  className="bg-background border border-border rounded px-2 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:border-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  title={
-                    !canChangeProfile
-                      ? "Profile can only be changed for active sessions"
-                      : "Change profile"
-                  }
-                >
-                  {profileOptions.map((fullName) => (
-                    <option key={fullName} value={fullName}>
-                      {fullName}
-                    </option>
-                  ))}
-                </select>
-                {changeProfileMutation.isPending && (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                )}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {/* Profile dropdown - compact on mobile (no label) */}
+              <span className="hidden sm:inline flex-shrink-0">Profile:</span>
+              <select
+                value={session.profileName}
+                onChange={(e) => handleProfileChange(e.target.value)}
+                disabled={
+                  !canChangeProfile || changeProfileMutation.isPending
+                }
+                className="bg-background border border-border rounded px-2 py-1 text-sm max-w-[100px] sm:max-w-[150px] truncate disabled:opacity-50 disabled:cursor-not-allowed hover:border-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                title={
+                  !canChangeProfile
+                    ? "Profile can only be changed for active sessions"
+                    : `Profile: ${session.profileName}`
+                }
+              >
+                {profileOptions.map((fullName) => (
+                  <option key={fullName} value={fullName}>
+                    {fullName}
+                  </option>
+                ))}
+              </select>
+              {changeProfileMutation.isPending && (
+                <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
+              )}
 
-                {/* Amplified directory */}
-                {session.amplifiedDir && (
-                  <span
-                    aria-label={`Amplified directory: ${session.amplifiedDir}`}
-                    title={session.amplifiedDir}
-                    className="hidden sm:inline"
+              {/* Amplified directory - hidden on mobile */}
+              {session.amplifiedDir && (
+                <span
+                  aria-label={`Amplified directory: ${session.amplifiedDir}`}
+                  title={session.amplifiedDir}
+                  className="hidden md:inline truncate"
+                >
+                  dir: /{session.amplifiedDir}
+                </span>
+              )}
+
+              {/* Action buttons - on same row as profile */}
+              <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                <button
+                  onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
+                  className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  title="Toggle execution trace"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span className="hidden md:inline">Trace</span>
+                </button>
+                <button
+                  onClick={() => setLogDialogOpen(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  title="View session events log"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden md:inline">Log</span>
+                </button>
+                {needsStart && (
+                  <button
+                    onClick={() => startSession.mutate(undefined)}
+                    disabled={startSession.isPending}
+                    className="flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 text-sm"
                   >
-                    dir: /{session.amplifiedDir}
-                  </span>
+                    <Play className="h-4 w-4" />
+                    <span className="hidden sm:inline">{startSession.isPending ? "Starting..." : "Start"}</span>
+                  </button>
                 )}
               </div>
             </div>
           </div>
-          {/* Execution Panel Toggle - hidden on mobile, shown in header on desktop */}
-          <button
-            onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
-            className="hidden lg:flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-            title="Toggle execution trace"
-          >
-            <Activity className="h-4 w-4" />
-            <span className="hidden sm:inline">Trace</span>
-          </button>
-          {/* Log button */}
-          <button
-            onClick={() => setLogDialogOpen(true)}
-            className="hidden lg:flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-            title="View session events log"
-          >
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Log</span>
-          </button>
-          {needsStart && (
-            <button
-              onClick={() => startSession.mutate(undefined)}
-              disabled={startSession.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-            >
-              <Play className="h-4 w-4" />
-              {startSession.isPending ? "Starting..." : "Start Session"}
-            </button>
-          )}
         </div>
       </div>
 
@@ -441,12 +440,11 @@ export function SessionView() {
       {/* Approval dialog */}
       <ApprovalDialog sessionId={sessionId || ""} />
 
-      {/* Execution Panel (has its own mobile button) */}
+      {/* Execution Panel */}
       <ExecutionPanel
         executionState={executionState.getState()}
         isOpen={executionPanelOpen}
         onClose={() => setExecutionPanelOpen(false)}
-        onOpen={() => setExecutionPanelOpen(true)}
       />
 
       {/* Session Log Dialog */}

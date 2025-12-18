@@ -1,9 +1,11 @@
 import { BASE_URL } from "@/api/client";
+import { useMobileMenu } from "@/components/layout/MobileMenuContext";
 import {
   ArrowRight,
   BookOpen,
   FolderOpen,
   FolderPlus,
+  Menu,
   MessageSquare,
   Settings,
   Users,
@@ -20,6 +22,7 @@ interface SystemInfo {
 }
 
 export function HomePage() {
+  const { toggle, isOpen } = useMobileMenu();
   const [apiStatus, setApiStatus] = useState<
     "checking" | "connected" | "error"
   >("checking");
@@ -66,6 +69,17 @@ export function HomePage() {
 
   return (
     <div className="min-h-screen">
+      {/* Floating menu button for mobile - hidden when menu is open */}
+      {!isOpen && (
+        <button
+          onClick={toggle}
+          className="lg:hidden fixed top-4 left-4 z-30 p-2 rounded-md bg-background shadow-lg hover:bg-accent"
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Hero Section */}
       <section className="py-16 px-8 max-w-7xl mx-auto">
         <div className="text-center space-y-6">

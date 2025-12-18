@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/api';
+import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
 import type { CreateProfileRequest, UpdateProfileRequest, ProfileDetails } from '@/types/api';
 import { ProfileCard } from './ProfileCard';
 import { ProfileDetailModal } from './ProfileDetailModal';
@@ -82,11 +83,9 @@ export function ProfilesPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Profiles</h1>
-        <p className="text-muted-foreground">
-          Manage your amplifier profiles and registries
-        </p>
+      <div className="flex items-center gap-3">
+        <MobileMenuButton />
+        <h1 className="text-3xl font-bold">Profiles</h1>
       </div>
 
       {/* Registry Manager */}
@@ -118,10 +117,11 @@ export function ProfilesPage() {
 
         <button
           onClick={() => setIsCreating(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-4 sm:py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
+          title="Create Profile"
         >
           <Plus className="h-4 w-4" />
-          Create Profile
+          <span className="hidden sm:inline">Create Profile</span>
         </button>
       </div>
 

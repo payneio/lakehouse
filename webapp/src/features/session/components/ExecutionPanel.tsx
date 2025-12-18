@@ -1,5 +1,4 @@
-import React from 'react';
-import { X, ChevronRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ExecutionState } from '../types/execution';
 import { TurnsList } from './TurnsList';
@@ -9,21 +8,9 @@ interface ExecutionPanelProps {
   executionState: ExecutionState;
   isOpen: boolean;
   onClose: () => void;
-  onOpen?: () => void;
 }
 
-export function ExecutionPanel({ executionState, isOpen, onClose, onOpen }: ExecutionPanelProps) {
-  console.log('[ExecutionPanel] Rendering with:', {
-    isOpen,
-    turnsCount: executionState.turns.length,
-    currentTurn: executionState.currentTurn
-  });
-
-  const handleOpen = () => {
-    console.log('[ExecutionPanel] handleOpen called');
-    onOpen?.();
-  };
-
+export function ExecutionPanel({ executionState, isOpen, onClose }: ExecutionPanelProps) {
   return (
     <>
       {/* Desktop: Side panel */}
@@ -83,39 +70,6 @@ export function ExecutionPanel({ executionState, isOpen, onClose, onOpen }: Exec
           <TurnsList turns={executionState.turns} />
         </div>
       </div>
-
-      {/* Toggle button when closed */}
-      {!isOpen && onOpen && (
-        <>
-          {/* Desktop: Right edge button */}
-          <button
-            onClick={(e) => {
-              console.log('[ExecutionPanel] Desktop button clicked - opening panel');
-              e.stopPropagation();
-              handleOpen();
-            }}
-            className="hidden md:flex fixed right-0 top-1/2 -translate-y-1/2 bg-white border border-border rounded-l-lg px-2 py-4 shadow-md hover:bg-gray-50 transition-colors z-30"
-            aria-label="Open execution panel"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-
-          {/* Mobile: Bottom edge button - positioned above input area */}
-          <button
-            onClick={(e) => {
-              console.log('[ExecutionPanel] Mobile button clicked - opening panel');
-              e.stopPropagation();
-              handleOpen();
-            }}
-            className="md:hidden fixed bottom-20 right-4 bg-blue-600 text-white rounded-full px-4 py-2 shadow-lg hover:bg-blue-700 transition-colors z-30 flex items-center gap-2"
-            aria-label="Open execution panel"
-          >
-            <span className="text-sm font-medium">
-              Trace ({executionState.turns.length})
-            </span>
-          </button>
-        </>
-      )}
 
       {/* Overlay for mobile */}
       {isOpen && (
