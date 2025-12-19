@@ -133,36 +133,44 @@ async def send_message_for_execution(
 
         session = LibrarySessionMetadata(**metadata.model_dump())
 
-        # Load mount plan
-        state_dir = get_state_dir()
-        mount_plan_path = state_dir / "sessions" / session_id / metadata.mount_plan_path
-
-        if not mount_plan_path.exists():
-            raise HTTPException(status_code=500, detail=f"Mount plan not found: {metadata.mount_plan_path}")
-
-        with open(mount_plan_path) as f:
-            mount_plan = json.load(f)
-
-        # Resolve runtime mentions (AGENTS.md + user message)
+        # Get config and paths
         from pathlib import Path
 
         from amplifier_library.config.loader import load_config
         from amplifier_library.storage.paths import get_profiles_dir
+        from amplifier_library.storage.paths import get_share_dir
 
         from ..services.mention_resolver import MentionResolver
+        from ..services.mount_plan_service import MountPlanService
+        from .sessions import _inject_runtime_config
 
-        # Get data directory from config
         config = load_config()
         data_dir = Path(config.data_path)
+        state_dir = get_state_dir()
+        share_dir = get_share_dir()
 
-        # Get directories from mount plan
-        amplified_dir = Path(mount_plan["session"]["settings"]["amplified_dir"])
-        profile_name = mount_plan["session"]["settings"]["profile_name"]
+        # Get amplified_dir and profile_name from session metadata
+        amplified_dir = Path(metadata.amplified_dir) if metadata.amplified_dir else Path(".")
+        if not amplified_dir.is_absolute():
+            amplified_dir = data_dir / amplified_dir
+        profile_name = metadata.profile_name
 
-        # Get compiled profile directory
+        # Generate mount plan fresh from profile (single source of truth)
+        mount_plan_service = MountPlanService(share_dir=share_dir)
+        mount_plan = mount_plan_service.generate_mount_plan(profile_name, amplified_dir)
+
+        # Inject runtime configuration (working_dir, session_log_template, etc.)
+        _inject_runtime_config(mount_plan, session_id, str(amplified_dir))
+
+        # Save mount_plan.json for observability (snapshot of what was used)
+        mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
+        mount_plan_path.write_text(json.dumps(mount_plan, indent=2))
+        logger.info(f"Generated and saved fresh mount plan for session {session_id}")
+
+        # Get compiled profile directory for mention resolution
         compiled_profile_dir = get_profiles_dir() / profile_name
 
-        # Resolve runtime mentions
+        # Resolve runtime mentions (AGENTS.md + user message)
         resolver = MentionResolver(
             compiled_profile_dir=compiled_profile_dir,
             amplified_dir=amplified_dir,
@@ -171,9 +179,17 @@ async def send_message_for_execution(
         runtime_context_messages = resolver.resolve_runtime_mentions(request.content)
         logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
 
-        # Get stream manager (creates if needed)
+        # Get stream registry and update/create manager with fresh mount plan
         registry = get_stream_registry()
-        manager = await registry.get_or_create(session_id, mount_plan)
+        existing_manager = registry.get(session_id)
+        if existing_manager:
+            # Update existing manager with fresh mount plan (invalidates runner)
+            await existing_manager.update_mount_plan(mount_plan)
+            manager = existing_manager
+            logger.debug(f"Updated existing manager with fresh mount plan for session {session_id}")
+        else:
+            # Create new manager
+            manager = await registry.get_or_create(session_id, mount_plan)
 
         # Note: Don't save user message here - ExecutionRunner.execute_stream() does it
         # to avoid duplicates in transcript

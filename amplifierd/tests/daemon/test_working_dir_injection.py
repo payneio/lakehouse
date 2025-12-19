@@ -95,6 +95,55 @@ def test_inject_runtime_config_working_dir(tmp_path: Path) -> None:
     assert mount_plan["tools"][2]["config"]["working_dir"] == "/custom/path"
 
 
+def test_inject_runtime_config_allowed_write_paths(tmp_path: Path) -> None:
+    """Test _inject_runtime_config injects allowed_write_paths for tool-filesystem."""
+    from amplifierd.routers.sessions import _inject_runtime_config
+
+    test_dir = tmp_path / "test_project"
+    test_dir.mkdir()
+    absolute_amplified_dir = str(test_dir.resolve())
+
+    mount_plan = {
+        "tools": [
+            {"module": "tool-filesystem", "source": "test", "config": {}},
+            {"module": "tool-bash", "source": "test", "config": {}},  # Not filesystem
+            {"module": "tool-filesystem", "source": "test", "config": {"allowed_write_paths": ["/custom"]}},
+        ],
+    }
+
+    _inject_runtime_config(mount_plan, "session_123", absolute_amplified_dir)
+
+    # tool-filesystem should get allowed_write_paths injected
+    assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [absolute_amplified_dir]
+
+    # tool-bash should NOT get allowed_write_paths (not a filesystem tool)
+    assert "allowed_write_paths" not in mount_plan["tools"][1]["config"]
+
+    # tool-filesystem with explicit allowed_write_paths should keep its config (not overwritten)
+    assert mount_plan["tools"][2]["config"]["allowed_write_paths"] == ["/custom"]
+
+
+def test_inject_runtime_config_allowed_write_paths_by_source(tmp_path: Path) -> None:
+    """Test _inject_runtime_config detects filesystem tool by source field."""
+    from amplifierd.routers.sessions import _inject_runtime_config
+
+    test_dir = tmp_path / "test_project"
+    test_dir.mkdir()
+    absolute_amplified_dir = str(test_dir.resolve())
+
+    # Some mount plans might use source containing "filesystem" instead of module name
+    mount_plan = {
+        "tools": [
+            {"id": "write_file", "source": "behaviors/filesystem/tools/tool-filesystem", "config": {}},
+        ],
+    }
+
+    _inject_runtime_config(mount_plan, "session_123", absolute_amplified_dir)
+
+    # Should detect filesystem tool by source and inject allowed_write_paths
+    assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [absolute_amplified_dir]
+
+
 def test_inject_runtime_config_session_log_template_with_module_key(tmp_path: Path) -> None:
     """Test _inject_runtime_config injects session_log_template for hooks-logging using module key."""
     from amplifierd.routers.sessions import _inject_runtime_config

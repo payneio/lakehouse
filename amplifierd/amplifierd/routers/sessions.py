@@ -44,6 +44,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
     Modifies mount_plan in-place to add runtime-specific configuration that
     cannot be known at profile compilation time:
     - working_dir for tools (derived from amplified_dir)
+    - allowed_write_paths for tool-filesystem (derived from amplified_dir)
     - session_log_template for hooks-logging (points to amplifierd session dir)
 
     Args:
@@ -60,6 +61,14 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
             # Only set if not explicitly configured in profile
             if "working_dir" not in tool["config"]:
                 tool["config"]["working_dir"] = amplified_dir
+
+            # 1b. Inject allowed_write_paths for tool-filesystem if not explicitly set
+            # tool-filesystem defaults to ["."] which resolves against daemon CWD, not working_dir
+            # This ensures write operations are allowed within the session's working directory
+            tool_module = tool.get("module", "") or tool.get("id", "")
+            is_filesystem_tool = "tool-filesystem" in tool_module or "filesystem" in tool.get("source", "")
+            if is_filesystem_tool and "allowed_write_paths" not in tool["config"]:
+                tool["config"]["allowed_write_paths"] = [amplified_dir]
 
     # 2. Inject session_log_template for hooks-logging
     # This ensures events.jsonl is written to amplifierd's session directory
