@@ -43,7 +43,7 @@ function MainLayoutContent() {
           <X className="h-5 w-5" />
         </button>
 
-        <div className="p-4 flex items-center justify-between">
+        <div className="p-4 pr-14 lg:pr-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Lakehouse</h1>
           <SettingsDialog />
         </div>
