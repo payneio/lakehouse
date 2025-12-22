@@ -115,7 +115,7 @@ All commands available via `make` - run `make help` to see available targets.
 
 ### Common Commands
 - `make dev` - Start both daemon and webapp
-- `make check` - Full validation (lint + typecheck + test)
+- `make check` - Full validation (lint + typecheck + test). Beware: if imports are not used, they will be removed by the linter. If you don't want them removed, you should add them at the same time or after the code that needs them.
 - `make test` - Run all tests
 - `make install` - Install all dependencies
 
@@ -131,8 +131,3 @@ See @Makefile for complete list of targets.
 
 - @amplifierd/docs/the-amplifier-computation-platform.md - Vision document
 
-## Repository Status
-
-This is an **experimental/educational repository** where the maintainer is figuring out what the Amplifier concept means and exploring the vision of an intelligent computation platform.
-
-Things are actively evolving and the structure may change as understanding deepens.
