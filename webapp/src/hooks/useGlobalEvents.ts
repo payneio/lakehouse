@@ -36,13 +36,11 @@ export function useGlobalEvents() {
 
       // If is_unread changed, update related queries
       if (event.fields_changed?.includes('is_unread')) {
-        // Invalidate unread counts
+        // Invalidate unread counts - will refetch with correct values
         queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
 
-        // Update cached session data if exists
-        queryClient.setQueryData(['session', event.session_id], (old: unknown) =>
-          old ? { ...(old as object), is_unread: false } : old
-        );
+        // Invalidate cached session data to force refetch
+        queryClient.invalidateQueries({ queryKey: ['session', event.session_id] });
 
         // Invalidate sessions list for this project
         queryClient.invalidateQueries({ queryKey: ['sessions', event.project_id] });

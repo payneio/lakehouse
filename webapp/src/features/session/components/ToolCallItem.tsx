@@ -61,7 +61,7 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
   };
 
   const status = getStatusDisplay();
-  const durationText = tool.duration ? `${tool.duration}ms` : '...';
+  const durationText = tool.duration ? `${(tool.duration / 1000).toFixed(1)}s` : '...';
 
   // Format arguments for display
   const formatArguments = (args?: Record<string, unknown>) => {

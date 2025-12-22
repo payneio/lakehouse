@@ -71,13 +71,22 @@ export function ExecutionPanel({ executionState, isOpen, onClose }: ExecutionPan
         </div>
       </div>
 
-      {/* Overlay for mobile */}
+      {/* Overlay for click-outside-to-close */}
       {isOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/20 z-30"
-          onClick={onClose}
-          aria-hidden="true"
-        />
+        <>
+          {/* Desktop overlay - transparent */}
+          <div
+            className="hidden md:block fixed inset-0 z-30"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          {/* Mobile overlay - dimmed */}
+          <div
+            className="md:hidden fixed inset-0 bg-black/20 z-30"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+        </>
       )}
     </>
   );

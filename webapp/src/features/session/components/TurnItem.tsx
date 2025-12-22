@@ -58,7 +58,7 @@ export function TurnItem({ turn, turnNumber }: TurnItemProps) {
   };
 
   const status = getStatusDisplay();
-  const durationText = `${duration}ms`;
+  const durationText = `${(duration / 1000).toFixed(1)}s`;
 
   // Truncate user message for display (handle undefined for legacy data)
   const userMessage = turn.userMessage ?? '';
@@ -69,19 +69,19 @@ export function TurnItem({ turn, turnNumber }: TurnItemProps) {
   return (
     <AccordionItem value={turn.id}>
       <AccordionTrigger className="hover:no-underline">
-        <div className="flex items-start justify-between gap-2 flex-1 pr-2">
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <span className={cn('flex-shrink-0 mt-0.5', status.color)}>{status.icon}</span>
-            <div className="flex-1 min-w-0 text-left">
-              <div className="font-medium">Turn {turnNumber}</div>
-              <div className="text-sm text-muted-foreground truncate">"{displayMessage}"</div>
+        <div className="flex items-start gap-2 flex-1 min-w-0 overflow-hidden">
+          <span className={cn('flex-shrink-0 mt-0.5', status.color)}>{status.icon}</span>
+          <div className="flex-1 min-w-0 text-left overflow-hidden">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium truncate">Turn {turnNumber}</span>
+              <div className="flex items-center gap-2 flex-shrink-0 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap">{durationText}</span>
+                <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded whitespace-nowrap">
+                  {turn.tools.length} {turn.tools.length === 1 ? 'tool' : 'tools'}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0 text-sm">
-            <span className="text-muted-foreground">{durationText}</span>
-            <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-              {turn.tools.length} {turn.tools.length === 1 ? 'tool' : 'tools'}
-            </span>
+            <div className="text-sm text-muted-foreground truncate">"{displayMessage}"</div>
           </div>
         </div>
       </AccordionTrigger>
