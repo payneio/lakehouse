@@ -245,6 +245,30 @@ async def send_message_for_execution(
                             "assistant_message:complete",
                             {"content": full_response, "timestamp": datetime.now(UTC).isoformat()},
                         )
+
+                    # Mark session as unread so user sees badge when viewing another session
+                    # Only mark unread if:
+                    # 1. No one is currently viewing (no active SSE subscribers)
+                    # 2. Session was previously read (avoid unnecessary writes)
+                    has_active_viewers = len(manager.emitter.queues) > 0
+                    if not has_active_viewers:
+                        current_session = service.get_session(session_id)
+                        if current_session and not current_session.is_unread:
+                            service.update_session_fields(session_id, is_unread=True)
+                            # Import here to avoid circular imports at module level
+                            from ..models.events import SessionUpdatedEvent
+                            from ..services.global_events import GlobalEventService
+
+                            await GlobalEventService.emit(
+                                SessionUpdatedEvent(
+                                    project_id=current_session.amplified_dir,
+                                    session_id=session_id,
+                                    fields_changed=["is_unread"],
+                                )
+                            )
+                            logger.debug(f"Marked session {session_id} as unread after assistant response")
+                    else:
+                        logger.debug(f"Session {session_id} has active viewers, not marking as unread")
             except Exception as e:
                 logger.error(f"Execution error in background task: {e}")
                 await manager.emitter.emit("execution_error", {"error": str(e)})

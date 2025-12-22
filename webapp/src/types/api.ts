@@ -101,6 +101,8 @@ export interface Session {
   tokenUsage?: unknown;
   errorMessage?: string;
   errorDetails?: unknown;
+  isUnread?: boolean;
+  lastReadAt?: string;
 }
 
 export interface SessionMessage {
