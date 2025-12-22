@@ -46,6 +46,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
     - working_dir for tools (derived from amplified_dir)
     - allowed_write_paths for tool-filesystem (derived from amplified_dir)
     - session_log_template for hooks-logging (points to amplifierd session dir)
+    - api_key for providers (from secrets.yaml)
 
     Args:
         mount_plan: Mount plan to modify (modified in-place)
@@ -87,6 +88,26 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
                 # Always override to ensure logs go to amplifierd session dir
                 hook["config"]["session_log_template"] = session_log_path
                 logger.debug(f"Injected session_log_template for hooks-logging: {session_log_path}")
+
+    # 3. Inject API keys for providers from secrets.yaml
+    # This allows users to configure API keys via UI without modifying profiles
+    # Priority: profile config > secrets.yaml > environment variables (handled by provider)
+    if "providers" in mount_plan:
+        from ..config.loader import load_secrets
+
+        secrets = load_secrets()
+        if secrets.api_keys:
+            for provider in mount_plan["providers"]:
+                if "config" not in provider:
+                    provider["config"] = {}
+                # Only inject if not already set in profile
+                if "api_key" not in provider["config"]:
+                    # Try module name first (e.g., "provider-anthropic")
+                    provider_id = provider.get("module", "") or provider.get("id", "")
+                    api_key = secrets.api_keys.get(provider_id)
+                    if api_key:
+                        provider["config"]["api_key"] = api_key
+                        logger.debug(f"Injected API key for provider: {provider_id}")
 
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])

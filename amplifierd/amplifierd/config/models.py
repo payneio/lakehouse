@@ -99,6 +99,80 @@ class DaemonConfig(BaseModel):
     )
 
 
+class Secrets(BaseModel):
+    """Secrets configuration stored separately from main config.
+
+    Stored in ~/.amplifierd/config/secrets.yaml (gitignored).
+    """
+
+    api_keys: dict[str, str] = Field(
+        default_factory=dict,
+        description="API keys by provider module name (e.g., 'provider-anthropic': 'sk-ant-...')",
+    )
+
+    @classmethod
+    def load_from_file(cls, path: Path) -> Secrets:
+        """Load secrets from YAML file.
+
+        Args:
+            path: Path to secrets file
+
+        Returns:
+            Loaded secrets (empty if file doesn't exist)
+        """
+        import yaml
+
+        if not path.exists():
+            return cls()
+
+        try:
+            with path.open() as f:
+                data = yaml.safe_load(f)
+            return cls.model_validate(data or {})
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML in secrets file: {e}") from e
+        except Exception as e:
+            raise ValueError(f"Failed to load secrets: {e}") from e
+
+    def save_to_file(self, path: Path) -> None:
+        """Save secrets to YAML file.
+
+        Args:
+            path: Path to save secrets file
+
+        Raises:
+            OSError: If file cannot be written
+        """
+        import yaml
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Add header comment
+        header = """# Amplifierd Secrets
+# This file contains sensitive credentials - DO NOT commit to version control.
+# API keys are stored by provider module name.
+#
+# Example:
+#   api_keys:
+#     provider-anthropic: "sk-ant-..."
+#     provider-openai: "sk-..."
+
+"""
+        with path.open("w") as f:
+            f.write(header)
+            yaml.safe_dump(
+                self.model_dump(mode="json"),
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+            )
+
+    @classmethod
+    def get_default(cls) -> Secrets:
+        """Get default (empty) secrets."""
+        return cls()
+
+
 class Config(BaseModel):
     """Complete daemon configuration."""
 

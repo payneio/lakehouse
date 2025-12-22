@@ -13,6 +13,7 @@ from .mount_plans import router as mount_plans_router
 from .profiles import router as profiles_router
 from .registries import router as registries_router
 from .sessions import router as sessions_router
+from .settings import router as settings_router
 from .status import router as status_router
 from .stream import router as stream_router
 
@@ -23,6 +24,7 @@ __all__ = [
     "events_router",
     "sessions_router",
     "messages_router",
+    "settings_router",
     "status_router",
     "profiles_router",
     "registries_router",

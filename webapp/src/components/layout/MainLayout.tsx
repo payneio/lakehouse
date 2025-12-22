@@ -1,3 +1,4 @@
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { DirectoryTreeSidebar } from "@/features/directories/components/DirectoryTreeSidebar";
 import { cn } from "@/lib/utils";
 import { FolderOpen, Home, Package, X } from "lucide-react";
@@ -42,8 +43,9 @@ function MainLayoutContent() {
           <X className="h-5 w-5" />
         </button>
 
-        <div className="p-4">
+        <div className="p-4 flex items-center justify-between">
           <h1 className="text-xl font-bold">Lakehouse</h1>
+          <SettingsDialog />
         </div>
         <nav className="p-4">
           <ul className="space-y-2">

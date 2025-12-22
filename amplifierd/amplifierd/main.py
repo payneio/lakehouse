@@ -24,6 +24,7 @@ from .routers import mount_plans_router
 from .routers import profiles_router
 from .routers import registries_router
 from .routers import sessions_router
+from .routers import settings_router
 from .routers import status_router
 from .routers import stream_router
 
@@ -160,6 +161,7 @@ app.include_router(directories_router)
 app.include_router(events_router)
 app.include_router(sessions_router)
 app.include_router(messages_router)
+app.include_router(settings_router)
 app.include_router(status_router)
 app.include_router(profiles_router)
 app.include_router(registries_router)
