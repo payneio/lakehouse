@@ -388,6 +388,11 @@ class AutomationScheduler:
             mount_plan_service = MountPlanService(share_dir)
             mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
 
+            # Inject runtime configuration (working_dir, allowed_write_paths, etc.)
+            from ..routers.sessions import _inject_runtime_config
+
+            _inject_runtime_config(mount_plan, session_id, absolute_amplified_dir)
+
             # Add session metadata
             if "session" not in mount_plan:
                 mount_plan["session"] = {}
