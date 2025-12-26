@@ -269,12 +269,22 @@ async def send_message_for_execution(
                             logger.debug(f"Marked session {session_id} as unread after assistant response")
                     else:
                         logger.debug(f"Session {session_id} has active viewers, not marking as unread")
+            except asyncio.CancelledError:
+                logger.info(f"Execution cancelled for session {session_id}")
+                await manager.emitter.emit(
+                    "execution_cancelled",
+                    {"timestamp": datetime.now(UTC).isoformat()},
+                )
+                raise  # Re-raise to properly terminate the task
             except Exception as e:
                 logger.error(f"Execution error in background task: {e}")
                 await manager.emitter.emit("execution_error", {"error": str(e)})
+            finally:
+                manager.clear_execution_task()
 
-        # Start execution in background
-        asyncio.create_task(execute_and_emit())
+            # Start execution in background and track the task
+        task = asyncio.create_task(execute_and_emit())
+        manager.set_execution_task(task)
 
         # Return immediately
         return {"status": "executing", "session_id": session_id}
@@ -283,6 +293,53 @@ async def send_message_for_execution(
         raise
     except Exception as e:
         logger.error(f"Failed to send message to session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.post("/cancel-execution", status_code=200)
+async def cancel_execution(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict[str, str]:
+    """Cancel any pending execution for a session.
+
+    This endpoint cancels the current background execution task if one is active.
+    An 'execution_cancelled' event will be emitted to SSE subscribers.
+
+    Args:
+        session_id: Session ID
+        service: SessionStateService dependency
+
+    Returns:
+        Status indicating whether execution was cancelled or no active execution
+
+    Raises:
+        HTTPException: 404 if session not found
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        manager = registry.get(session_id)
+
+        if manager is None:
+            return {"status": "no_active_execution", "session_id": session_id}
+
+        cancelled = manager.cancel_execution()
+
+        if cancelled:
+            return {"status": "cancelled", "session_id": session_id}
+        else:
+            return {"status": "no_active_execution", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel execution for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 

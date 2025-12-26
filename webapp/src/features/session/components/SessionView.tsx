@@ -1,6 +1,6 @@
 import { BASE_URL } from "@/api/client";
 import { listProfiles } from "@/api/profiles";
-import { changeProfile } from "@/api/sessions";
+import { cancelExecution, changeProfile } from "@/api/sessions";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
@@ -244,6 +244,20 @@ export function SessionView() {
           executionStateRef.current.addThinking(thinkingData.delta);
         }
       }),
+
+      // Execution cancelled
+      eventStream.on("execution_cancelled", () => {
+        setStreamingContent("");
+        setIsSending(false);
+        executionStateRef.current.completeTurn();
+      }),
+
+      // Execution error
+      eventStream.on("execution_error", () => {
+        setStreamingContent("");
+        setIsSending(false);
+        executionStateRef.current.completeTurn();
+      }),
     ];
 
     return () => {
@@ -276,6 +290,20 @@ export function SessionView() {
       // assistant_message_complete event will set isSending=false
     } catch (error) {
       console.error("Failed to send message:", error);
+      setStreamingContent("");
+      setIsSending(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!sessionId) return;
+
+    try {
+      await cancelExecution(sessionId);
+      // The execution_cancelled SSE event will handle resetting state
+    } catch (error) {
+      console.error("Failed to cancel execution:", error);
+      // Reset state anyway in case the SSE event doesn't arrive
       setStreamingContent("");
       setIsSending(false);
     }
@@ -435,7 +463,12 @@ export function SessionView() {
       </div>
 
       {/* Input */}
-      <MessageInput onSend={handleSend} disabled={needsStart || isSending} />
+      <MessageInput
+        onSend={handleSend}
+        disabled={needsStart || isSending}
+        isSending={isSending}
+        onCancel={handleCancel}
+      />
 
       {/* Approval dialog */}
       <ApprovalDialog sessionId={sessionId || ""} />

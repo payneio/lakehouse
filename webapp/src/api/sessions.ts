@@ -52,6 +52,12 @@ export const sendMessage = (
     body: JSON.stringify({ content }),
   });
 
+export const cancelExecution = (sessionId: string) =>
+  fetchApi<{ status: string; session_id: string }>(
+    `/api/v1/sessions/${sessionId}/cancel-execution`,
+    { method: 'POST' }
+  );
+
 export const changeProfile = (sessionId: string, profileName: string) =>
   fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-profile`, {
     method: 'POST',

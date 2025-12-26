@@ -1,12 +1,14 @@
 import { useState, type KeyboardEvent } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Square } from 'lucide-react';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
+  isSending?: boolean;
+  onCancel?: () => void;
 }
 
-export function MessageInput({ onSend, disabled }: MessageInputProps) {
+export function MessageInput({ onSend, disabled, isSending, onCancel }: MessageInputProps) {
   const [input, setInput] = useState('');
 
   const handleSend = () => {
@@ -34,13 +36,23 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
           className="flex-1 resize-none rounded-md border px-3 py-2 min-h-[80px] max-h-[200px] disabled:opacity-50"
           rows={3}
         />
-        <button
-          onClick={handleSend}
-          disabled={disabled || !input.trim()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 h-fit"
-        >
-          <Send className="h-4 w-4" />
-        </button>
+        {isSending && onCancel ? (
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 h-fit"
+            title="Cancel (Escape)"
+          >
+            <Square className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={disabled || !input.trim()}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 h-fit"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );

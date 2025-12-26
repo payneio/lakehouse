@@ -55,6 +55,9 @@ class SessionStreamManager:
         self._runner_initialized = False
         self._hooks_mounted = False
 
+        # Current execution task (for cancellation support)
+        self._current_execution_task: asyncio.Task | None = None
+
         logger.info(f"Created SessionStreamManager for {session_id}")
 
     async def get_runner(self: "SessionStreamManager", session: "Session") -> ExecutionRunner:
@@ -142,6 +145,30 @@ class SessionStreamManager:
             queue: Queue to remove
         """
         self.emitter.unsubscribe(queue)
+
+    def set_execution_task(self: "SessionStreamManager", task: asyncio.Task) -> None:
+        """Set the current execution task for cancellation support.
+
+        Args:
+            task: The background execution task
+        """
+        self._current_execution_task = task
+
+    def clear_execution_task(self: "SessionStreamManager") -> None:
+        """Clear the current execution task reference."""
+        self._current_execution_task = None
+
+    def cancel_execution(self: "SessionStreamManager") -> bool:
+        """Cancel the current execution if one is active.
+
+        Returns:
+            True if a task was cancelled, False if no active execution
+        """
+        if self._current_execution_task and not self._current_execution_task.done():
+            self._current_execution_task.cancel()
+            logger.info(f"Cancelled execution for session {self.session_id}")
+            return True
+        return False
 
     async def update_mount_plan(self: "SessionStreamManager", new_mount_plan: dict) -> None:
         """Update mount plan and invalidate runner.

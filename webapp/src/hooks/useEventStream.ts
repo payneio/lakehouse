@@ -213,6 +213,10 @@ export function useEventStream({ sessionId, onError, executionHandlers }: UseEve
     addNamedEventListener('hook:thinking:delta');
     addNamedEventListener('hook:approval:required');
 
+    // Execution lifecycle events
+    addNamedEventListener('execution_cancelled');
+    addNamedEventListener('execution_error');
+
     // Connection events
     addNamedEventListener('keepalive');
     // Note: 'connected' and 'error' are NOT SSE data events - they're handled
