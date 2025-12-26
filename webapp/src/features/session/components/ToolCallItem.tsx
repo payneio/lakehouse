@@ -1,5 +1,6 @@
 import React from 'react';
-import { CheckCircle, Circle, AlertCircle, Loader2, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle, Circle, AlertCircle, Loader2, Zap, ExternalLink } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { ToolCall } from '../types/execution';
@@ -99,7 +100,19 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
                 </span>
               )}
             </div>
-            <span className="text-sm text-muted-foreground flex-shrink-0">{durationText}</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-sm text-muted-foreground">{durationText}</span>
+              {tool.childSessionId && (
+                <Link
+                  to={`/directories/sessions/${tool.childSessionId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-muted-foreground hover:text-foreground"
+                  title="View subsession"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              )}
+            </div>
           </div>
         </CollapsibleTrigger>
 

@@ -29,6 +29,7 @@ class TraceTool(BaseModel):
     error: str | None = None
     is_sub_agent: bool = Field(default=False, serialization_alias="isSubAgent")
     sub_agent_name: str | None = Field(default=None, serialization_alias="subAgentName")
+    child_session_id: str | None = Field(default=None, serialization_alias="childSessionId")
 
 
 class TraceThinking(BaseModel):

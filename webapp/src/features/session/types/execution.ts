@@ -21,6 +21,7 @@ export interface ToolCall {
   error?: string;
   isSubAgent?: boolean;
   subAgentName?: string;
+  childSessionId?: string; // For Task tools, the subsession ID to link to
 }
 
 export interface ThinkingBlock {

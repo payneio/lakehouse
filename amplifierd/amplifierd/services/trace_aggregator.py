@@ -157,6 +157,10 @@ def aggregate_events_to_turns(events_file: Path) -> list[TraceTurn]:
                         # Handle result - can be dict with success/output/error or direct value
                         result = data.get("result", "")
                         if isinstance(result, dict):
+                            # Extract child session ID for sub-agent (Task) tools
+                            if tool.is_sub_agent and "session_id" in result:
+                                tool.child_session_id = result.get("session_id")
+
                             if result.get("success", True):
                                 tool.result = _truncate(str(result.get("output", "")))
                             else:

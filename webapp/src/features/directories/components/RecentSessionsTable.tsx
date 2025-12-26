@@ -1,5 +1,6 @@
 import { Bot, FolderOpen, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { Session } from "@/types/api";
 import { useAllSessions } from "../hooks/useDirectories";
 
 function SessionIcon({ isSubsession }: { isSubsession: boolean }) {
@@ -30,6 +31,63 @@ function getProjectName(amplifiedDir?: string): string {
   return parts[parts.length - 1] || amplifiedDir;
 }
 
+interface SessionWithChildren extends Session {
+  children: Session[];
+}
+
+function organizeSessionHierarchy(sessions: Session[]): SessionWithChildren[] {
+  const sessionMap = new Map<string, Session>();
+  const childrenMap = new Map<string, Session[]>();
+
+  // Build lookup maps
+  for (const session of sessions) {
+    sessionMap.set(session.sessionId, session);
+    if (session.parentSessionId) {
+      const siblings = childrenMap.get(session.parentSessionId) || [];
+      siblings.push(session);
+      childrenMap.set(session.parentSessionId, siblings);
+    }
+  }
+
+  // Build hierarchy: root sessions with their children attached
+  const result: SessionWithChildren[] = [];
+  const processedIds = new Set<string>();
+
+  for (const session of sessions) {
+    if (processedIds.has(session.sessionId)) continue;
+
+    if (!session.parentSessionId) {
+      // Root session - include with its children
+      const children = childrenMap.get(session.sessionId) || [];
+      children.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      result.push({ ...session, children });
+      processedIds.add(session.sessionId);
+      children.forEach((c) => processedIds.add(c.sessionId));
+    } else if (!sessionMap.has(session.parentSessionId)) {
+      // Orphan subsession (parent not in list) - show as standalone
+      result.push({ ...session, children: [] });
+      processedIds.add(session.sessionId);
+    }
+  }
+
+  // Sort root sessions by most recent activity (their own time or latest child)
+  result.sort((a, b) => {
+    const aLatest = Math.max(
+      new Date(a.createdAt).getTime(),
+      ...a.children.map((c) => new Date(c.createdAt).getTime())
+    );
+    const bLatest = Math.max(
+      new Date(b.createdAt).getTime(),
+      ...b.children.map((c) => new Date(c.createdAt).getTime())
+    );
+    return bLatest - aLatest;
+  });
+
+  return result;
+}
+
 export function RecentSessionsTable() {
   const { sessions, isLoading, error } = useAllSessions(20);
 
@@ -49,12 +107,9 @@ export function RecentSessionsTable() {
     );
   }
 
-  // Sort by createdAt descending (most recent first)
-  const sortedSessions = [...sessions].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  const hierarchicalSessions = organizeSessionHierarchy(sessions);
 
-  if (sortedSessions.length === 0) {
+  if (hierarchicalSessions.length === 0) {
     return (
       <div className="text-muted-foreground text-center py-8">
         No sessions yet. Select a project and start a chat.
@@ -62,43 +117,95 @@ export function RecentSessionsTable() {
     );
   }
 
+  const renderSessionCard = (session: Session, isSubsession: boolean) => (
+    <div
+      key={session.sessionId}
+      className={`border rounded-lg p-3 space-y-2 ${isSubsession ? "ml-6 border-dashed border-muted-foreground/30" : ""}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          to={`/directories/sessions/${session.sessionId}`}
+          className={`flex items-center gap-2 hover:text-primary min-w-0 flex-1 ${isSubsession ? "text-muted-foreground" : ""}`}
+        >
+          {session.isUnread && (
+            <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
+          )}
+          <SessionIcon isSubsession={isSubsession} />
+          <span className={`truncate ${session.isUnread ? "font-bold" : ""}`}>
+            {session.name ||
+              `Session ${new Date(session.createdAt).toLocaleDateString()}`}
+          </span>
+        </Link>
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          {formatRelativeTime(session.createdAt)}
+        </span>
+      </div>
+      {session.amplifiedDir && (
+        <Link
+          to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+        >
+          <FolderOpen className="h-3 w-3" />
+          <span className="truncate">{getProjectName(session.amplifiedDir)}</span>
+        </Link>
+      )}
+    </div>
+  );
+
+  const renderSessionRow = (session: Session, isSubsession: boolean) => (
+    <tr
+      key={session.sessionId}
+      className={`hover:bg-muted/30 ${isSubsession ? "bg-muted/10" : ""}`}
+    >
+      <td className="px-4 py-3">
+        <Link
+          to={`/directories/sessions/${session.sessionId}`}
+          className={`flex items-center gap-2 hover:text-primary ${isSubsession ? "text-muted-foreground pl-6" : ""}`}
+        >
+          {session.isUnread && (
+            <span className="w-2 h-2 bg-primary rounded-full" />
+          )}
+          <SessionIcon isSubsession={isSubsession} />
+          <span className={session.isUnread ? "font-bold" : ""}>
+            {session.name ||
+              `Session ${new Date(session.createdAt).toLocaleDateString()}`}
+          </span>
+        </Link>
+      </td>
+      <td className="px-4 py-3">
+        {session.amplifiedDir ? (
+          <Link
+            to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+          >
+            <FolderOpen className="h-4 w-4" />
+            <span className="truncate max-w-[200px]">
+              {getProjectName(session.amplifiedDir)}
+            </span>
+          </Link>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right text-sm text-muted-foreground whitespace-nowrap">
+        {formatRelativeTime(session.createdAt)}
+      </td>
+    </tr>
+  );
+
   return (
     <div className="space-y-2">
       {/* Mobile view: card layout */}
       <div className="sm:hidden space-y-2">
-        {sortedSessions.map((session) => {
+        {hierarchicalSessions.map((session) => {
           const isSubsession = !!session.parentSessionId;
           return (
-            <div
-              key={session.sessionId}
-              className={`border rounded-lg p-3 space-y-2 ${isSubsession ? "ml-4 border-dashed" : ""}`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <Link
-                  to={`/directories/sessions/${session.sessionId}`}
-                  className={`flex items-center gap-2 hover:text-primary min-w-0 flex-1 ${isSubsession ? "text-muted-foreground" : ""}`}
-                >
-                  {session.isUnread && (
-                    <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
-                  )}
-                  <SessionIcon isSubsession={isSubsession} />
-                  <span className={`truncate ${session.isUnread ? "font-bold" : ""}`}>
-                    {session.name ||
-                      `Session ${new Date(session.createdAt).toLocaleDateString()}`}
-                  </span>
-                </Link>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatRelativeTime(session.createdAt)}
-                </span>
-              </div>
-              {session.amplifiedDir && (
-                <Link
-                  to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
-                >
-                  <FolderOpen className="h-3 w-3" />
-                  <span className="truncate">{getProjectName(session.amplifiedDir)}</span>
-                </Link>
+            <div key={session.sessionId}>
+              {renderSessionCard(session, isSubsession)}
+              {session.children.length > 0 && (
+                <div className="mt-1 space-y-1">
+                  {session.children.map((child) => renderSessionCard(child, true))}
+                </div>
               )}
             </div>
           );
@@ -116,45 +223,13 @@ export function RecentSessionsTable() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sortedSessions.map((session) => {
+            {hierarchicalSessions.flatMap((session) => {
               const isSubsession = !!session.parentSessionId;
-              return (
-                <tr key={session.sessionId} className={`hover:bg-muted/30 ${isSubsession ? "bg-muted/10" : ""}`}>
-                  <td className="px-4 py-3">
-                    <Link
-                      to={`/directories/sessions/${session.sessionId}`}
-                      className={`flex items-center gap-2 hover:text-primary ${isSubsession ? "text-muted-foreground pl-4" : ""}`}
-                    >
-                      {session.isUnread && (
-                        <span className="w-2 h-2 bg-primary rounded-full" />
-                      )}
-                      <SessionIcon isSubsession={isSubsession} />
-                      <span className={session.isUnread ? "font-bold" : ""}>
-                        {session.name ||
-                          `Session ${new Date(session.createdAt).toLocaleDateString()}`}
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    {session.amplifiedDir ? (
-                      <Link
-                        to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
-                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                        <span className="truncate max-w-[200px]">
-                          {getProjectName(session.amplifiedDir)}
-                        </span>
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-muted-foreground whitespace-nowrap">
-                    {formatRelativeTime(session.createdAt)}
-                  </td>
-                </tr>
-              );
+              const rows = [renderSessionRow(session, isSubsession)];
+              session.children.forEach((child) => {
+                rows.push(renderSessionRow(child, true));
+              });
+              return rows;
             })}
           </tbody>
         </table>
