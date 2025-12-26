@@ -189,8 +189,10 @@ async def spawn_agent(
     child_id = sub_session_id or _generate_child_session_id(parent_id, agent_name)
     trace_id = child_id  # Child ID serves as trace ID
 
-    # Get parent's amplified directory
-    parent_amplified_dir = getattr(parent_session, "amplified_dir", ".")
+    # Get parent's amplified directory from session metadata (not the AmplifierSession object)
+    # The AmplifierSession doesn't have amplified_dir - it's stored in SessionMetadata
+    parent_metadata = session_manager.get_session(parent_id)
+    parent_amplified_dir = parent_metadata.amplified_dir if parent_metadata else "."
 
     logger.info(f"Spawning agent '{agent_name}' as child of {parent_id}: {child_id}")
 
@@ -202,6 +204,7 @@ async def spawn_agent(
             mount_plan=merged_config,
             parent_session_id=parent_id,
             amplified_dir=parent_amplified_dir,
+            name=f"Subagent: {agent_name}",
         )
     except ValueError as e:
         # Session already exists - this is OK for resumption
