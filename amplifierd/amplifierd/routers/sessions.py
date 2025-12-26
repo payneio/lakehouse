@@ -365,6 +365,217 @@ async def create_session(
         raise HTTPException(status_code=500, detail=f"Failed to create session: {str(exc)}") from exc
 
 
+def _clone_single_session(
+    source_session: SessionMetadata,
+    new_parent_session_id: str | None,
+    session_service: SessionStateService,
+    add_copy_suffix: bool = True,
+) -> SessionMetadata:
+    """Clone a single session (helper function).
+
+    Args:
+        source_session: Source session metadata
+        new_parent_session_id: Parent session ID for the clone (None for root)
+        session_service: Session state service
+        add_copy_suffix: Whether to add " (copy)" to the name
+
+    Returns:
+        Cloned session metadata
+    """
+    import uuid
+
+    from amplifier_library.config.loader import load_config
+
+    state_dir = get_state_dir()
+    source_session_dir = state_dir / "sessions" / source_session.session_id
+    source_mount_plan_path = source_session_dir / "mount_plan.json"
+
+    if not source_mount_plan_path.exists():
+        raise ValueError(f"Mount plan not found for session {source_session.session_id}")
+
+    source_mount_plan = json.loads(source_mount_plan_path.read_text())
+
+    # Generate new session ID
+    new_session_id = f"session_{uuid.uuid4().hex[:8]}"
+
+    # Generate cloned name
+    source_name = source_session.name or "Session"
+    new_name = f"{source_name} (copy)" if add_copy_suffix else source_name
+
+    # Get absolute amplified_dir path
+    config = load_config()
+    data_path = Path(config.data_path)
+    absolute_amplified_dir = str((data_path / source_session.amplified_dir).resolve())
+
+    # Inject runtime configuration for new session
+    _inject_runtime_config(source_mount_plan, new_session_id, absolute_amplified_dir)
+
+    # Create new session with cloned mount plan
+    session_service.create_session(
+        session_id=new_session_id,
+        profile_name=source_session.profile_name,
+        mount_plan=source_mount_plan,
+        parent_session_id=new_parent_session_id,
+        amplified_dir=source_session.amplified_dir,
+    )
+
+    new_session_dir = state_dir / "sessions" / new_session_id
+
+    # Copy transcript if it exists
+    source_transcript = source_session_dir / "transcript.jsonl"
+    if source_transcript.exists():
+        new_transcript = new_session_dir / "transcript.jsonl"
+        new_transcript.write_text(source_transcript.read_text())
+        logger.debug(f"Copied transcript from {source_session.session_id} to {new_session_id}")
+
+    # Copy events log if it exists
+    source_events = source_session_dir / "events.jsonl"
+    if source_events.exists():
+        new_events = new_session_dir / "events.jsonl"
+        new_events.write_text(source_events.read_text())
+        logger.debug(f"Copied events from {source_session.session_id} to {new_session_id}")
+
+    # Copy profile context messages if they exist
+    source_context_file = source_session_dir / "profile_context_messages.json"
+    if source_context_file.exists():
+        new_context_file = new_session_dir / "profile_context_messages.json"
+        new_context_file.write_text(source_context_file.read_text())
+        logger.debug(f"Copied profile context messages from {source_session.session_id} to {new_session_id}")
+
+    # Update session metadata (name and message count from source)
+    def update_metadata(meta: SessionMetadata) -> None:
+        meta.name = new_name
+        meta.message_count = source_session.message_count
+        meta.agent_invocations = source_session.agent_invocations
+        meta.token_usage = source_session.token_usage
+
+    session_service._update_session(new_session_id, update_metadata)
+
+    updated = session_service.get_session(new_session_id)
+    if updated is None:
+        raise ValueError(f"Failed to retrieve cloned session {new_session_id}")
+    return updated
+
+
+async def _clone_session_recursive(
+    source_session_id: str,
+    new_parent_session_id: str | None,
+    session_service: SessionStateService,
+    add_copy_suffix: bool = True,
+) -> SessionMetadata:
+    """Recursively clone a session and all its subsessions.
+
+    Args:
+        source_session_id: Source session ID to clone
+        new_parent_session_id: Parent session ID for the clone (None for root)
+        session_service: Session state service
+        add_copy_suffix: Whether to add " (copy)" to the name
+
+    Returns:
+        Cloned root session metadata
+    """
+    from ..models.events import SessionCreatedEvent
+
+    # Get source session
+    source_session = session_service.get_session(source_session_id)
+    if not source_session:
+        raise ValueError(f"Session {source_session_id} not found")
+
+    # Clone this session
+    cloned_session = _clone_single_session(
+        source_session=source_session,
+        new_parent_session_id=new_parent_session_id,
+        session_service=session_service,
+        add_copy_suffix=add_copy_suffix,
+    )
+
+    # Emit session:created event
+    await GlobalEventService.emit(
+        SessionCreatedEvent(
+            session_id=cloned_session.session_id,
+            session_name=cloned_session.name,
+            project_id=cloned_session.amplified_dir,
+            is_unread=cloned_session.is_unread,
+            created_by="user",
+        )
+    )
+
+    logger.info(f"Cloned session {source_session_id} to {cloned_session.session_id}")
+
+    # Find and clone all subsessions
+    subsessions = session_service.list_sessions(parent_session_id=source_session_id)
+    for subsession in subsessions:
+        await _clone_session_recursive(
+            source_session_id=subsession.session_id,
+            new_parent_session_id=cloned_session.session_id,
+            session_service=session_service,
+            add_copy_suffix=False,  # Don't add (copy) to subsession names
+        )
+
+    return cloned_session
+
+
+@router.post("/{session_id}/clone", response_model=SessionMetadata, status_code=201)
+async def clone_session(
+    session_id: str,
+    mount_plan_service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
+    session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> SessionMetadata:
+    """Clone an existing session including transcript, events, and all subsessions.
+
+    Creates a complete copy of an existing session including:
+    - Same profile_name and mount_plan configuration
+    - Same amplified_dir
+    - Full transcript (message history)
+    - Full events log
+    - Profile context messages
+    - All subsessions (recursively cloned)
+    - New session_id
+    - Name with " (copy)" suffix
+
+    Args:
+        session_id: Source session identifier to clone
+        mount_plan_service: Mount plan service dependency
+        session_service: Session state service dependency
+
+    Returns:
+        SessionMetadata for newly created cloned session
+
+    Raises:
+        HTTPException:
+            - 404 if source session not found
+            - 500 for clone operation failures
+    """
+    try:
+        # Check source session exists
+        source_session = session_service.get_session(session_id)
+        if not source_session:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Recursively clone session and all subsessions
+        cloned_session = await _clone_session_recursive(
+            source_session_id=session_id,
+            new_parent_session_id=None,  # Clone is standalone (no parent)
+            session_service=session_service,
+            add_copy_suffix=True,
+        )
+
+        # Count subsessions cloned
+        subsession_count = len(session_service.list_sessions(parent_session_id=session_id))
+        if subsession_count > 0:
+            logger.info(f"Cloned {subsession_count} subsessions for {session_id}")
+
+        return cloned_session
+
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(f"Failed to clone session {session_id}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to clone session: {str(exc)}") from exc
+
+
 @router.post("/{session_id}/start", status_code=204)
 async def start_session(
     session_id: str,

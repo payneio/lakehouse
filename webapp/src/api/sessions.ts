@@ -70,6 +70,11 @@ export const changeProfile = (sessionId: string, profileName: string) =>
     body: JSON.stringify({ profile_name: profileName }),
   });
 
+export const cloneSession = (sessionId: string) =>
+  fetchApi<Session>(`/api/v1/sessions/${sessionId}/clone`, {
+    method: 'POST',
+  });
+
 export const updateSession = (
   sessionId: string,
   updates: { name?: string }

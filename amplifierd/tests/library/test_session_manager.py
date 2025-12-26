@@ -178,3 +178,86 @@ class TestSessionManager:
         # Delete
         session_manager.delete_session(session_id)
         assert not session_dir.exists()
+
+    def test_delete_session_cascades_to_subsessions(self, session_manager: SessionManager) -> None:
+        """Test delete_session also deletes all child subsessions."""
+        # Create parent session
+        parent_id = str(uuid.uuid4())
+        session_manager.create_session(session_id=parent_id, profile_name="parent")
+
+        # Create child subsessions
+        child1_id = str(uuid.uuid4())
+        child2_id = str(uuid.uuid4())
+        session_manager.create_session(
+            session_id=child1_id, profile_name="child1", parent_session_id=parent_id
+        )
+        session_manager.create_session(
+            session_id=child2_id, profile_name="child2", parent_session_id=parent_id
+        )
+
+        # Verify all exist
+        assert session_manager.get_session(parent_id) is not None
+        assert session_manager.get_session(child1_id) is not None
+        assert session_manager.get_session(child2_id) is not None
+
+        # Delete parent
+        result = session_manager.delete_session(parent_id)
+
+        # All should be deleted
+        assert result is True
+        assert session_manager.get_session(parent_id) is None
+        assert session_manager.get_session(child1_id) is None
+        assert session_manager.get_session(child2_id) is None
+
+    def test_delete_session_cascades_recursively(self, session_manager: SessionManager) -> None:
+        """Test delete_session cascades through multiple levels of subsessions."""
+        # Create grandparent -> parent -> child hierarchy
+        grandparent_id = str(uuid.uuid4())
+        parent_id = str(uuid.uuid4())
+        child_id = str(uuid.uuid4())
+
+        session_manager.create_session(session_id=grandparent_id, profile_name="grandparent")
+        session_manager.create_session(
+            session_id=parent_id, profile_name="parent", parent_session_id=grandparent_id
+        )
+        session_manager.create_session(
+            session_id=child_id, profile_name="child", parent_session_id=parent_id
+        )
+
+        # Verify all exist
+        assert session_manager.get_session(grandparent_id) is not None
+        assert session_manager.get_session(parent_id) is not None
+        assert session_manager.get_session(child_id) is not None
+
+        # Delete grandparent
+        result = session_manager.delete_session(grandparent_id)
+
+        # All three levels should be deleted
+        assert result is True
+        assert session_manager.get_session(grandparent_id) is None
+        assert session_manager.get_session(parent_id) is None
+        assert session_manager.get_session(child_id) is None
+
+    def test_delete_subsession_only_deletes_that_branch(self, session_manager: SessionManager) -> None:
+        """Test deleting a subsession doesn't affect parent or siblings."""
+        # Create parent with two children
+        parent_id = str(uuid.uuid4())
+        child1_id = str(uuid.uuid4())
+        child2_id = str(uuid.uuid4())
+
+        session_manager.create_session(session_id=parent_id, profile_name="parent")
+        session_manager.create_session(
+            session_id=child1_id, profile_name="child1", parent_session_id=parent_id
+        )
+        session_manager.create_session(
+            session_id=child2_id, profile_name="child2", parent_session_id=parent_id
+        )
+
+        # Delete only child1
+        result = session_manager.delete_session(child1_id)
+
+        # child1 deleted, parent and child2 remain
+        assert result is True
+        assert session_manager.get_session(child1_id) is None
+        assert session_manager.get_session(parent_id) is not None
+        assert session_manager.get_session(child2_id) is not None

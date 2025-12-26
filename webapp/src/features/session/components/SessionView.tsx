@@ -1,13 +1,13 @@
 import { BASE_URL } from "@/api/client";
 import { listProfiles } from "@/api/profiles";
-import { cancelExecution, changeProfile, deleteLastMessage } from "@/api/sessions";
+import { cancelExecution, changeProfile, cloneSession, deleteLastMessage } from "@/api/sessions";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, FileText, Play, RefreshCw } from "lucide-react";
+import { Activity, ArrowLeft, Copy, FileText, Play, RefreshCw } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router";
 import { useExecutionState } from "../hooks/useExecutionState";
@@ -116,6 +116,19 @@ export function SessionView() {
     onError: (error: Error) => {
       console.error("Failed to change profile:", error);
       alert(`Failed to change profile: ${error.message}`);
+    },
+  });
+
+  // Clone session mutation
+  const cloneMutation = useMutation({
+    mutationFn: () => cloneSession(sessionId || ""),
+    onSuccess: (newSession) => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      navigate(`/directories/sessions/${newSession.sessionId}`);
+    },
+    onError: (error: Error) => {
+      console.error("Failed to clone session:", error);
+      alert(`Failed to clone session: ${error.message}`);
     },
   });
 
@@ -438,6 +451,15 @@ export function SessionView() {
 
               {/* Action buttons - on same row as profile */}
               <div className="flex items-center gap-1 ml-auto flex-shrink-0">
+                <button
+                  onClick={() => cloneMutation.mutate()}
+                  disabled={cloneMutation.isPending}
+                  className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors disabled:opacity-50"
+                  title="Clone session"
+                >
+                  <Copy className="h-4 w-4" />
+                  <span className="hidden md:inline">{cloneMutation.isPending ? "Cloning..." : "Clone"}</span>
+                </button>
                 <button
                   onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
                   className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
