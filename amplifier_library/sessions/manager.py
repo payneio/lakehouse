@@ -290,6 +290,40 @@ class SessionManager:
 
         self._update_session(session_id, update)
 
+    def delete_last_message(self, session_id: str) -> SessionMessage | None:
+        """Remove the last message from transcript.
+
+        Returns the deleted message, or None if transcript was empty.
+
+        Note: Caller must ensure no active execution is in progress.
+        """
+        transcript_path = self.storage_dir / session_id / "transcript.jsonl"
+        if not transcript_path.exists():
+            return None
+
+        lines = transcript_path.read_text().strip().split("\n")
+        if not lines or lines == [""]:
+            return None
+
+        # Parse the message we're about to delete
+        deleted_message = SessionMessage.model_validate_json(lines[-1])
+
+        # Remove last line
+        remaining = lines[:-1]
+
+        # Rewrite file atomically
+        tmp_path = transcript_path.with_suffix(".tmp")
+        tmp_path.write_text("\n".join(remaining) + "\n" if remaining else "")
+        tmp_path.rename(transcript_path)
+
+        # Update message_count
+        def update(metadata: SessionMetadata) -> None:
+            metadata.message_count = max(0, metadata.message_count - 1)
+
+        self._update_session(session_id, update)
+
+        return deleted_message
+
     def get_transcript(self, session_id: str, limit: int | None = None) -> list[SessionMessage]:
         """Read transcript (optionally limited to last N messages)."""
         transcript_path = self.storage_dir / session_id / "transcript.jsonl"

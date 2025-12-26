@@ -158,14 +158,22 @@ class SessionStreamManager:
         """Clear the current execution task reference."""
         self._current_execution_task = None
 
+    def has_active_execution(self: "SessionStreamManager") -> bool:
+        """Check if there is an active execution in progress.
+
+        Returns:
+            True if an execution task is running, False otherwise
+        """
+        return self._current_execution_task is not None and not self._current_execution_task.done()
+
     def cancel_execution(self: "SessionStreamManager") -> bool:
         """Cancel the current execution if one is active.
 
         Returns:
             True if a task was cancelled, False if no active execution
         """
-        if self._current_execution_task and not self._current_execution_task.done():
-            self._current_execution_task.cancel()
+        if self.has_active_execution():
+            self._current_execution_task.cancel()  # type: ignore[union-attr]
             logger.info(f"Cancelled execution for session {self.session_id}")
             return True
         return False

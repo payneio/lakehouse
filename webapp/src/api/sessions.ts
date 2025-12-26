@@ -58,6 +58,12 @@ export const cancelExecution = (sessionId: string) =>
     { method: 'POST' }
   );
 
+export const deleteLastMessage = (sessionId: string) =>
+  fetchApi<{ status: string; session_id: string; deleted_message?: { role: string; timestamp: string } }>(
+    `/api/v1/sessions/${sessionId}/messages/last`,
+    { method: 'DELETE' }
+  );
+
 export const changeProfile = (sessionId: string, profileName: string) =>
   fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-profile`, {
     method: 'POST',

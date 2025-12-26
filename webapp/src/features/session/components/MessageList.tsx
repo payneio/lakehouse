@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { SessionMessage } from '@/types/api';
 import type { CurrentActivity, ThinkingBlock } from '@/features/session/types/execution';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Trash2 } from 'lucide-react';
 import { CurrentActivityIndicator } from './CurrentActivityIndicator';
 import { ThinkingViewer } from './ThinkingViewer';
 
@@ -13,6 +13,8 @@ interface MessageListProps {
   currentActivity?: CurrentActivity | null;
   currentTurnThinking?: ThinkingBlock[];
   onContainerMount?: (element: HTMLDivElement | null) => void;
+  onDeleteLast?: () => void;
+  canDeleteLast?: boolean;
 }
 
 export function MessageList({
@@ -20,7 +22,9 @@ export function MessageList({
   streamingContent,
   currentActivity,
   currentTurnThinking = [],
-  onContainerMount
+  onContainerMount,
+  onDeleteLast,
+  canDeleteLast = false,
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -43,35 +47,48 @@ export function MessageList({
     <div ref={onContainerMount} className="flex-1 overflow-y-auto space-y-4 p-4 pt-[88px] lg:pt-4">
       {messages.map((message, idx) => {
         const isUser = message.role === 'user';
+        const isLastMessage = idx === messages.length - 1;
+        const showDeleteButton = isLastMessage && onDeleteLast && canDeleteLast;
         return (
           <div
             key={idx}
-            className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+            className={`group flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
           >
             {!isUser && (
               <div className="shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                 <Bot className="h-4 w-4 text-primary" />
               </div>
             )}
-            <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                isUser
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted'
-              }`}
-            >
-              <div className={isUser ? '' : 'prose prose-sm dark:prose-invert max-w-none'}>
-                {isUser ? (
-                  <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                ) : (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {message.content}
-                  </ReactMarkdown>
-                )}
+            <div className="flex flex-col items-end gap-1">
+              <div
+                className={`max-w-[80%] rounded-lg p-3 ${
+                  isUser
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
+                }`}
+              >
+                <div className={isUser ? '' : 'prose prose-sm dark:prose-invert max-w-none'}>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap break-words">{message.content}</div>
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  )}
+                </div>
+                <div className="text-xs opacity-70 mt-1">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </div>
               </div>
-              <div className="text-xs opacity-70 mt-1">
-                {new Date(message.timestamp).toLocaleTimeString()}
-              </div>
+              {showDeleteButton && (
+                <button
+                  onClick={onDeleteLast}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                  title="Delete last message"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
             {isUser && (
               <div className="shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">

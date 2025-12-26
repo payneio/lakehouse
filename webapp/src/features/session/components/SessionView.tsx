@@ -1,6 +1,6 @@
 import { BASE_URL } from "@/api/client";
 import { listProfiles } from "@/api/profiles";
-import { cancelExecution, changeProfile } from "@/api/sessions";
+import { cancelExecution, changeProfile, deleteLastMessage } from "@/api/sessions";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
@@ -258,6 +258,13 @@ export function SessionView() {
         setIsSending(false);
         executionStateRef.current.completeTurn();
       }),
+
+      // Message deleted (cross-client sync)
+      eventStream.on("message_deleted", () => {
+        // Another client (or this one) deleted a message, refetch transcript
+        queryClient.invalidateQueries({ queryKey: ["transcript", sessionId] });
+        setSseMessages([]); // Clear SSE messages, they'll be in transcript now
+      }),
     ];
 
     return () => {
@@ -306,6 +313,26 @@ export function SessionView() {
       // Reset state anyway in case the SSE event doesn't arrive
       setStreamingContent("");
       setIsSending(false);
+    }
+  };
+
+  const handleDeleteLast = async () => {
+    if (!sessionId || isSending || allMessages.length === 0) return;
+
+    if (!confirm("Delete the last message?")) return;
+
+    try {
+      await deleteLastMessage(sessionId);
+      // Optimistic update: remove from sseMessages if present, otherwise refetch
+      if (sseMessages.length > 0) {
+        setSseMessages((prev) => prev.slice(0, -1));
+      } else {
+        // Message was in transcript, need to refetch
+        queryClient.invalidateQueries({ queryKey: ["transcript", sessionId] });
+      }
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      alert("Failed to delete message. Please try again.");
     }
   };
 
@@ -452,6 +479,8 @@ export function SessionView() {
         currentTurnThinking={
           executionState.getState().currentTurn?.thinking || []
         }
+        onDeleteLast={handleDeleteLast}
+        canDeleteLast={!isSending && allMessages.length > 0}
       />
 
       {/* Tool call display */}

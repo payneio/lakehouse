@@ -283,6 +283,7 @@ async def send_message_for_execution(
                 manager.clear_execution_task()
 
             # Start execution in background and track the task
+
         task = asyncio.create_task(execute_and_emit())
         manager.set_execution_task(task)
 
@@ -333,13 +334,83 @@ async def cancel_execution(
 
         if cancelled:
             return {"status": "cancelled", "session_id": session_id}
-        else:
-            return {"status": "no_active_execution", "session_id": session_id}
+        return {"status": "no_active_execution", "session_id": session_id}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to cancel execution for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.delete("/messages/last", status_code=200)
+async def delete_last_message(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict[str, str | dict | None]:
+    """Delete the last message from a session's transcript.
+
+    This endpoint removes the most recent message from the transcript.
+    Cannot be called while an execution is in progress.
+
+    Args:
+        session_id: Session ID
+        service: SessionStateService dependency
+
+    Returns:
+        Status and deleted message info
+
+    Raises:
+        HTTPException: 404 if session not found, 409 if execution active
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        manager = registry.get(session_id)
+
+        # Check no active execution
+        if manager and manager.has_active_execution():
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete message while execution is active",
+            )
+
+        deleted = service.delete_last_message(session_id)
+
+        if deleted and manager:
+            # Emit SSE event for cross-client sync
+            await manager.emitter.emit(
+                "message_deleted",
+                {
+                    "position": "last",
+                    "deleted_message": {
+                        "role": deleted.role,
+                        "content": deleted.content[:100] if len(deleted.content) > 100 else deleted.content,
+                        "timestamp": deleted.timestamp.isoformat(),
+                    },
+                },
+            )
+
+        if deleted:
+            return {
+                "status": "deleted",
+                "session_id": session_id,
+                "deleted_message": {
+                    "role": deleted.role,
+                    "timestamp": deleted.timestamp.isoformat(),
+                },
+            }
+        return {"status": "no_messages", "session_id": session_id, "deleted_message": None}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete last message for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
