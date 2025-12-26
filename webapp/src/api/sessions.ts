@@ -101,6 +101,7 @@ export const getSessionEvents = (
     offset?: number;
     level?: string;
     eventType?: string;
+    includeChildren?: boolean;
   }
 ) => {
   const searchParams = new URLSearchParams();
@@ -108,6 +109,7 @@ export const getSessionEvents = (
   if (params?.offset) searchParams.set('offset', String(params.offset));
   if (params?.level) searchParams.set('level', params.level);
   if (params?.eventType) searchParams.set('event_type', params.eventType);
+  if (params?.includeChildren) searchParams.set('include_children', 'true');
 
   const query = searchParams.toString();
   return fetchApi<SessionEventsResponse>(

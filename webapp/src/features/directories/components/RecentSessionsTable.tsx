@@ -1,6 +1,13 @@
-import { FolderOpen, MessageSquare } from "lucide-react";
+import { Bot, FolderOpen, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAllSessions } from "../hooks/useDirectories";
+
+function SessionIcon({ isSubsession }: { isSubsession: boolean }) {
+  if (isSubsession) {
+    return <Bot className="h-4 w-4 flex-shrink-0 text-muted-foreground" />;
+  }
+  return <MessageSquare className="h-4 w-4 flex-shrink-0" />;
+}
 
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -59,40 +66,43 @@ export function RecentSessionsTable() {
     <div className="space-y-2">
       {/* Mobile view: card layout */}
       <div className="sm:hidden space-y-2">
-        {sortedSessions.map((session) => (
-          <div
-            key={session.sessionId}
-            className="border rounded-lg p-3 space-y-2"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <Link
-                to={`/directories/sessions/${session.sessionId}`}
-                className="flex items-center gap-2 hover:text-primary min-w-0 flex-1"
-              >
-                {session.isUnread && (
-                  <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
-                )}
-                <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                <span className={`truncate ${session.isUnread ? "font-bold" : ""}`}>
-                  {session.name ||
-                    `Session ${new Date(session.createdAt).toLocaleDateString()}`}
+        {sortedSessions.map((session) => {
+          const isSubsession = !!session.parentSessionId;
+          return (
+            <div
+              key={session.sessionId}
+              className={`border rounded-lg p-3 space-y-2 ${isSubsession ? "ml-4 border-dashed" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  to={`/directories/sessions/${session.sessionId}`}
+                  className={`flex items-center gap-2 hover:text-primary min-w-0 flex-1 ${isSubsession ? "text-muted-foreground" : ""}`}
+                >
+                  {session.isUnread && (
+                    <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
+                  )}
+                  <SessionIcon isSubsession={isSubsession} />
+                  <span className={`truncate ${session.isUnread ? "font-bold" : ""}`}>
+                    {session.name ||
+                      `Session ${new Date(session.createdAt).toLocaleDateString()}`}
+                  </span>
+                </Link>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {formatRelativeTime(session.createdAt)}
                 </span>
-              </Link>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {formatRelativeTime(session.createdAt)}
-              </span>
+              </div>
+              {session.amplifiedDir && (
+                <Link
+                  to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+                >
+                  <FolderOpen className="h-3 w-3" />
+                  <span className="truncate">{getProjectName(session.amplifiedDir)}</span>
+                </Link>
+              )}
             </div>
-            {session.amplifiedDir && (
-              <Link
-                to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
-              >
-                <FolderOpen className="h-3 w-3" />
-                <span className="truncate">{getProjectName(session.amplifiedDir)}</span>
-              </Link>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Desktop view: table layout */}
@@ -106,43 +116,46 @@ export function RecentSessionsTable() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sortedSessions.map((session) => (
-              <tr key={session.sessionId} className="hover:bg-muted/30">
-                <td className="px-4 py-3">
-                  <Link
-                    to={`/directories/sessions/${session.sessionId}`}
-                    className="flex items-center gap-2 hover:text-primary"
-                  >
-                    {session.isUnread && (
-                      <span className="w-2 h-2 bg-primary rounded-full" />
-                    )}
-                    <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                    <span className={session.isUnread ? "font-bold" : ""}>
-                      {session.name ||
-                        `Session ${new Date(session.createdAt).toLocaleDateString()}`}
-                    </span>
-                  </Link>
-                </td>
-                <td className="px-4 py-3">
-                  {session.amplifiedDir ? (
+            {sortedSessions.map((session) => {
+              const isSubsession = !!session.parentSessionId;
+              return (
+                <tr key={session.sessionId} className={`hover:bg-muted/30 ${isSubsession ? "bg-muted/10" : ""}`}>
+                  <td className="px-4 py-3">
                     <Link
-                      to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
-                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+                      to={`/directories/sessions/${session.sessionId}`}
+                      className={`flex items-center gap-2 hover:text-primary ${isSubsession ? "text-muted-foreground pl-4" : ""}`}
                     >
-                      <FolderOpen className="h-4 w-4" />
-                      <span className="truncate max-w-[200px]">
-                        {getProjectName(session.amplifiedDir)}
+                      {session.isUnread && (
+                        <span className="w-2 h-2 bg-primary rounded-full" />
+                      )}
+                      <SessionIcon isSubsession={isSubsession} />
+                      <span className={session.isUnread ? "font-bold" : ""}>
+                        {session.name ||
+                          `Session ${new Date(session.createdAt).toLocaleDateString()}`}
                       </span>
                     </Link>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right text-sm text-muted-foreground whitespace-nowrap">
-                  {formatRelativeTime(session.createdAt)}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3">
+                    {session.amplifiedDir ? (
+                      <Link
+                        to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                        <span className="truncate max-w-[200px]">
+                          {getProjectName(session.amplifiedDir)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm text-muted-foreground whitespace-nowrap">
+                    {formatRelativeTime(session.createdAt)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -362,6 +362,7 @@ class SessionManager:
         amplified_dir: str | None = None,
         since: datetime | None = None,
         limit: int | None = None,
+        parent_session_id: str | None = None,
     ) -> list[SessionMetadata]:
         """Query sessions with filters.
 
@@ -373,6 +374,7 @@ class SessionManager:
             amplified_dir: Optional filter by amplified directory path
             since: Optional filter by creation time
             limit: Optional maximum number of results
+            parent_session_id: Optional filter by parent session ID (for finding subsessions)
 
         Returns:
             List of session metadata matching filters, sorted by creation time descending
@@ -380,7 +382,7 @@ class SessionManager:
         # Load index
         index = self._load_index()
 
-        # Apply filters to index entries
+        # Apply filters to index entries (fast filtering using index)
         filtered_ids: list[str] = []
         for entry in index.sessions.values():
             if status is not None and entry.status != status:
@@ -398,6 +400,9 @@ class SessionManager:
         for session_id in filtered_ids:
             metadata = self.get_session(session_id)
             if metadata:
+                # Apply parent_session_id filter (requires full metadata)
+                if parent_session_id is not None and metadata.parent_session_id != parent_session_id:
+                    continue
                 results.append(metadata)
 
         # Sort by created_at descending (most recent first)

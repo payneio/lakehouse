@@ -1091,6 +1091,29 @@ class SessionEventsResponse(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+def _read_events_from_file(events_file: Path, session_id: str) -> list[dict[str, Any]]:
+    """Read events from a JSONL file and ensure session_id is present."""
+    events: list[dict[str, Any]] = []
+    if not events_file.exists():
+        return events
+
+    with open(events_file, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                # Ensure session_id is present for filtering
+                if "session_id" not in event:
+                    event["session_id"] = session_id
+                events.append(event)
+            except json.JSONDecodeError:
+                # Skip malformed lines
+                continue
+    return events
+
+
 @router.get("/{session_id}/events")
 async def get_session_events(
     session_id: str,
@@ -1099,6 +1122,7 @@ async def get_session_events(
     offset: int = 0,
     level: str | None = None,
     event_type: str | None = None,
+    include_children: bool = False,
 ) -> SessionEventsResponse:
     """Get raw events from session's events.jsonl file.
 
@@ -1111,6 +1135,7 @@ async def get_session_events(
         offset: Number of events to skip (default 0)
         level: Filter by log level (INFO, DEBUG, WARNING, ERROR)
         event_type: Filter by event type prefix (e.g., "tool:", "llm:")
+        include_children: If true, include events from child/subsessions
 
     Returns:
         SessionEventsResponse with events array, total count, and hasMore flag
@@ -1126,24 +1151,25 @@ async def get_session_events(
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
         state_dir = get_state_dir()
-        events_file = state_dir / "sessions" / session_id / "events.jsonl"
+        sessions_dir = state_dir / "sessions"
 
-        if not events_file.exists():
-            return SessionEventsResponse(events=[], total=0, hasMore=False)
+        # Collect all session IDs to load events from
+        session_ids_to_load = [session_id]
 
-        # Read and parse all events
+        if include_children:
+            # Find child sessions
+            child_sessions = service.list_sessions(parent_session_id=session_id)
+            session_ids_to_load.extend(child.session_id for child in child_sessions)
+
+        # Read and aggregate events from all sessions
         all_events: list[dict[str, Any]] = []
-        with open(events_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    event = json.loads(line)
-                    all_events.append(event)
-                except json.JSONDecodeError:
-                    # Skip malformed lines
-                    continue
+        for sid in session_ids_to_load:
+            events_file = sessions_dir / sid / "events.jsonl"
+            all_events.extend(_read_events_from_file(events_file, sid))
+
+        # Sort by timestamp if we aggregated multiple sessions
+        if include_children and len(session_ids_to_load) > 1:
+            all_events.sort(key=lambda e: e.get("ts", ""))
 
         # Apply filters
         filtered_events = all_events

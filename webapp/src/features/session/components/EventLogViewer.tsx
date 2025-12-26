@@ -21,9 +21,10 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
   const [searchText, setSearchText] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("");
   const [eventTypeFilter, setEventTypeFilter] = useState<string>("");
+  const [sessionFilter, setSessionFilter] = useState<string>("");
   const [selectedEvent, setSelectedEvent] = useState<SessionEvent | null>(null);
 
-  // Fetch events
+  // Fetch events (include child sessions for aggregated view)
   const {
     data,
     isLoading,
@@ -32,11 +33,33 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
     isFetching,
   } = useQuery({
     queryKey: ["sessionEvents", sessionId],
-    queryFn: () => getSessionEvents(sessionId, { limit: 1000 }),
+    queryFn: () => getSessionEvents(sessionId, { limit: 2000, includeChildren: true }),
     enabled: !!sessionId,
   });
 
   const events = data?.events || [];
+
+  // Extract unique sessions for filter dropdown
+  const sessionOptions = useMemo(() => {
+    const sessions = new Map<string, string>(); // session_id -> display label
+    events.forEach((e) => {
+      if (e.session_id && !sessions.has(e.session_id)) {
+        // Extract friendly name from session_id pattern: {parent}-{span}_{agent-name}
+        const underscoreIdx = e.session_id.lastIndexOf("_");
+        const label =
+          underscoreIdx > 0
+            ? e.session_id.substring(underscoreIdx + 1) // agent name
+            : e.session_id === sessionId
+              ? "Parent"
+              : e.session_id.substring(0, 8); // truncated id
+        sessions.set(e.session_id, label);
+      }
+    });
+    return Array.from(sessions.entries()).map(([id, label]) => ({
+      value: id,
+      label: id === sessionId ? `Parent (${label || "main"})` : label,
+    }));
+  }, [events, sessionId]);
 
   // Extract unique event types for filter dropdown
   const eventTypes = useMemo(() => {
@@ -73,6 +96,11 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
   // Filter events
   const filteredEvents = useMemo(() => {
     return events.filter((event) => {
+      // Session filter
+      if (sessionFilter && event.session_id !== sessionFilter) {
+        return false;
+      }
+
       // Level filter
       if (levelFilter && event.lvl?.toUpperCase() !== levelFilter) {
         return false;
@@ -104,7 +132,7 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
 
       return true;
     });
-  }, [events, levelFilter, eventTypeFilter, searchText]);
+  }, [events, sessionFilter, levelFilter, eventTypeFilter, searchText]);
 
   // Get smart preview text for an event
   const getEventPreview = (event: SessionEvent): string => {
@@ -148,9 +176,10 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
     setSearchText("");
     setLevelFilter("");
     setEventTypeFilter("");
+    setSessionFilter("");
   };
 
-  const hasFilters = searchText || levelFilter || eventTypeFilter;
+  const hasFilters = searchText || levelFilter || eventTypeFilter || sessionFilter;
 
   if (isLoading) {
     return (
@@ -210,6 +239,22 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
             </option>
           ))}
         </select>
+
+        {/* Session filter (only show if there are multiple sessions) */}
+        {sessionOptions.length > 1 && (
+          <select
+            value={sessionFilter}
+            onChange={(e) => setSessionFilter(e.target.value)}
+            className="px-2 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded focus:outline-none focus:border-blue-500 text-gray-200"
+          >
+            <option value="">All Sessions</option>
+            {sessionOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Clear filters */}
         {hasFilters && (
