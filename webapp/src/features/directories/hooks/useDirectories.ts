@@ -56,3 +56,16 @@ export function useSessions(directoryPath?: string) {
     error: sessions.error,
   };
 }
+
+export function useAllSessions(limit?: number) {
+  const sessions = useQuery({
+    queryKey: ['sessions', 'all', limit],
+    queryFn: () => api.listSessions({ limit }),
+  });
+
+  return {
+    sessions: sessions.data ?? [],
+    isLoading: sessions.isLoading,
+    error: sessions.error,
+  };
+}

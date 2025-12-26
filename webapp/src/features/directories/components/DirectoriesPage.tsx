@@ -18,6 +18,7 @@ import { AgentInstructionsDialog } from "./AgentInstructionsDialog";
 import { AutomationsSection } from "./AutomationsSection";
 import { CreateDirectoryDialog } from "./CreateDirectoryDialog";
 import { EditDirectoryDialog } from "./EditDirectoryDialog";
+import { RecentSessionsTable } from "./RecentSessionsTable";
 import { SessionsList } from "./SessionsList";
 import { WorkSection } from "./WorkSection";
 
@@ -251,8 +252,8 @@ export function DirectoriesPage() {
           ) : null}
         </div>
       ) : (
-        <div className="max-w-2xl mx-auto">
-          <div className="py-12 space-y-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="py-8 space-y-8">
             <div className="flex items-center gap-3">
               <MobileMenuButton />
               <div>
@@ -270,6 +271,12 @@ export function DirectoriesPage() {
                 <Plus className="h-5 w-5" />
                 Add Project
               </button>
+            </div>
+
+            {/* Recent Sessions */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Recent Sessions</h2>
+              <RecentSessionsTable />
             </div>
           </div>
         </div>
