@@ -420,13 +420,21 @@ class SessionManager:
     # --- Management ---
 
     def delete_session(self, session_id: str) -> bool:
-        """Delete session directory and remove from index."""
+        """Delete session directory, all subsessions, and remove from index.
+
+        Cascades deletion to all child sessions (subsessions) recursively.
+        """
         session_dir = self.storage_dir / session_id
 
         if not session_dir.exists():
             return False
 
         try:
+            # Delete subsessions first (recursive cascade)
+            children = self.list_sessions(parent_session_id=session_id)
+            for child in children:
+                self.delete_session(child.session_id)
+
             # Remove directory
             shutil.rmtree(session_dir)
 
