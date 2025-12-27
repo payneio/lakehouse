@@ -115,9 +115,9 @@ def aggregate_events_to_turns(events_file: Path) -> list[TraceTurn]:
                     tool_input = data.get("tool_input", {})
                     parallel_group_id = data.get("parallel_group_id", "")
 
-                    # Detect sub-agent calls (Task tool with subagent_type)
-                    is_sub_agent = tool_name == "Task"
-                    sub_agent_name = tool_input.get("subagent_type") if is_sub_agent else None
+                    # Detect sub-agent calls (task tool with agent param)
+                    is_sub_agent = tool_name.lower() == "task"
+                    sub_agent_name = tool_input.get("agent") if is_sub_agent else None
 
                     tool = TraceTool(
                         id=parallel_group_id or str(uuid4()),
@@ -158,8 +158,11 @@ def aggregate_events_to_turns(events_file: Path) -> list[TraceTurn]:
                         result = data.get("result", "")
                         if isinstance(result, dict):
                             # Extract child session ID for sub-agent (Task) tools
-                            if tool.is_sub_agent and "session_id" in result:
-                                tool.child_session_id = result.get("session_id")
+                            # The session_id is at result.output.session_id
+                            if tool.is_sub_agent:
+                                output = result.get("output", {})
+                                if isinstance(output, dict) and "session_id" in output:
+                                    tool.child_session_id = output.get("session_id")
 
                             if result.get("success", True):
                                 tool.result = _truncate(str(result.get("output", "")))

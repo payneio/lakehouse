@@ -2,6 +2,7 @@
 
 from datetime import UTC
 from datetime import datetime
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -602,3 +603,323 @@ class TestSessionsAPI:
         mock_session_state_service.terminate_session.side_effect = Exception("Terminate error")
         response = client.post("/api/v1/sessions/test_session_123/terminate")
         assert response.status_code == 500
+
+    # --- Clone Session Tests ---
+
+    def test_clone_session_success(
+        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+    ) -> None:
+        """Test POST /api/v1/sessions/{session_id}/clone creates cloned session."""
+        import json
+
+        # Create mock source session directory with mount plan and transcript
+        session_dir = tmp_path / "sessions" / "test_session_123"
+        session_dir.mkdir(parents=True)
+        (session_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
+        (session_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Hello"}\n')
+        (session_dir / "events.jsonl").write_text('{"event": "test", "ts": "2024-01-01T00:00:00Z"}\n')
+
+        # Mock get_state_dir to return tmp_path
+        import amplifierd.routers.sessions
+
+        original_get_state_dir = amplifierd.routers.sessions.get_state_dir
+        amplifierd.routers.sessions.get_state_dir = lambda: tmp_path
+
+        # Setup mock to return empty list for subsessions
+        mock_session_state_service.list_sessions.return_value = []
+
+        # Track the created session ID and metadata
+        created_session_id: str | None = None
+        source_metadata = SessionMetadata(
+            session_id="test_session_123",
+            status=SessionStatus.ACTIVE,
+            profile_name="foundation/base",
+            mount_plan_path="state/sessions/test_session_123/mount_plan.json",
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            amplified_dir=".",
+            name="Test Session",
+        )
+
+        def mock_get_session(sid: str) -> SessionMetadata | None:
+            nonlocal created_session_id
+            if sid == "test_session_123":
+                return source_metadata
+            elif created_session_id and sid == created_session_id:
+                return SessionMetadata(
+                    session_id=created_session_id,
+                    status=SessionStatus.ACTIVE,
+                    profile_name="foundation/base",
+                    mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
+                    created_at=datetime.now(UTC),
+                    started_at=datetime.now(UTC),
+                    name="Test Session (copy)",
+                )
+            return None
+
+        def mock_create_session(**kwargs: Any) -> SessionMetadata:
+            nonlocal created_session_id
+            created_session_id = kwargs.get("session_id")
+            return SessionMetadata(
+                session_id=created_session_id or "unknown",
+                status=SessionStatus.ACTIVE,
+                profile_name=kwargs.get("profile_name", "foundation/base"),
+                mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+            )
+
+        mock_session_state_service.get_session.side_effect = mock_get_session
+        mock_session_state_service.create_session.side_effect = mock_create_session
+
+        try:
+            # Make request
+            response = client.post("/api/v1/sessions/test_session_123/clone")
+
+            # Assert response
+            assert response.status_code == 201
+            data = response.json()
+            assert data["sessionId"].startswith("session_")
+            assert data["sessionId"] != "test_session_123"
+            assert data["name"] == "Test Session (copy)"
+
+            # Verify create_session was called
+            mock_session_state_service.create_session.assert_called_once()
+        finally:
+            # Restore original function
+            amplifierd.routers.sessions.get_state_dir = original_get_state_dir
+
+    def test_clone_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
+        """Test POST /api/v1/sessions/{session_id}/clone returns 404 for missing session."""
+        # Setup mock to return None
+        mock_session_state_service.get_session.return_value = None
+
+        # Make request
+        response = client.post("/api/v1/sessions/nonexistent/clone")
+
+        # Assert
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_clone_session_copies_transcript_and_events(
+        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+    ) -> None:
+        """Test POST /api/v1/sessions/{session_id}/clone copies transcript and events."""
+        import json
+
+        # Create source session with transcript and events
+        source_dir = tmp_path / "sessions" / "test_session_123"
+        source_dir.mkdir(parents=True)
+        (source_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
+        (source_dir / "transcript.jsonl").write_text(
+            '{"role": "user", "content": "Hello"}\n'
+            '{"role": "assistant", "content": "Hi there!"}\n'
+        )
+        (source_dir / "events.jsonl").write_text(
+            '{"event": "tool:pre", "ts": "2024-01-01T00:00:00Z"}\n'
+            '{"event": "tool:post", "ts": "2024-01-01T00:00:01Z"}\n'
+        )
+        (source_dir / "profile_context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
+
+        # Mock get_state_dir
+        import amplifierd.routers.sessions
+
+        original_get_state_dir = amplifierd.routers.sessions.get_state_dir
+        amplifierd.routers.sessions.get_state_dir = lambda: tmp_path
+
+        # Setup mocks
+        mock_session_state_service.list_sessions.return_value = []
+
+        source_metadata = SessionMetadata(
+            session_id="test_session_123",
+            status=SessionStatus.ACTIVE,
+            profile_name="foundation/base",
+            mount_plan_path="state/sessions/test_session_123/mount_plan.json",
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            amplified_dir=".",
+            message_count=2,
+            agent_invocations=1,
+        )
+
+        # Track created session ID
+        created_session_id = None
+
+        def mock_create_session(**kwargs):
+            nonlocal created_session_id
+            created_session_id = kwargs.get("session_id", "session_new123")
+            # Create the session directory
+            new_dir = tmp_path / "sessions" / created_session_id
+            new_dir.mkdir(parents=True, exist_ok=True)
+            return SessionMetadata(
+                session_id=created_session_id,
+                status=SessionStatus.ACTIVE,
+                profile_name=kwargs.get("profile_name", "foundation/base"),
+                mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                amplified_dir=kwargs.get("amplified_dir", "."),
+            )
+
+        mock_session_state_service.create_session.side_effect = mock_create_session
+        mock_session_state_service.get_session.side_effect = lambda sid: (
+            source_metadata if sid == "test_session_123" else
+            SessionMetadata(
+                session_id=sid,
+                status=SessionStatus.ACTIVE,
+                profile_name="foundation/base",
+                mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                amplified_dir=".",
+                name="test_session_123 (copy)",
+            )
+        )
+
+        try:
+            # Make request
+            response = client.post("/api/v1/sessions/test_session_123/clone")
+
+            # Assert response
+            assert response.status_code == 201
+
+            # Verify files were copied to new session directory
+            assert created_session_id is not None
+            new_dir = tmp_path / "sessions" / created_session_id
+            assert (new_dir / "transcript.jsonl").exists()
+            assert (new_dir / "events.jsonl").exists()
+            assert (new_dir / "profile_context_messages.json").exists()
+
+            # Verify content was copied
+            transcript_content = (new_dir / "transcript.jsonl").read_text()
+            assert "Hello" in transcript_content
+            assert "Hi there!" in transcript_content
+
+            events_content = (new_dir / "events.jsonl").read_text()
+            assert "tool:pre" in events_content
+            assert "tool:post" in events_content
+        finally:
+            amplifierd.routers.sessions.get_state_dir = original_get_state_dir
+
+    def test_clone_session_with_subsessions(
+        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+    ) -> None:
+        """Test POST /api/v1/sessions/{session_id}/clone clones subsessions recursively."""
+        import json
+
+        # Create source session directories
+        parent_dir = tmp_path / "sessions" / "parent_session"
+        parent_dir.mkdir(parents=True)
+        (parent_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
+        (parent_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Parent message"}\n')
+
+        child_dir = tmp_path / "sessions" / "child_session"
+        child_dir.mkdir(parents=True)
+        (child_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
+        (child_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Child message"}\n')
+
+        # Mock get_state_dir
+        import amplifierd.routers.sessions
+
+        original_get_state_dir = amplifierd.routers.sessions.get_state_dir
+        amplifierd.routers.sessions.get_state_dir = lambda: tmp_path
+
+        # Setup parent and child session metadata
+        parent_metadata = SessionMetadata(
+            session_id="parent_session",
+            status=SessionStatus.ACTIVE,
+            profile_name="foundation/base",
+            mount_plan_path="state/sessions/parent_session/mount_plan.json",
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            amplified_dir=".",
+            name="Parent Session",
+        )
+
+        child_metadata = SessionMetadata(
+            session_id="child_session",
+            status=SessionStatus.ACTIVE,
+            profile_name="foundation/base",
+            mount_plan_path="state/sessions/child_session/mount_plan.json",
+            created_at=datetime.now(UTC),
+            started_at=datetime.now(UTC),
+            amplified_dir=".",
+            parent_session_id="parent_session",
+            name="Child Session",
+        )
+
+        # Track created sessions
+        created_sessions = []
+
+        def mock_create_session(**kwargs):
+            session_id = kwargs.get("session_id", f"session_{len(created_sessions)}")
+            created_sessions.append(session_id)
+            # Create the session directory
+            new_dir = tmp_path / "sessions" / session_id
+            new_dir.mkdir(parents=True, exist_ok=True)
+            return SessionMetadata(
+                session_id=session_id,
+                status=SessionStatus.ACTIVE,
+                profile_name=kwargs.get("profile_name", "foundation/base"),
+                mount_plan_path=f"state/sessions/{session_id}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                amplified_dir=kwargs.get("amplified_dir", "."),
+                parent_session_id=kwargs.get("parent_session_id"),
+            )
+
+        def mock_get_session(sid):
+            if sid == "parent_session":
+                return parent_metadata
+            elif sid == "child_session":
+                return child_metadata
+            else:
+                # Return cloned session
+                return SessionMetadata(
+                    session_id=sid,
+                    status=SessionStatus.ACTIVE,
+                    profile_name="foundation/base",
+                    mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
+                    created_at=datetime.now(UTC),
+                    started_at=datetime.now(UTC),
+                    amplified_dir=".",
+                    name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
+                )
+
+        # list_sessions returns child when querying parent's subsessions
+        def mock_list_sessions(parent_session_id=None, **kwargs):
+            if parent_session_id == "parent_session":
+                return [child_metadata]
+            return []
+
+        mock_session_state_service.create_session.side_effect = mock_create_session
+        mock_session_state_service.get_session.side_effect = mock_get_session
+        mock_session_state_service.list_sessions.side_effect = mock_list_sessions
+
+        try:
+            # Make request to clone parent
+            response = client.post("/api/v1/sessions/parent_session/clone")
+
+            # Assert response
+            assert response.status_code == 201
+
+            # Verify both parent and child were cloned (2 sessions created)
+            assert len(created_sessions) == 2
+
+            # Verify directories were created
+            for session_id in created_sessions:
+                assert (tmp_path / "sessions" / session_id).exists()
+        finally:
+            amplifierd.routers.sessions.get_state_dir = original_get_state_dir
+
+    def test_clone_session_unexpected_error(self, client: TestClient, mock_session_state_service: Mock) -> None:
+        """Test POST /api/v1/sessions/{session_id}/clone handles unexpected errors."""
+        # Setup mock to raise exception during clone
+        mock_session_state_service.get_session.side_effect = Exception("Unexpected clone error")
+
+        # Make request
+        response = client.post("/api/v1/sessions/test_session_123/clone")
+
+        # Assert
+        assert response.status_code == 500
+        assert "Failed to clone session" in response.json()["detail"]

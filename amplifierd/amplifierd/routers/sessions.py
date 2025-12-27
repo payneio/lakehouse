@@ -420,6 +420,7 @@ def _clone_single_session(
     )
 
     new_session_dir = state_dir / "sessions" / new_session_id
+    new_session_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy transcript if it exists
     source_transcript = source_session_dir / "transcript.jsonl"
