@@ -12,7 +12,7 @@ export function MessageInput({ onSend, disabled, isSending, onCancel }: MessageI
   const [input, setInput] = useState('');
 
   const handleSend = () => {
-    if (!input.trim() || disabled) return;
+    if (!input.trim() || disabled || isSending) return;
     onSend(input);
     setInput('');
   };
@@ -32,7 +32,7 @@ export function MessageInput({ onSend, disabled, isSending, onCancel }: MessageI
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-          disabled={disabled}
+          disabled={disabled && !isSending}
           className="flex-1 resize-none rounded-md border px-3 py-2 min-h-[80px] max-h-[200px] disabled:opacity-50"
           rows={3}
         />
