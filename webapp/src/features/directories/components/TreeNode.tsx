@@ -1,4 +1,5 @@
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from "lucide-react";
+import { useMemo } from "react";
 import type { TreeNode as TreeNodeType } from "../utils/treeUtils";
 
 interface TreeNodeProps {
@@ -16,7 +17,26 @@ export function TreeNode({
   onSelect,
   unreadCounts = {}
 }: TreeNodeProps) {
-  const unreadCount = unreadCounts[node.fullPath] || 0;
+  // When expanded, show only direct count (children show their own)
+  // When collapsed, aggregate all descendant counts into one badge
+  const unreadCount = useMemo(() => {
+    const directCount = unreadCounts[node.fullPath] || 0;
+
+    if (node.isExpanded) {
+      return directCount;
+    }
+
+    // Collapsed: sum counts for all paths under this node
+    let total = directCount;
+    const prefix = node.fullPath + '/';
+    for (const [path, count] of Object.entries(unreadCounts)) {
+      if (path.startsWith(prefix)) {
+        total += count;
+      }
+    }
+    return total;
+  }, [unreadCounts, node.fullPath, node.isExpanded]);
+
   const hasChildren = node.children.length > 0;
   const isAmplified = node.directory !== null;
   const isSelected = isAmplified && node.fullPath === selectedPath;
