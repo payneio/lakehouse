@@ -107,9 +107,27 @@ def load_config(config_path: Path | None = None) -> DaemonSettings:
     # We use model_validate to ensure proper precedence: defaults < YAML < env vars
     import os
 
-    # Only pass YAML values that don't have corresponding env vars
-    filtered_yaml = {}
+    # Handle both flat and nested config formats:
+    # Flat format (legacy): { host: ..., port: ..., data_path: ... }
+    # Nested format: { daemon: { host: ..., port: ... }, data_path: ... }
+    #
+    # We extract values from nested 'daemon:' section and merge with root-level values.
+    # Root-level values (like data_path) take precedence for backward compatibility.
+    daemon_settings = {}
+
+    # First, extract from nested 'daemon:' section if present
+    if "daemon" in yaml_settings and isinstance(yaml_settings["daemon"], dict):
+        daemon_settings.update(yaml_settings["daemon"])
+
+    # Then overlay root-level values (excluding nested sections)
+    # This allows root-level data_path to override daemon.data_path if both exist
     for key, value in yaml_settings.items():
+        if key not in ("daemon", "startup") and not isinstance(value, dict):
+            daemon_settings[key] = value
+
+    # Only pass values that don't have corresponding env vars
+    filtered_yaml = {}
+    for key, value in daemon_settings.items():
         env_key = f"AMPLIFIERD_{key.upper()}"
         if env_key not in os.environ:
             filtered_yaml[key] = value

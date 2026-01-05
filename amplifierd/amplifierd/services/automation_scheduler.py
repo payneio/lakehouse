@@ -41,17 +41,21 @@ class AutomationScheduler:
         self,
         automation_manager: AutomationManager,
         session_manager: SessionManager,
+        timezone: str = "UTC",
     ) -> None:
         """Initialize automation scheduler.
 
         Args:
             automation_manager: Manager for automation persistence
             session_manager: Manager for session lifecycle
+            timezone: IANA timezone identifier for scheduling (e.g., "America/Los_Angeles")
         """
         self.automation_manager = automation_manager
         self.session_manager = session_manager
-        self.scheduler = AsyncIOScheduler(timezone="UTC")
+        self.timezone = timezone
+        self.scheduler = AsyncIOScheduler(timezone=timezone)
         self._running = False
+        logger.info(f"Automation scheduler initialized with timezone: {timezone}")
 
     async def start(self) -> None:
         """Start scheduler and load all enabled automations.
@@ -233,10 +237,10 @@ class AutomationScheduler:
             cron_expr: Standard cron expression (5 or 6 parts)
 
         Returns:
-            CronTrigger configured with expression
+            CronTrigger configured with expression in scheduler's timezone
 
         Example:
-            "0 9 * * *" -> Daily at 9:00 AM UTC
+            "0 9 * * *" -> Daily at 9:00 AM in configured timezone
             "*/30 * * * *" -> Every 30 minutes
         """
         parts = cron_expr.split()
@@ -250,7 +254,7 @@ class AutomationScheduler:
                 day=day,
                 month=month,
                 day_of_week=day_of_week,
-                timezone="UTC",
+                timezone=self.timezone,
             )
         if len(parts) == 6:
             # Extended cron with seconds: second minute hour day month day_of_week
@@ -262,7 +266,7 @@ class AutomationScheduler:
                 day=day,
                 month=month,
                 day_of_week=day_of_week,
-                timezone="UTC",
+                timezone=self.timezone,
             )
         raise ValueError(f"Invalid cron expression (must be 5 or 6 parts): {cron_expr}")
 
@@ -273,7 +277,7 @@ class AutomationScheduler:
             interval_str: Duration string (e.g., "30m", "2h", "1d")
 
         Returns:
-            IntervalTrigger configured with interval
+            IntervalTrigger configured with interval in scheduler's timezone
 
         Example:
             "30m" -> Every 30 minutes
@@ -291,7 +295,7 @@ class AutomationScheduler:
         # Convert to seconds
         seconds = self._interval_to_seconds(value, unit)
 
-        return IntervalTrigger(seconds=seconds, timezone="UTC")
+        return IntervalTrigger(seconds=seconds, timezone=self.timezone)
 
     def _interval_to_seconds(self, value: int, unit: str) -> int:
         """Convert interval notation to seconds.
@@ -320,14 +324,14 @@ class AutomationScheduler:
             datetime_str: ISO 8601 datetime string
 
         Returns:
-            DateTrigger for one-time execution
+            DateTrigger for one-time execution in scheduler's timezone
 
         Example:
             "2024-12-15T09:00:00Z" -> Execute once at that time
         """
         # Parse ISO datetime (handle Z suffix)
         dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-        return DateTrigger(run_date=dt, timezone="UTC")
+        return DateTrigger(run_date=dt, timezone=self.timezone)
 
     async def _execute_automation(self, automation_id: str) -> None:
         """Execute automation by creating session and sending message.
@@ -354,7 +358,14 @@ class AutomationScheduler:
             session_id = f"auto_{uuid.uuid4().hex[:8]}"
 
             # Create human-readable session name: "{automation_name} - {date}"
-            execution_date = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+            # Use configured timezone for display instead of UTC
+            from zoneinfo import ZoneInfo
+
+            local_tz = ZoneInfo(self.timezone)
+            execution_time = datetime.now(local_tz)
+            # Format timezone abbreviation (e.g., "PST", "EST", "UTC")
+            tz_abbrev = execution_time.strftime("%Z")
+            execution_date = execution_time.strftime(f"%Y-%m-%d %H:%M {tz_abbrev}")
             session_name = f"{automation.name} - {execution_date}"
 
             # Create session in automation's project

@@ -108,12 +108,16 @@ async def lifespan(app: FastAPI):
         automation_manager = AutomationManager(storage_dir=state_dir)
         session_manager = SessionManager(storage_dir=state_dir)
 
+        # Get timezone from daemon config (already loaded above)
+        scheduler_timezone = daemon_config.daemon.timezone if daemon_config else "UTC"
+
         scheduler = AutomationScheduler(
             automation_manager=automation_manager,
             session_manager=session_manager,
+            timezone=scheduler_timezone,
         )
         await scheduler.start()
-        logger.info("Automation scheduler started")
+        logger.info(f"Automation scheduler started with timezone: {scheduler_timezone}")
 
         # Store scheduler in app state for access from routers
         app.state.automation_scheduler = scheduler
@@ -201,7 +205,7 @@ async def info() -> dict[str, str | int]:
 
     # Get webapp info
     webapp_path = str(Path(__file__).parent.parent.parent / "webapp")
-    webapp_url = "http://localhost:5173"
+    webapp_url = "http://localhost:7777"
 
     return {
         "daemon_path": daemon_path,

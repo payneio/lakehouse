@@ -16,6 +16,7 @@ export default defineConfig({
     environment: "jsdom",
   },
   server: {
+    port: 7777,
     allowedHosts: ["civil.lan", "civil.local", "localhost", "127.0.0.1"],
   },
 });

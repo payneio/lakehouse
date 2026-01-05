@@ -11,6 +11,7 @@ export interface DaemonSettings {
   port: number;
   workers: number;
   logLevel: string;
+  timezone: string;
   corsOrigins: string[];
 }
 
@@ -39,6 +40,7 @@ export interface UpdateDaemonConfigRequest {
   logLevel?: string;
   host?: string;
   port?: number;
+  timezone?: string;
 }
 
 export interface UpdateDaemonConfigResponse {

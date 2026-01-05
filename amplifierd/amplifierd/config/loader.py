@@ -189,6 +189,7 @@ def _apply_env_overrides(config: Config) -> Config:
         "port",
         "workers",
         "log_level",
+        "timezone",
         "cors_origins",
         "watch_for_changes",
         "watch_interval_seconds",
@@ -203,7 +204,7 @@ def _apply_env_overrides(config: Config) -> Config:
                 daemon_overrides[key] = int(value)
             elif key == "cache_ttl_hours":
                 daemon_overrides[key] = int(value) if value.lower() != "none" else None
-            elif key in ("host", "log_level"):
+            elif key in ("host", "log_level", "timezone"):
                 daemon_overrides[key] = value
             elif key == "cors_origins":
                 # Parse comma-separated list

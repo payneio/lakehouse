@@ -335,13 +335,13 @@ def status():
 
     if webapp_running:
         click.echo(f"Webapp:  ✓ Running (PID {webapp_pid})")
-        click.echo("URL:     http://localhost:5173")
+        click.echo("URL:     http://localhost:7777")
     else:
         click.echo("Webapp:  ✗ Not running")
 
 
 @cli.command()
-@click.option("--url", default="http://localhost:5173", help="Webapp URL to open")
+@click.option("--url", default="http://localhost:7777", help="Webapp URL to open")
 def open(url: str):
     """Open webapp in browser."""
     webapp_running, _ = get_webapp_status()

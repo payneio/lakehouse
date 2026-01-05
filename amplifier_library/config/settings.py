@@ -10,6 +10,7 @@ Contract:
 """
 
 from pathlib import Path
+from zoneinfo import available_timezones
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -49,6 +50,30 @@ class DaemonSettings(BaseSettings):
     workers: int = 1
 
     data_path: str = "~/amplifier"
+
+    # Timezone for automation scheduling (IANA format, e.g., "America/Los_Angeles")
+    timezone: str = "UTC"
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        """Validate timezone is a valid IANA timezone identifier.
+
+        Args:
+            v: Timezone string (e.g., "America/Los_Angeles", "UTC", "Europe/London")
+
+        Returns:
+            Validated timezone string
+
+        Raises:
+            ValueError: If timezone is not a valid IANA identifier
+        """
+        if v not in available_timezones():
+            raise ValueError(
+                f"Invalid timezone: {v}. Must be a valid IANA timezone "
+                f"(e.g., 'America/Los_Angeles', 'Europe/London', 'UTC')"
+            )
+        return v
 
     @field_validator('data_path')
     @classmethod

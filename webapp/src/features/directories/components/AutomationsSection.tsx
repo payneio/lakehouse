@@ -28,6 +28,7 @@ import { useAutomations } from "@/hooks/useAutomations";
 import type { Automation, ScheduleConfig } from "@/api/automations";
 import { formatSchedule } from "@/api/automations";
 import { generateTimeOfDayCron, parseTimeOfDayCron, type TimeOfDaySchedule } from "@/utils/cronUtils";
+import { getSettings } from "@/api/settings";
 
 interface AutomationsSectionProps {
   projectId: string;
@@ -54,6 +55,14 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
   const [automationToDelete, setAutomationToDelete] = useState<string | null>(
     null
   );
+  const [configuredTimezone, setConfiguredTimezone] = useState<string>("UTC");
+
+  // Fetch configured timezone from daemon settings
+  useEffect(() => {
+    getSettings()
+      .then((settings) => setConfiguredTimezone(settings.daemon.timezone))
+      .catch(() => setConfiguredTimezone("UTC"));
+  }, []);
 
   const handleAddAutomation = async (automation: {
     name: string;
@@ -196,6 +205,7 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
         onOpenChange={setIsAddDialogOpen}
         onAdd={handleAddAutomation}
         isPending={create.isPending}
+        timezone={configuredTimezone}
       />
 
       <EditAutomationDialog
@@ -204,6 +214,7 @@ export function AutomationsSection({ projectId }: AutomationsSectionProps) {
         onEdit={handleEditAutomation}
         automation={automationToEdit}
         isPending={update.isPending}
+        timezone={configuredTimezone}
       />
 
       <Dialog
@@ -379,6 +390,7 @@ interface AddAutomationDialogProps {
     schedule: ScheduleConfig;
   }) => void;
   isPending: boolean;
+  timezone: string;
 }
 
 function AddAutomationDialog({
@@ -386,6 +398,7 @@ function AddAutomationDialog({
   onOpenChange,
   onAdd,
   isPending,
+  timezone,
 }: AddAutomationDialogProps) {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
@@ -630,7 +643,7 @@ function AddAutomationDialog({
                     </select>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    All times are in UTC timezone
+                    Times are in {timezone} timezone
                   </p>
                 </div>
 
@@ -736,6 +749,7 @@ interface EditAutomationDialogProps {
   }) => void;
   automation: Automation | null;
   isPending: boolean;
+  timezone: string;
 }
 
 function EditAutomationDialog({
@@ -744,6 +758,7 @@ function EditAutomationDialog({
   onEdit,
   automation,
   isPending,
+  timezone,
 }: EditAutomationDialogProps) {
   // Initialize state from automation prop
   const getInitialState = () => {
@@ -1086,7 +1101,7 @@ function EditAutomationDialog({
                     </select>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    All times are in UTC timezone
+                    Times are in {timezone} timezone
                   </p>
                 </div>
 

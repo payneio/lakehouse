@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import field_validator
 
 
 class StartupConfig(BaseModel):
@@ -68,13 +69,19 @@ class DaemonConfig(BaseModel):
         description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
     )
 
+    # Timezone for automation scheduling (IANA format)
+    timezone: str = Field(
+        default="UTC",
+        description="Timezone for automation scheduling (IANA format, e.g., 'America/Los_Angeles', 'UTC')",
+    )
+
     # CORS settings
     cors_origins: list[str] = Field(
         default=[
-            "http://localhost:5173",  # Vite dev server
-            "http://localhost:5174",  # Alternative port
+            "http://localhost:7777",  # Vite dev server
+            "http://localhost:7778",  # Alternative port
         ],
-        description="CORS allowed origins - add your LAN hostname/IP if accessing from network (e.g., 'http://civil.lan:5173')",
+        description="CORS allowed origins - add your LAN hostname/IP if accessing from network (e.g., 'http://civil.lan:7777')",
     )
 
     # Cache and monitoring settings
@@ -97,6 +104,19 @@ class DaemonConfig(BaseModel):
         default=True,
         description="Enable collection of performance metrics",
     )
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        """Validate timezone is a valid IANA timezone identifier."""
+        from zoneinfo import available_timezones
+
+        if v not in available_timezones():
+            raise ValueError(
+                f"Invalid timezone: {v}. Must be a valid IANA timezone "
+                f"(e.g., 'America/Los_Angeles', 'Europe/London', 'UTC')"
+            )
+        return v
 
 
 class Secrets(BaseModel):

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  Clock,
   Eye,
   EyeOff,
   FolderOpen,
@@ -117,7 +118,7 @@ function CorsOriginsInput({ origins, onChange }: CorsOriginsInputProps) {
             value={newOrigin}
             onChange={(e) => setNewOrigin(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addOrigin()}
-            placeholder="http://localhost:5173"
+            placeholder="http://localhost:7777"
             className="flex-1 px-3 py-2 border rounded-md bg-background text-foreground text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <button
@@ -130,7 +131,7 @@ function CorsOriginsInput({ origins, onChange }: CorsOriginsInputProps) {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Add origins for LAN access (e.g., http://192.168.1.100:5173).
+        Add origins for LAN access (e.g., http://192.168.1.100:7777).
       </p>
     </div>
   );
@@ -144,6 +145,7 @@ export function SettingsDialog() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [apiKeyValues, setApiKeyValues] = useState<Record<string, string>>({});
   const [corsOrigins, setCorsOrigins] = useState<string[]>([]);
+  const [timezone, setTimezone] = useState<string>("UTC");
   const [message, setMessage] = useState<{ type: "success" | "error" | "warning"; text: string } | null>(null);
 
   const loadSettings = async () => {
@@ -158,6 +160,7 @@ export function SettingsDialog() {
       });
       setApiKeyValues(initialValues);
       setCorsOrigins(data.daemon.corsOrigins);
+      setTimezone(data.daemon.timezone);
     } catch (error) {
       setMessage({
         type: "error",
@@ -206,8 +209,9 @@ export function SettingsDialog() {
     if (!settings) return;
 
     const originsChanged = JSON.stringify(corsOrigins) !== JSON.stringify(settings.daemon.corsOrigins);
+    const timezoneChanged = timezone !== settings.daemon.timezone;
 
-    if (!originsChanged) {
+    if (!originsChanged && !timezoneChanged) {
       setMessage({ type: "error", text: "No daemon config changes to save" });
       return;
     }
@@ -215,7 +219,10 @@ export function SettingsDialog() {
     setIsSavingDaemon(true);
     setMessage(null);
     try {
-      const response = await updateDaemonConfig({ corsOrigins });
+      const response = await updateDaemonConfig({
+        ...(originsChanged && { corsOrigins }),
+        ...(timezoneChanged && { timezone }),
+      });
       if (response.restartRequired) {
         setMessage({ type: "warning", text: response.message });
       } else {
@@ -233,7 +240,10 @@ export function SettingsDialog() {
   };
 
   const hasApiKeyChanges = Object.values(apiKeyValues).some((v) => v.trim() !== "");
-  const hasDaemonChanges = settings && JSON.stringify(corsOrigins) !== JSON.stringify(settings.daemon.corsOrigins);
+  const hasDaemonChanges = settings && (
+    JSON.stringify(corsOrigins) !== JSON.stringify(settings.daemon.corsOrigins) ||
+    timezone !== settings.daemon.timezone
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -273,13 +283,72 @@ export function SettingsDialog() {
               </p>
             </div>
 
-            {/* CORS Origins */}
-            <div className="space-y-3 pt-3 border-t">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Globe className="h-4 w-4" />
-                Network Access
+            {/* Timezone & Network Settings */}
+            <div className="space-y-4 pt-3 border-t">
+              {/* Timezone */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4" />
+                  Automation Timezone
+                </div>
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <optgroup label="Americas">
+                    <option value="America/Los_Angeles">Pacific Time (Los Angeles)</option>
+                    <option value="America/Denver">Mountain Time (Denver)</option>
+                    <option value="America/Chicago">Central Time (Chicago)</option>
+                    <option value="America/New_York">Eastern Time (New York)</option>
+                    <option value="America/Anchorage">Alaska Time (Anchorage)</option>
+                    <option value="Pacific/Honolulu">Hawaii Time (Honolulu)</option>
+                    <option value="America/Phoenix">Arizona (Phoenix)</option>
+                    <option value="America/Toronto">Toronto</option>
+                    <option value="America/Vancouver">Vancouver</option>
+                    <option value="America/Mexico_City">Mexico City</option>
+                    <option value="America/Sao_Paulo">Sao Paulo</option>
+                  </optgroup>
+                  <optgroup label="Europe">
+                    <option value="Europe/London">London (GMT/BST)</option>
+                    <option value="Europe/Paris">Paris (CET)</option>
+                    <option value="Europe/Berlin">Berlin (CET)</option>
+                    <option value="Europe/Amsterdam">Amsterdam (CET)</option>
+                    <option value="Europe/Rome">Rome (CET)</option>
+                    <option value="Europe/Madrid">Madrid (CET)</option>
+                    <option value="Europe/Zurich">Zurich (CET)</option>
+                    <option value="Europe/Moscow">Moscow</option>
+                  </optgroup>
+                  <optgroup label="Asia & Pacific">
+                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                    <option value="Asia/Shanghai">Shanghai (CST)</option>
+                    <option value="Asia/Hong_Kong">Hong Kong</option>
+                    <option value="Asia/Singapore">Singapore</option>
+                    <option value="Asia/Seoul">Seoul (KST)</option>
+                    <option value="Asia/Kolkata">India (IST)</option>
+                    <option value="Asia/Dubai">Dubai (GST)</option>
+                    <option value="Australia/Sydney">Sydney (AEST)</option>
+                    <option value="Australia/Melbourne">Melbourne (AEST)</option>
+                    <option value="Pacific/Auckland">Auckland (NZST)</option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="UTC">UTC</option>
+                  </optgroup>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Timezone for automation scheduling. Changes require daemon restart.
+                </p>
               </div>
-              <CorsOriginsInput origins={corsOrigins} onChange={setCorsOrigins} />
+
+              {/* CORS Origins */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Globe className="h-4 w-4" />
+                  Network Access
+                </div>
+                <CorsOriginsInput origins={corsOrigins} onChange={setCorsOrigins} />
+              </div>
+
               <div className="flex justify-end">
                 <button
                   onClick={handleSaveDaemonConfig}

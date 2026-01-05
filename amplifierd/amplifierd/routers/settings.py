@@ -34,6 +34,7 @@ class DaemonSettingsResponse(CamelCaseModel):
     port: int
     workers: int
     log_level: str
+    timezone: str
     cors_origins: list[str]
 
 
@@ -71,6 +72,7 @@ class UpdateDaemonConfigRequest(CamelCaseModel):
     log_level: str | None = Field(default=None, description="Logging level")
     host: str | None = Field(default=None, description="Host to bind to")
     port: int | None = Field(default=None, description="Port to listen on")
+    timezone: str | None = Field(default=None, description="Timezone for automation scheduling (IANA format)")
 
 
 class UpdateDaemonConfigResponse(CamelCaseModel):
@@ -163,6 +165,7 @@ async def get_settings() -> SettingsResponse:
             port=config.daemon.port,
             workers=config.daemon.workers,
             log_level=config.daemon.log_level,
+            timezone=config.daemon.timezone,
             cors_origins=config.daemon.cors_origins,
         ),
         startup=StartupSettingsResponse(
@@ -247,6 +250,11 @@ async def update_daemon_config(request: UpdateDaemonConfigRequest) -> UpdateDaem
         config.daemon.port = request.port
         updated.append("port")
         restart_required = True
+
+    if request.timezone is not None:
+        config.daemon.timezone = request.timezone
+        updated.append("timezone")
+        restart_required = True  # Scheduler needs restart to use new timezone
 
     if not updated:
         raise HTTPException(status_code=400, detail="No configuration changes provided")
