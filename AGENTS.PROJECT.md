@@ -105,7 +105,7 @@ make daemon-dev
 make webapp-dev
 ```
 
-Visit http://localhost:5174 in your browser.
+Visit http://localhost:7777 in your browser.
 
 **Configuration**: A `.amplifierd` directory is created, by default at `~/.amplifierd`. Configure the `data_dir` in `.amplifierd/config/daemon.yaml` to specify where ACP can access your data.
 
@@ -131,3 +131,6 @@ See @Makefile for complete list of targets.
 
 - @amplifierd/docs/the-amplifier-computation-platform.md - Vision document
 
+## Testing
+
+The webapp is run by the vite dev server and will restart whenever changes are made. There is no need to manually restart it when testing. The daemon should be restarted with `lakehouse restart --daemon-only`. This will correctly stop and restart the daemon on port 8420. Avoid starting up new daemons and webapps for testing.
