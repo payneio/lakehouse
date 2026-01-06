@@ -1,4 +1,4 @@
-import { fetchApi } from './client';
+import { fetchApi, BASE_URL } from './client';
 import type {
   AmplifiedDirectory,
   AmplifiedDirectoryCreate,
@@ -6,6 +6,8 @@ import type {
   DirectoryListResponse,
   DirectoryCreateRequest,
   DirectoryCreateResponse,
+  FileCompletionResponse,
+  FileContentResponse,
 } from '@/types/api';
 
 export const listDirectories = () =>
@@ -49,3 +51,21 @@ export const deleteDirectory = (
     `/api/v1/amplified-directories/${relativePath}?remove_marker=${removeMarker}`,
     { method: 'DELETE' }
   );
+
+export const listFilesForCompletion = (
+  path: string = '',
+  prefix: string = '',
+  maxResults: number = 50
+) => {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (prefix) params.set('prefix', prefix);
+  params.set('max_results', maxResults.toString());
+  return fetchApi<FileCompletionResponse>(`/api/v1/directories/files?${params.toString()}`);
+};
+
+export const getFileContent = (path: string) =>
+  fetchApi<FileContentResponse>(`/api/v1/directories/file/content?path=${encodeURIComponent(path)}`);
+
+export const getFileDownloadUrl = (path: string) =>
+  `${BASE_URL}/api/v1/directories/file/download?path=${encodeURIComponent(path)}`;

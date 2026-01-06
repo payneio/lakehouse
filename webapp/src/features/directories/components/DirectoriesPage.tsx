@@ -1,5 +1,6 @@
 import * as api from "@/api";
 import { listAutomations } from "@/api/automations";
+import { FileBrowserPanel } from "@/components/FileBrowserPanel";
 import { MobileMenuButton } from "@/components/layout/MobileMenuButton";
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Clock, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { Activity, Clock, FileText, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useDirectories } from "../hooks/useDirectories";
@@ -32,6 +33,7 @@ export function DirectoriesPage() {
   const [showAgentInstructions, setShowAgentInstructions] = useState(false);
   const [showAutomations, setShowAutomations] = useState(false);
   const [showWork, setShowWork] = useState(false);
+  const [showFileBrowser, setShowFileBrowser] = useState(false);
   const [selectedDirectory, setSelectedDirectory] =
     useState<AmplifiedDirectory | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -208,9 +210,18 @@ export function DirectoriesPage() {
                     {selectedDirectory.metadata.description as string}
                   </p>
                 )}
-                <p className="text-sm text-muted-foreground mt-1 font-mono">
-                  {selectedPath}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {selectedPath}
+                  </p>
+                  <button
+                    onClick={() => setShowFileBrowser(true)}
+                    className="p-1 hover:bg-accent rounded-md"
+                    title="Browse files"
+                  >
+                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
               </div>
 
               {/* Project Actions */}
@@ -367,6 +378,13 @@ export function DirectoriesPage() {
               <WorkSection directoryPath={selectedPath!} />
             </DialogContent>
           </Dialog>
+
+          <FileBrowserPanel
+            key={selectedPath}
+            basePath={selectedPath!}
+            isOpen={showFileBrowser}
+            onClose={() => setShowFileBrowser(false)}
+          />
         </>
       )}
     </div>

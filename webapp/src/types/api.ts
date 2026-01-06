@@ -167,6 +167,27 @@ export interface DirectoryCreateResponse {
   absolute_path: string;
 }
 
+export interface FileEntry {
+  name: string;
+  path: string;
+  is_directory: boolean;
+}
+
+export interface FileCompletionResponse {
+  entries: FileEntry[];
+  base_path: string;
+}
+
+export interface FileContentResponse {
+  path: string;
+  name: string;
+  content: string;
+  size: number;
+  mime_type: string;
+  is_viewable: boolean;
+  is_image: boolean;
+}
+
 export interface ComponentRef {
   profile: string;
   name: string;

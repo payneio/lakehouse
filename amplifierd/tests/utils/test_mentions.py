@@ -3,7 +3,9 @@
 import pytest
 
 from amplifierd.utils.mentions import extract_mention_path
+from amplifierd.utils.mentions import format_mention
 from amplifierd.utils.mentions import has_mentions
+from amplifierd.utils.mentions import needs_quoting
 from amplifierd.utils.mentions import parse_mentions
 
 
@@ -22,11 +24,37 @@ class TestParseMentions:
         mentions = parse_mentions(text)
         assert mentions == ["@real"]
 
-    def test_exclude_double_quoted_mentions(self) -> None:
-        """Exclude @mentions in double quotes."""
+    def test_exclude_double_quoted_strings(self) -> None:
+        """Exclude simple @mentions inside regular double quotes (not @"...")."""
         text = 'Skip "@quoted" but include @real'
         mentions = parse_mentions(text)
+        # Note: "@quoted" is NOT a valid quoted mention - it's a simple mention inside quotes
+        # The @ is inside the quotes, not before them
         assert mentions == ["@real"]
+
+    def test_quoted_mention_with_spaces(self) -> None:
+        """Parse @"path with spaces" format."""
+        text = 'See @"My Document.md" for details'
+        mentions = parse_mentions(text)
+        assert mentions == ["@My Document.md"]
+
+    def test_quoted_mention_with_special_chars(self) -> None:
+        """Parse @"path with special chars" format."""
+        text = 'See @"file (1).md" and @"test [draft].txt"'
+        mentions = parse_mentions(text)
+        assert mentions == ["@file (1).md", "@test [draft].txt"]
+
+    def test_mixed_simple_and_quoted_mentions(self) -> None:
+        """Parse mix of simple and quoted mentions."""
+        text = 'See @simple.md and @"path with spaces.md" together'
+        mentions = parse_mentions(text)
+        assert mentions == ["@path with spaces.md", "@simple.md"]
+
+    def test_quoted_mention_with_nested_path(self) -> None:
+        """Parse @"dir/path with spaces/file.md" format."""
+        text = 'See @"docs/my folder/README.md"'
+        mentions = parse_mentions(text)
+        assert mentions == ["@docs/my folder/README.md"]
 
     def test_exclude_single_quoted_mentions(self) -> None:
         """Exclude @mentions in single quotes."""
@@ -143,6 +171,60 @@ class TestExtractMentionPath:
         path = extract_mention_path("file.md")
         assert path == "file.md"
 
+    def test_extract_quoted_path(self) -> None:
+        """Extract path from quoted mention."""
+        path = extract_mention_path('@"My Document.md"')
+        assert path == "My Document.md"
+
+    def test_extract_quoted_path_with_spaces(self) -> None:
+        """Extract path from quoted mention with spaces."""
+        path = extract_mention_path('@"path with spaces/file.md"')
+        assert path == "path with spaces/file.md"
+
+    def test_extract_quoted_path_special_chars(self) -> None:
+        """Extract path from quoted mention with special characters."""
+        path = extract_mention_path('@"file (1) [draft].md"')
+        assert path == "file (1) [draft].md"
+
+
+class TestNeedsQuoting:
+    """Test needs_quoting() function."""
+
+    def test_simple_path_no_quoting(self) -> None:
+        """Simple paths don't need quoting."""
+        assert not needs_quoting("file.md")
+        assert not needs_quoting("dir/file.md")
+        assert not needs_quoting("my-file_v2.md")
+
+    def test_path_with_space_needs_quoting(self) -> None:
+        """Paths with spaces need quoting."""
+        assert needs_quoting("My Document.md")
+        assert needs_quoting("path with spaces/file.md")
+
+    def test_path_with_special_chars_needs_quoting(self) -> None:
+        """Paths with special characters need quoting."""
+        assert needs_quoting("file (1).md")
+        assert needs_quoting("test [draft].md")
+        assert needs_quoting("file#1.md")
+
+
+class TestFormatMention:
+    """Test format_mention() function."""
+
+    def test_format_simple_path(self) -> None:
+        """Format simple path without quotes."""
+        assert format_mention("file.md") == "@file.md"
+        assert format_mention("dir/file.md") == "@dir/file.md"
+
+    def test_format_path_with_spaces(self) -> None:
+        """Format path with spaces using quotes."""
+        assert format_mention("My Document.md") == '@"My Document.md"'
+        assert format_mention("path with spaces/file.md") == '@"path with spaces/file.md"'
+
+    def test_format_path_with_special_chars(self) -> None:
+        """Format path with special characters using quotes."""
+        assert format_mention("file (1).md") == '@"file (1).md"'
+
 
 class TestHasMentions:
     """Test has_mentions() function."""
@@ -178,3 +260,11 @@ class TestHasMentions:
         parse_mentions() does the filtering.
         """
         assert has_mentions("Use `@code` in examples")
+
+    def test_detects_quoted_mention(self) -> None:
+        """Detect presence of quoted @mention."""
+        assert has_mentions('See @"My Document.md"')
+
+    def test_detects_quoted_mention_with_spaces(self) -> None:
+        """Detect quoted @mention with spaces in path."""
+        assert has_mentions('See @"path with spaces/file.md"')

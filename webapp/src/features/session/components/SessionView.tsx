@@ -1,13 +1,14 @@
 import { BASE_URL } from "@/api/client";
 import { listProfiles } from "@/api/profiles";
 import { cancelExecution, changeProfile, cloneSession, deleteLastMessage } from "@/api/sessions";
+import { FileBrowserPanel } from "@/components/FileBrowserPanel";
 import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, Copy, FileText, Play, RefreshCw } from "lucide-react";
+import { Activity, ArrowLeft, Copy, FileText, FolderOpen, Play, RefreshCw } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router";
 import { useExecutionState } from "../hooks/useExecutionState";
@@ -43,6 +44,7 @@ export function SessionView() {
   const [streamingContent, setStreamingContent] = React.useState<string>("");
   const [executionPanelOpen, setExecutionPanelOpen] = React.useState(false);
   const [logDialogOpen, setLogDialogOpen] = React.useState(false);
+  const [fileBrowserOpen, setFileBrowserOpen] = React.useState(false);
 
   // Scroll container for header visibility (use state so effect re-runs when set)
   const [scrollContainer, setScrollContainer] = React.useState<HTMLDivElement | null>(null);
@@ -440,12 +442,21 @@ export function SessionView() {
 
               {/* Amplified directory - hidden on mobile */}
               {session.amplifiedDir && (
-                <span
-                  aria-label={`Amplified directory: ${session.amplifiedDir}`}
-                  title={session.amplifiedDir}
-                  className="hidden md:inline truncate"
-                >
-                  dir: /{session.amplifiedDir}
+                <span className="hidden md:inline-flex items-center gap-1">
+                  <span
+                    aria-label={`Amplified directory: ${session.amplifiedDir}`}
+                    title={session.amplifiedDir}
+                    className="truncate"
+                  >
+                    dir: /{session.amplifiedDir}
+                  </span>
+                  <button
+                    onClick={() => setFileBrowserOpen(true)}
+                    className="p-1 hover:bg-accent rounded-md"
+                    title="Browse files"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
                 </span>
               )}
 
@@ -519,6 +530,7 @@ export function SessionView() {
         disabled={needsStart || isSending}
         isSending={isSending}
         onCancel={handleCancel}
+        amplifiedDir={session?.amplifiedDir}
       />
 
       {/* Approval dialog */}
@@ -537,6 +549,16 @@ export function SessionView() {
         open={logDialogOpen}
         onClose={() => setLogDialogOpen(false)}
       />
+
+      {/* File Browser Panel */}
+      {session?.amplifiedDir && (
+        <FileBrowserPanel
+          key={session.amplifiedDir}
+          basePath={session.amplifiedDir}
+          isOpen={fileBrowserOpen}
+          onClose={() => setFileBrowserOpen(false)}
+        />
+      )}
     </div>
   );
 }
