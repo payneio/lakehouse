@@ -389,15 +389,16 @@ class AutomationScheduler:
             # Get absolute path for mount plan generation
             absolute_amplified_dir = str((data_path / automation.project_id).resolve())
 
-            # Generate mount plan
-            from amplifier_library.storage import get_share_dir
-            from amplifier_library.storage.paths import get_profiles_dir
+            # Generate mount plan from bundle
+            from amplifier_library.storage import get_cache_dir
 
-            from ..services.mount_plan_service import MountPlanService
+            from ..services.bundle_service import BundleService
 
-            share_dir = get_share_dir()
-            mount_plan_service = MountPlanService(share_dir)
-            mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
+            cache_dir = get_cache_dir()
+            bundles_dir = data_path / "bundles"
+            bundle_service = BundleService(bundles_dir=bundles_dir, home_dir=cache_dir)
+            prepared = await bundle_service.load_bundle(profile_name)
+            mount_plan = bundle_service.get_mount_plan(prepared)
 
             # Inject runtime configuration (working_dir, allowed_write_paths, etc.)
             from ..routers.sessions import _inject_runtime_config
@@ -453,11 +454,12 @@ class AutomationScheduler:
             session = LibrarySessionMetadata(**session_metadata.model_dump())
 
             # Resolve runtime mentions
+            # Note: Bundles don't have compiled profile directories,
+            # so we use amplified_dir for both (mention resolution uses amplified_dir primarily)
             from ..services.mention_resolver import MentionResolver
 
-            compiled_profile_dir = get_profiles_dir() / profile_name
             resolver = MentionResolver(
-                compiled_profile_dir=compiled_profile_dir,
+                compiled_profile_dir=Path(absolute_amplified_dir),
                 amplified_dir=Path(absolute_amplified_dir),
                 data_dir=data_path,
             )

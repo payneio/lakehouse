@@ -1,17 +1,14 @@
 import { useState } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import * as api from '@/api';
 import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import type { CreateProfileRequest, UpdateProfileRequest, ProfileDetails } from '@/types/api';
 import { ProfileCard } from './ProfileCard';
 import { ProfileDetailModal } from './ProfileDetailModal';
-import { ProfileForm } from './ProfileForm';
-import { CopyProfileDialog } from './CopyProfileDialog';
 import { RegistryManager } from './RegistryManager';
+import { ProfileEditorModal } from './ProfileEditorModal';
 
 export function ProfilesPage() {
-  const queryClient = useQueryClient();
   const { data: profiles = [], isLoading } = useQuery({
     queryKey: ['profiles'],
     queryFn: api.listProfiles,
@@ -20,53 +17,8 @@ export function ProfilesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'registry'>('all');
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [editingProfile, setEditingProfile] = useState<ProfileDetails | null>(null);
-  const [copyingProfile, setCopyingProfile] = useState<string | null>(null);
-
-  const createMutation = useMutation({
-    mutationFn: api.createProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
-      setIsCreating(false);
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ name, data }: { name: string; data: UpdateProfileRequest }) =>
-      api.updateProfile(name, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
-      queryClient.invalidateQueries({ queryKey: ['profile-detail', variables.name] });
-      setEditingProfile(null);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: api.deleteProfile,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
-    },
-  });
-
-  const handleEdit = async (profileName: string) => {
-    const details = await api.getProfileDetails(profileName);
-    if (details.sourceType !== 'local') {
-      alert('Only local profiles can be edited');
-      return;
-    }
-    setEditingProfile(details);
-  };
-
-  const handleDelete = (profileName: string, sourceType: string) => {
-    if (sourceType !== 'local') {
-      alert('Only local profiles can be deleted');
-      return;
-    }
-    if (confirm(`Delete profile "${profileName}"?`)) {
-      deleteMutation.mutate(profileName);
-    }
-  };
 
   // Filter profiles
   const filteredProfiles = profiles.filter(profile => {
@@ -83,55 +35,58 @@ export function ProfilesPage() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <MobileMenuButton />
-        <h1 className="text-3xl font-bold">Profiles</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <MobileMenuButton />
+          <h1 className="text-3xl font-bold">Bundles</h1>
+        </div>
+        <button
+          onClick={() => setIsCreating(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Create Bundle
+        </button>
       </div>
 
       {/* Registry Manager */}
       <RegistryManager />
 
-      {/* Filters and Actions */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search profiles..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-md"
-            />
-          </div>
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as 'all' | 'local' | 'registry')}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value="all">All Sources</option>
-            <option value="local">Local Only</option>
-            <option value="registry">Registry Only</option>
-          </select>
+      {/* Filters */}
+      <div className="flex items-center gap-2 flex-1">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search bundles..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-md"
+          />
         </div>
-
-        <button
-          onClick={() => setIsCreating(true)}
-          className="flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-4 sm:py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 text-sm"
-          title="Create Profile"
+        <select
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value as 'all' | 'local' | 'registry')}
+          className="px-3 py-2 border rounded-md"
         >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Create Profile</span>
-        </button>
+          <option value="all">All Sources</option>
+          <option value="local">Local Only</option>
+          <option value="registry">Registry Only</option>
+        </select>
       </div>
 
-      {/* Profile List */}
+      {/* Info about bundle management */}
+      <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+        <p>Bundles are loaded from <code className="bg-background px-1 rounded">bundles/</code> directory. To create or edit bundles, add/modify <code className="bg-background px-1 rounded">.md</code> files in the bundles directory.</p>
+      </div>
+
+      {/* Bundle List */}
       <div className="space-y-2">
         {filteredProfiles.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             {searchQuery || sourceFilter !== 'all'
-              ? 'No profiles match your filters'
-              : 'No profiles found'}
+              ? 'No bundles match your filters'
+              : 'No bundles found'}
           </div>
         ) : (
           filteredProfiles.map((profile) => (
@@ -139,68 +94,28 @@ export function ProfilesPage() {
               key={profile.name}
               profile={profile}
               onView={() => setSelectedProfile(profile.name)}
-              onEdit={() => handleEdit(profile.name)}
-              onDelete={() => handleDelete(profile.name, profile.sourceType)}
-              onCopy={() => setCopyingProfile(profile.name)}
             />
           ))
         )}
       </div>
 
-      {/* Modals */}
+      {/* Detail Modal */}
       <ProfileDetailModal
         profileName={selectedProfile}
         onClose={() => setSelectedProfile(null)}
-        onEdit={(profile) => {
+        onEdit={(name) => {
           setSelectedProfile(null);
-          handleEdit(profile.name);
-        }}
-        onDelete={(name, sourceType) => {
-          setSelectedProfile(null);
-          handleDelete(name, sourceType);
+          setEditingProfile(name);
         }}
       />
 
-      {isCreating && (
-        <ProfileForm
-          isOpen={isCreating}
-          onClose={() => setIsCreating(false)}
-          onSubmit={(data) => createMutation.mutate(data as CreateProfileRequest)}
-          mode="create"
-        />
-      )}
-
-      {editingProfile && (
-        <ProfileForm
-          isOpen={!!editingProfile}
-          onClose={() => setEditingProfile(null)}
-          onSubmit={(data) =>
-            updateMutation.mutate({
-              name: editingProfile.name,
-              data: data as UpdateProfileRequest,
-            })
-          }
-          initialData={{
-            name: editingProfile.name,
-            version: editingProfile.version,
-            description: editingProfile.description,
-            providers: editingProfile.providers,
-            behaviors: editingProfile.behaviors,
-            orchestrator: editingProfile.session?.orchestrator,
-            context: editingProfile.session?.contextManager,
-            instruction: editingProfile.instruction,
-          }}
-          mode="edit"
-        />
-      )}
-
-      {copyingProfile && (
-        <CopyProfileDialog
-          sourceName={copyingProfile}
-          onClose={() => setCopyingProfile(null)}
-          onSuccess={() => {
-            setCopyingProfile(null);
-            queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      {/* Editor Modal */}
+      {(isCreating || editingProfile) && (
+        <ProfileEditorModal
+          profileName={editingProfile}
+          onClose={() => {
+            setIsCreating(false);
+            setEditingProfile(null);
           }}
         />
       )}

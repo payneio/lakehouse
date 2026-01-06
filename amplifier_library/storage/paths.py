@@ -152,3 +152,27 @@ def get_compiled_profiles_dir() -> Path:
     compiled_dir = get_share_dir() / "profiles"
     compiled_dir.mkdir(parents=True, exist_ok=True)
     return compiled_dir
+
+
+def get_bundles_dir() -> Path:
+    """Get bundles directory.
+
+    Returns:
+        Path to bundles directory ($AMPLIFIERD_HOME/share/bundles)
+
+    Environment Variables:
+        AMPLIFIERD_BUNDLES_DIR: Override bundles directory location
+        (falls back to $AMPLIFIERD_HOME/share/bundles if not set)
+
+    Example:
+        >>> bundles_dir = get_bundles_dir()
+        >>> assert bundles_dir.name == "bundles" or "AMPLIFIERD_BUNDLES_DIR" in os.environ
+    """
+    bundles_dir: Path = get_share_dir() / "bundles"
+
+    env_override: str | None = os.environ.get("AMPLIFIERD_BUNDLES_DIR")
+    if env_override is not None:
+        bundles_dir = Path(env_override).resolve()
+
+    bundles_dir.mkdir(parents=True, exist_ok=True)
+    return bundles_dir

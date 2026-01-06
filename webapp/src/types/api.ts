@@ -135,20 +135,26 @@ export interface CreateProfileRequest {
   name: string;
   version?: string;
   description?: string;
+  includes?: string[];
+  session?: Record<string, unknown>;
   providers?: ModuleConfig[];
-  behaviors?: BehaviorRef[];
-  orchestrator?: ModuleConfig;
-  context?: ModuleConfig;
+  tools?: ModuleConfig[];
+  hooks?: ModuleConfig[];
+  agents?: Record<string, Record<string, unknown>>;
+  context?: Record<string, string>;
   instruction?: string;
 }
 
 export interface UpdateProfileRequest {
   version?: string;
   description?: string;
+  includes?: string[];
+  session?: Record<string, unknown>;
   providers?: ModuleConfig[];
-  behaviors?: BehaviorRef[];
-  orchestrator?: ModuleConfig;
-  context?: ModuleConfig;
+  tools?: ModuleConfig[];
+  hooks?: ModuleConfig[];
+  agents?: Record<string, Record<string, unknown>>;
+  context?: Record<string, string>;
   instruction?: string;
 }
 

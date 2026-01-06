@@ -32,3 +32,6 @@ export const copyProfile = (sourceName: string, newName: string) =>
     method: 'POST',
     body: JSON.stringify({ new_name: newName }),
   });
+
+export const getProfileContent = (name: string) =>
+  fetchApi<Record<string, unknown>>(`/api/v1/profiles/${encodeURIComponent(name)}/content`);

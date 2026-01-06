@@ -1,50 +1,55 @@
 """Mount plan generation API endpoints."""
 
+from pathlib import Path
 from typing import Annotated
 
-from amplifier_library.storage import get_share_dir
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 
+from amplifier_library.config.loader import load_config
+from amplifier_library.storage import get_cache_dir
+
 from ..models.mount_plans import MountPlan
 from ..models.mount_plans import MountPlanRequest
-from ..services.mount_plan_service import MountPlanService
+from ..services.bundle_service import BundleService
 
 router = APIRouter(prefix="/api/v1/mount-plans", tags=["mount-plans"])
 
 
-def get_mount_plan_service() -> MountPlanService:
-    """Get mount plan service instance.
+def get_bundle_service() -> BundleService:
+    """Get bundle service instance.
 
     Returns:
-        MountPlanService instance
+        BundleService instance
     """
-    share_dir = get_share_dir()
-    return MountPlanService(share_dir=share_dir)
+    config = load_config()
+    bundles_dir = Path(config.data_path) / "bundles"
+    cache_dir = get_cache_dir()
+    return BundleService(bundles_dir=bundles_dir, home_dir=cache_dir)
 
 
 @router.post("/generate", response_model=MountPlan, status_code=201)
 async def generate_mount_plan(
     request: MountPlanRequest,
-    service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
+    service: Annotated[BundleService, Depends(get_bundle_service)],
 ) -> MountPlan:
-    """Generate mount plan from cached profile.
+    """Generate mount plan from bundle.
 
-    Creates a mount plan by resolving all resources from a cached profile.
+    Creates a mount plan by loading and preparing a bundle.
     The mount plan contains all agents, context, and modules organized and
     ready for session initialization.
 
     Args:
         request: Mount plan request with profile_id and optional settings
-        service: Mount plan service instance
+        service: Bundle service instance
 
     Returns:
         Complete mount plan with all resources mounted
 
     Raises:
         HTTPException:
-            - 404 if profile not found
+            - 404 if bundle not found
             - 400 if request is invalid
             - 500 for other errors
 
@@ -60,11 +65,9 @@ async def generate_mount_plan(
         ```
     """
     try:
-        from pathlib import Path
-
-        mount_plan_dict = service.generate_mount_plan(request.profile_id, Path(request.amplified_dir))
-        # Convert dict to MountPlan model for API response
-        # For now, return the dict directly since we're transitioning to dict-based plans
+        prepared = await service.load_bundle(request.profile_id)
+        mount_plan_dict = service.get_mount_plan(prepared)
+        # Return the dict directly since we're using dict-based plans
         return mount_plan_dict  # type: ignore[return-value]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

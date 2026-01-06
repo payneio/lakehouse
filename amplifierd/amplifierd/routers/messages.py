@@ -137,17 +137,16 @@ async def send_message_for_execution(
         from pathlib import Path
 
         from amplifier_library.config.loader import load_config
-        from amplifier_library.storage.paths import get_profiles_dir
-        from amplifier_library.storage.paths import get_share_dir
+        from amplifier_library.storage import get_cache_dir
 
+        from ..services.bundle_service import BundleService
         from ..services.mention_resolver import MentionResolver
-        from ..services.mount_plan_service import MountPlanService
         from .sessions import _inject_runtime_config
 
         config = load_config()
         data_dir = Path(config.data_path)
         state_dir = get_state_dir()
-        share_dir = get_share_dir()
+        cache_dir = get_cache_dir()
 
         # Get amplified_dir and profile_name from session metadata
         amplified_dir = Path(metadata.amplified_dir) if metadata.amplified_dir else Path(".")
@@ -155,9 +154,11 @@ async def send_message_for_execution(
             amplified_dir = data_dir / amplified_dir
         profile_name = metadata.profile_name
 
-        # Generate mount plan fresh from profile (single source of truth)
-        mount_plan_service = MountPlanService(share_dir=share_dir)
-        mount_plan = mount_plan_service.generate_mount_plan(profile_name, amplified_dir)
+        # Load bundle and generate mount plan
+        bundles_dir = data_dir / "bundles"
+        bundle_service = BundleService(bundles_dir=bundles_dir, home_dir=cache_dir)
+        prepared = await bundle_service.load_bundle(profile_name)
+        mount_plan = bundle_service.get_mount_plan(prepared)
 
         # Inject runtime configuration (working_dir, session_log_template, etc.)
         _inject_runtime_config(mount_plan, session_id, str(amplified_dir))
@@ -167,12 +168,10 @@ async def send_message_for_execution(
         mount_plan_path.write_text(json.dumps(mount_plan, indent=2))
         logger.info(f"Generated and saved fresh mount plan for session {session_id}")
 
-        # Get compiled profile directory for mention resolution
-        compiled_profile_dir = get_profiles_dir() / profile_name
-
         # Resolve runtime mentions (AGENTS.md + user message)
+        # Note: Bundles don't have a compiled profile directory, mention resolution uses amplified_dir
         resolver = MentionResolver(
-            compiled_profile_dir=compiled_profile_dir,
+            compiled_profile_dir=amplified_dir,  # Use amplified_dir for project context
             amplified_dir=amplified_dir,
             data_dir=data_dir,
         )

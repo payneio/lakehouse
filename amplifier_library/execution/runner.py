@@ -100,6 +100,9 @@ class ExecutionRunner:
         Creates and initializes the AmplifierSession if it doesn't exist.
         Loads conversation history from transcript into context.
         Idempotent - safe to call multiple times.
+
+        Note: PreparedBundle from amplifier-foundation already has all modules
+        resolved and activated, so we don't need to mount a custom resolver.
         """
         if self._session is not None:
             return
@@ -111,20 +114,9 @@ class ExecutionRunner:
                 "amplifier-core is required for execution. Install it with: pip install amplifier-core"
             ) from e
 
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-
-        from amplifier_library.storage.paths import get_share_dir
-
-        # Create session
+        # Create and initialize session
+        # PreparedBundle's mount_plan already contains all module sources and configurations
         self._session = AmplifierSession(self.config, session_id=self._session_id)
-
-        # Mount resolver
-        share_dir = get_share_dir()
-        resolver = DaemonModuleSourceResolver(share_dir)
-        await self._session.coordinator.mount("module-source-resolver", resolver)
-        logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}")
-
-        # Initialize
         await self._session.initialize()
         logger.info(f"Initialized AmplifierSession for {self._session_id}")
 

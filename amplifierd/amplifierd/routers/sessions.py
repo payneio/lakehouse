@@ -31,9 +31,9 @@ from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
 from ..models.mount_plans import MountPlan
 from ..services.amplified_directory_service import AmplifiedDirectoryService
+from ..services.bundle_service import BundleService
 from ..services.global_events import GlobalEventService
-from ..services.mount_plan_service import MountPlanService
-from .mount_plans import get_mount_plan_service
+from .mount_plans import get_bundle_service
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +215,7 @@ def _generate_profile_context_messages(
 
 @router.post("/", response_model=SessionMetadata, status_code=201)
 async def create_session(
-    mount_plan_service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
+    bundle_service: Annotated[BundleService, Depends(get_bundle_service)],
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
     amplified_dir: str = Body(".", embed=True),
     profile_name: str | None = Body(None, embed=True),
@@ -292,16 +292,13 @@ async def create_session(
         # Resolve absolute paths for session metadata
         absolute_amplified_dir = str((Path(data_path) / amplified_dir).resolve())
 
-        # Generate mount plan
-        mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
+        # Load bundle and prepare mount plan
+        prepared_bundle = await bundle_service.load_bundle(profile_name)
+        mount_plan = bundle_service.get_mount_plan(prepared_bundle)
 
-        # Resolve profile instruction mentions
-        from amplifier_library.storage.paths import get_profiles_dir
-
-        compiled_profile_dir = get_profiles_dir() / profile_name
-        profile_context_messages = _generate_profile_context_messages(
-            profile_name, compiled_profile_dir, Path(absolute_amplified_dir), data_path
-        )
+        # Bundle instructions are handled by PreparedBundle's system prompt factory
+        # No need for separate profile_context_messages - bundles handle @mentions internally
+        profile_context_messages: list[ContextMessage] = []
 
         # Generate session ID
         import uuid
@@ -519,7 +516,6 @@ async def _clone_session_recursive(
 @router.post("/{session_id}/clone", response_model=SessionMetadata, status_code=201)
 async def clone_session(
     session_id: str,
-    mount_plan_service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
 ) -> SessionMetadata:
     """Clone an existing session including transcript, events, and all subsessions.
@@ -1409,7 +1405,6 @@ async def get_session_events(
 @router.post("/{session_id}/change-profile", response_model=SessionMetadata)
 async def change_session_profile(
     session_id: str,
-    mount_plan_service: Annotated[MountPlanService, Depends(get_mount_plan_service)],
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
     profile_name: str = Body(..., embed=True),
 ) -> SessionMetadata:
@@ -1452,7 +1447,7 @@ async def change_session_profile(
                 detail=f"Can only change profile for ACTIVE sessions, this session is {metadata.status}",
             )
 
-        # 2. Generate new mount plan
+        # 2. Generate new mount plan using BundleService
         # Get absolute amplified_dir path from session metadata
         from amplifier_library.config.loader import load_config
 
@@ -1460,8 +1455,11 @@ async def change_session_profile(
         data_path = Path(config.data_path)
         absolute_amplified_dir = (data_path / metadata.amplified_dir).resolve()
 
+        # Load bundle and get mount plan
+        bundle_service = get_bundle_service()
         try:
-            new_mount_plan = mount_plan_service.generate_mount_plan(profile_name, absolute_amplified_dir)
+            prepared = await bundle_service.load_bundle(profile_name)
+            new_mount_plan = bundle_service.get_mount_plan(prepared)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid profile '{profile_name}': {e}")
         except FileNotFoundError as e:

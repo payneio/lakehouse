@@ -5,10 +5,9 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from amplifierd.main import app
-from amplifierd.routers.mount_plans import get_mount_plan_service
+from amplifierd.routers.mount_plans import get_bundle_service
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -44,20 +43,37 @@ def mock_mount_plan() -> dict:
 
 
 @pytest.fixture
-def mock_mount_plan_service() -> Mock:
-    """Mock mount plan service.
+def mock_mount_plan_service(mock_mount_plan: dict) -> Mock:
+    """Mock bundle service.
+
+    Args:
+        mock_mount_plan: Sample mount plan fixture
 
     Returns:
         Mock service for testing
     """
+    from unittest.mock import AsyncMock
+
+    from amplifier_foundation.bundle import PreparedBundle
+
     service = Mock()
-    service.generate_mount_plan = Mock()
+
+    # Create a mock PreparedBundle
+    prepared = Mock(spec=PreparedBundle)
+    prepared.mount_plan = mock_mount_plan
+
+    # Mock the async load_bundle method
+    async def async_load_bundle(*args, **kwargs):
+        return prepared
+
+    service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+    service.get_mount_plan = Mock(return_value=mock_mount_plan)
     return service
 
 
 @pytest.fixture
 def override_mount_plan_service(mock_mount_plan_service: Mock):
-    """Override mount plan service dependency with test service.
+    """Override bundle service dependency with test service.
 
     Args:
         mock_mount_plan_service: Mock service
@@ -65,7 +81,7 @@ def override_mount_plan_service(mock_mount_plan_service: Mock):
     Yields:
         None
     """
-    app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
+    app.dependency_overrides[get_bundle_service] = lambda: mock_mount_plan_service
     yield
     app.dependency_overrides.clear()
 
@@ -91,8 +107,7 @@ class TestMountPlansAPI:
         self, client: TestClient, mock_mount_plan: dict, mock_mount_plan_service: Mock
     ) -> None:
         """Test POST /api/v1/mount-plans/generate returns 201 with valid response."""
-        # Setup mock
-        mock_mount_plan_service.generate_mount_plan.return_value = mock_mount_plan
+        # Fixture already sets up mock correctly
 
         # Make request
         response = client.post(
@@ -118,12 +133,12 @@ class TestMountPlansAPI:
         assert data["mountPoints"][1]["moduleType"] == "context"
 
         # Verify service was called correctly
-        mock_mount_plan_service.generate_mount_plan.assert_called_once()
+        mock_mount_plan_service.load_bundle.assert_called_once()
 
     def test_generate_mount_plan_missing_profile(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
         """Test POST /api/v1/mount-plans/generate returns 404 for missing profile."""
         # Setup mock to raise FileNotFoundError
-        mock_mount_plan_service.generate_mount_plan.side_effect = FileNotFoundError("Profile not found: nonexistent")
+        mock_mount_plan_service.load_bundle.side_effect = FileNotFoundError("Profile not found: nonexistent")
 
         # Make request
         response = client.post(
@@ -137,7 +152,7 @@ class TestMountPlansAPI:
     def test_generate_mount_plan_invalid_profile_id(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
         """Test POST /api/v1/mount-plans/generate returns 400 for invalid profile ID."""
         # Setup mock to raise ValueError
-        mock_mount_plan_service.generate_mount_plan.side_effect = ValueError("Invalid profile ID format")
+        mock_mount_plan_service.load_bundle.side_effect = ValueError("Invalid profile ID format")
 
         # Make request
         response = client.post(
@@ -152,8 +167,7 @@ class TestMountPlansAPI:
         self, client: TestClient, mock_mount_plan: dict, mock_mount_plan_service: Mock
     ) -> None:
         """Test POST /api/v1/mount-plans/generate accepts settings overrides."""
-        # Setup mock
-        mock_mount_plan_service.generate_mount_plan.return_value = mock_mount_plan
+        # Fixture already sets up mock correctly
 
         # Make request with settings overrides
         response = client.post(
@@ -169,9 +183,8 @@ class TestMountPlansAPI:
         assert response.status_code == 201
 
         # Verify service was called with profile_id and amplified_dir
-        from pathlib import Path
 
-        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base", Path("/tmp/test"))
+        mock_mount_plan_service.load_bundle.assert_called_once_with("foundation/base")
 
     def test_generate_mount_plan_with_custom_session_id(
         self, client: TestClient, mock_mount_plan_service: Mock
@@ -189,8 +202,19 @@ class TestMountPlansAPI:
             "mount_points": [],
         }
 
-        # Setup mock
-        mock_mount_plan_service.generate_mount_plan.return_value = custom_mount_plan
+        # Setup mock - load_bundle returns PreparedBundle, not mount plan directly
+        from unittest.mock import AsyncMock
+
+        from amplifier_foundation.bundle import PreparedBundle
+
+        prepared = Mock(spec=PreparedBundle)
+        prepared.mount_plan = custom_mount_plan
+
+        async def async_load_bundle(*args, **kwargs):
+            return prepared
+
+        mock_mount_plan_service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+        mock_mount_plan_service.get_mount_plan = Mock(return_value=custom_mount_plan)
 
         # Make request with custom session ID
         response = client.post(
@@ -208,14 +232,13 @@ class TestMountPlansAPI:
         assert data["session"]["sessionId"] == "my-custom-session-123"
 
         # Verify service was called with profile_id and amplified_dir
-        from pathlib import Path
 
-        mock_mount_plan_service.generate_mount_plan.assert_called_once_with("foundation/base", Path("/tmp/test"))
+        mock_mount_plan_service.load_bundle.assert_called_once_with("foundation/base")
 
     def test_generate_mount_plan_internal_error(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
         """Test POST /api/v1/mount-plans/generate returns 500 for unexpected errors."""
         # Setup mock to raise unexpected error
-        mock_mount_plan_service.generate_mount_plan.side_effect = RuntimeError("Unexpected error")
+        mock_mount_plan_service.load_bundle.side_effect = RuntimeError("Unexpected error")
 
         # Make request
         response = client.post(
@@ -251,8 +274,19 @@ class TestMountPlansAPI:
             "mount_points": [],
         }
 
-        # Setup mock
-        mock_mount_plan_service.generate_mount_plan.return_value = empty_mount_plan
+        # Setup mock - load_bundle returns PreparedBundle, not mount plan directly
+        from unittest.mock import AsyncMock
+
+        from amplifier_foundation.bundle import PreparedBundle
+
+        prepared = Mock(spec=PreparedBundle)
+        prepared.mount_plan = empty_mount_plan
+
+        async def async_load_bundle(*args, **kwargs):
+            return prepared
+
+        mock_mount_plan_service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+        mock_mount_plan_service.get_mount_plan = Mock(return_value=empty_mount_plan)
 
         # Make request
         response = client.post(
@@ -304,8 +338,19 @@ class TestMountPlansAPI:
             ],
         }
 
-        # Setup mock
-        mock_mount_plan_service.generate_mount_plan.return_value = diverse_mount_plan
+        # Setup mock - load_bundle returns PreparedBundle, not mount plan directly
+        from unittest.mock import AsyncMock
+
+        from amplifier_foundation.bundle import PreparedBundle
+
+        prepared = Mock(spec=PreparedBundle)
+        prepared.mount_plan = diverse_mount_plan
+
+        async def async_load_bundle(*args, **kwargs):
+            return prepared
+
+        mock_mount_plan_service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+        mock_mount_plan_service.get_mount_plan = Mock(return_value=diverse_mount_plan)
 
         # Make request
         response = client.post(

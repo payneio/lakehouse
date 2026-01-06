@@ -6,13 +6,13 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
+from amplifierd.main import app
+from amplifierd.routers.mount_plans import get_bundle_service
+from amplifierd.routers.sessions import get_session_state_service
 from fastapi.testclient import TestClient
 
 from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionStatus
-from amplifierd.main import app
-from amplifierd.routers.mount_plans import get_mount_plan_service
-from amplifierd.routers.sessions import get_session_state_service
 
 
 @pytest.fixture
@@ -132,8 +132,38 @@ def mock_amplified_directory_service(monkeypatch):
 
 
 @pytest.fixture
+def mock_bundle_service(mock_mount_plan: dict) -> Mock:
+    """Mock bundle service.
+
+    Args:
+        mock_mount_plan: Sample mount plan fixture
+
+    Returns:
+        Mock service
+    """
+    from unittest.mock import AsyncMock
+
+    from amplifier_foundation.bundle import PreparedBundle
+
+    service = Mock()
+
+    # Create a mock PreparedBundle
+    prepared = Mock(spec=PreparedBundle)
+    prepared.mount_plan = mock_mount_plan
+
+    # load_bundle is async, so use AsyncMock
+    async def async_load_bundle(*args, **kwargs):
+        return prepared
+
+    service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+    service.get_mount_plan = Mock(return_value=mock_mount_plan)
+    return service
+
+
+@pytest.fixture
 def override_services(
     mock_mount_plan_service: Mock,
+    mock_bundle_service: Mock,
     mock_session_state_service: Mock,
     mock_amplified_directory_service,
 ):
@@ -141,13 +171,15 @@ def override_services(
 
     Args:
         mock_mount_plan_service: Mock mount plan service
+        mock_bundle_service: Mock bundle service
         mock_session_state_service: Mock session state service
         mock_amplified_directory_service: Mock amplified directory service
 
     Yields:
         None
     """
-    app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
+
+    app.dependency_overrides[get_bundle_service] = lambda: mock_bundle_service
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
     yield
     app.dependency_overrides.clear()
@@ -188,7 +220,9 @@ class TestSessionsAPI:
         # Verify service was called
         mock_session_state_service.create_session.assert_called_once()
 
-    def test_create_session_with_settings_overrides(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
+    def test_create_session_with_settings_overrides(
+        self, client: TestClient, mock_bundle_service: Mock
+    ) -> None:
         """Test POST /api/v1/sessions/ accepts settings overrides."""
         # Make request with settings overrides
         response = client.post(
@@ -202,17 +236,15 @@ class TestSessionsAPI:
         # Assert response
         assert response.status_code == 201
 
-        # Verify mount plan service was called with profile_name
-        # The amplified_dir comes from the mock_amplified_directory_service fixture
-        mock_mount_plan_service.generate_mount_plan.assert_called_once()
-        call_args = mock_mount_plan_service.generate_mount_plan.call_args
+        # Verify bundle service was called with profile_name
+        mock_bundle_service.load_bundle.assert_called_once()
+        call_args = mock_bundle_service.load_bundle.call_args
         assert call_args[0][0] == "foundation/base"  # profile_name
-        # amplified_dir is the second argument, comes from config
 
-    def test_create_session_invalid_profile(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
+    def test_create_session_invalid_profile(self, client: TestClient, mock_bundle_service: Mock) -> None:
         """Test POST /api/v1/sessions/ returns 404 for invalid profile."""
         # Setup mock to raise FileNotFoundError
-        mock_mount_plan_service.generate_mount_plan.side_effect = FileNotFoundError("Profile not found")
+        mock_bundle_service.load_bundle.side_effect = FileNotFoundError("Profile not found")
 
         # Make request
         response = client.post("/api/v1/sessions/", json={"profile_name": "nonexistent"})
@@ -559,12 +591,14 @@ class TestSessionsAPI:
     # --- Error Handling Tests ---
 
     def test_create_session_unexpected_error(
-        self, client: TestClient, mock_mount_plan_service: Mock, mock_session_state_service: Mock
+        self, client: TestClient, mock_bundle_service: Mock, mock_session_state_service: Mock
     ) -> None:
-        """Test create_session with unexpected error during mount plan generation."""
-        # Mock mount plan service to raise generic Exception
-        mock_mount_plan_service.generate_mount_plan = Mock(
-            side_effect=Exception("Unexpected error in mount plan generation")
+        """Test create_session with unexpected error during bundle loading."""
+        # Mock bundle service to raise generic Exception
+        from unittest.mock import AsyncMock
+
+        mock_bundle_service.load_bundle = AsyncMock(
+            side_effect=Exception("Unexpected error in bundle loading")
         )
 
         response = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"})
@@ -645,7 +679,7 @@ class TestSessionsAPI:
             nonlocal created_session_id
             if sid == "test_session_123":
                 return source_metadata
-            elif created_session_id and sid == created_session_id:
+            if created_session_id and sid == created_session_id:
                 return SessionMetadata(
                     session_id=created_session_id,
                     status=SessionStatus.ACTIVE,
@@ -871,20 +905,19 @@ class TestSessionsAPI:
         def mock_get_session(sid):
             if sid == "parent_session":
                 return parent_metadata
-            elif sid == "child_session":
+            if sid == "child_session":
                 return child_metadata
-            else:
-                # Return cloned session
-                return SessionMetadata(
-                    session_id=sid,
-                    status=SessionStatus.ACTIVE,
-                    profile_name="foundation/base",
-                    mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
-                    created_at=datetime.now(UTC),
-                    started_at=datetime.now(UTC),
-                    amplified_dir=".",
-                    name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
-                )
+            # Return cloned session
+            return SessionMetadata(
+                session_id=sid,
+                status=SessionStatus.ACTIVE,
+                profile_name="foundation/base",
+                mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                amplified_dir=".",
+                name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
+            )
 
         # list_sessions returns child when querying parent's subsessions
         def mock_list_sessions(parent_session_id=None, **kwargs):

@@ -1,30 +1,21 @@
-import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Copy, Edit, Trash2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { Edit } from 'lucide-react';
 import * as api from '@/api';
-import type { ModuleConfig, ProfileDetails } from '@/types/api';
-import { CopyProfileDialog } from './CopyProfileDialog';
+import type { ModuleConfig } from '@/types/api';
 
 interface ProfileDetailModalProps {
   profileName: string | null;
   onClose: () => void;
-  onEdit?: (profile: ProfileDetails) => void;
-  onDelete?: (profileName: string, source: string) => void;
+  onEdit?: (name: string) => void;
 }
 
-export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: ProfileDetailModalProps) {
-  const [showCopyDialog, setShowCopyDialog] = useState(false);
-
+export function ProfileDetailModal({ profileName, onClose, onEdit }: ProfileDetailModalProps) {
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile-detail', profileName],
     queryFn: () => api.getProfileDetails(profileName!),
     enabled: !!profileName,
   });
-
-  const handleCopySuccess = () => {
-    onClose();
-  };
 
   if (!profileName) return null;
 
@@ -35,35 +26,15 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
       <DialogContent className="max-w-7xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle>Profile Details</DialogTitle>
-            {profile && (onEdit || onDelete) && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowCopyDialog(true)}
-                  className="p-2 hover:bg-accent rounded-md"
-                  title="Copy profile"
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
-                {isLocal && onEdit && (
-                  <button
-                    onClick={() => onEdit(profile)}
-                    className="p-2 hover:bg-accent rounded-md"
-                    title="Edit profile"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                )}
-                {isLocal && onDelete && (
-                  <button
-                    onClick={() => onDelete(profile.name, profile.source)}
-                    className="p-2 hover:bg-accent rounded-md text-destructive"
-                    title="Delete profile"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            <DialogTitle>Bundle Details</DialogTitle>
+            {isLocal && onEdit && (
+              <button
+                onClick={() => onEdit(profileName)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors"
+              >
+                <Edit className="h-4 w-4" />
+                Edit
+              </button>
             )}
           </div>
         </DialogHeader>
@@ -180,14 +151,6 @@ export function ProfileDetailModal({ profileName, onClose, onEdit, onDelete }: P
           <div className="text-muted-foreground">Profile not found</div>
         )}
       </DialogContent>
-
-      {profileName && (
-        <CopyProfileDialog
-          sourceName={showCopyDialog ? profileName : null}
-          onClose={() => setShowCopyDialog(false)}
-          onSuccess={handleCopySuccess}
-        />
-      )}
     </Dialog>
   );
 }

@@ -9,17 +9,17 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
+from amplifierd.main import app
+from amplifierd.models.mount_plans import EmbeddedMount
+from amplifierd.models.mount_plans import MountPlan
+from amplifierd.models.mount_plans import SessionConfig
+from amplifierd.routers.mount_plans import get_bundle_service
+from amplifierd.routers.sessions import get_session_state_service
 from fastapi.testclient import TestClient
 
 from amplifier_library.models.sessions import SessionMessage
 from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionStatus
-from amplifierd.main import app
-from amplifierd.models.mount_plans import EmbeddedMount
-from amplifierd.models.mount_plans import MountPlan
-from amplifierd.models.mount_plans import SessionConfig
-from amplifierd.routers.mount_plans import get_mount_plan_service
-from amplifierd.routers.sessions import get_session_state_service
 
 
 @pytest.fixture
@@ -150,9 +150,39 @@ def mock_amplified_directory_service(monkeypatch):
 
 
 @pytest.fixture
+def mock_bundle_service(mock_mount_plan: MountPlan) -> Mock:
+    """Mock bundle service.
+
+    Args:
+        mock_mount_plan: Sample mount plan fixture
+
+    Returns:
+        Mock service
+    """
+    from unittest.mock import AsyncMock
+
+    from amplifier_foundation.bundle import PreparedBundle
+
+    service = Mock()
+
+    # Create a mock PreparedBundle
+    prepared = Mock(spec=PreparedBundle)
+    prepared.mount_plan = mock_mount_plan.model_dump()
+
+    # load_bundle is async, so use AsyncMock
+    async def async_load_bundle(*args, **kwargs):
+        return prepared
+
+    service.load_bundle = AsyncMock(side_effect=async_load_bundle)
+    service.get_mount_plan = Mock(return_value=mock_mount_plan.model_dump())
+    return service
+
+
+@pytest.fixture
 def override_services(
     mock_session_manager: Mock,
     mock_mount_plan_service: Mock,
+    mock_bundle_service: Mock,
     mock_session_state_service: Mock,
     mock_amplified_directory_service,
 ):
@@ -161,6 +191,7 @@ def override_services(
     Args:
         mock_session_manager: Mock session manager
         mock_mount_plan_service: Mock mount plan service
+        mock_bundle_service: Mock bundle service
         mock_session_state_service: Mock session state service
         mock_amplified_directory_service: Mock amplified directory service
 
@@ -170,7 +201,7 @@ def override_services(
     # Import here to avoid circular import issues
     from amplifierd.routers.messages import get_session_state_service as get_msg_svc
 
-    app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
+    app.dependency_overrides[get_bundle_service] = lambda: mock_bundle_service
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
     app.dependency_overrides[get_msg_svc] = lambda: mock_session_state_service
     yield

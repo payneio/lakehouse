@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "amplifier-library",
+    "amplifier-foundation",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
@@ -42,8 +43,9 @@ include = ["amplifierd*"]
 members = []
 
 [tool.uv.sources]
-amplifier-core = { git = "https://github.com/microsoft/amplifier-core" }
+amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
 amplifier-library = { path = "../amplifier_library", editable = true }
+amplifier-foundation = { path = "../related-projects/amplifier-foundation", editable = true }
 
 [dependency-groups]
 dev = [
