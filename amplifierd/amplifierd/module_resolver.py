@@ -179,7 +179,8 @@ class DaemonModuleSourceResolver:
                 return type_name
 
         # Handle special cases
-        if module_id in ["loop-streaming", "loop-basic", "loop-events"]:
+        # Orchestrator module IDs may not follow the "loop-" convention
+        if module_id.startswith("loop-") or module_id.startswith("orchestrator-"):
             return "orchestrator"
         if "context" in module_id:
             return "context"

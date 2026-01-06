@@ -107,6 +107,10 @@ class ProfileCompilationService:
             self.logger.info("Copying components to profile cache...")
             asset_map = self._copy_to_profile_cache(profile_yaml, asset_map, refs, profile_dir)
 
+            # Stage 5b: Install module dependencies
+            self.logger.info("Installing module dependencies...")
+            self._install_module_dependencies(asset_map)
+
             # Stage 6: Merge configs
             self.logger.info("Merging configurations...")
             behavior_configs = config_yaml.get("behaviors", {})
@@ -761,3 +765,62 @@ class ProfileCompilationService:
             mount_plan["agents"] = agents_obj
 
         return mount_plan
+
+    def _install_module_dependencies(self, asset_map: dict[str, Path]) -> None:
+        """Install Python dependencies for modules that have pyproject.toml.
+
+        Uses `uv pip install` to install dependencies from each module's pyproject.toml
+        into the daemon's virtual environment.
+
+        Args:
+            asset_map: Dictionary mapping component IDs to their local paths
+        """
+        import subprocess
+        import sys
+
+        installed_modules: set[str] = set()
+
+        for module_id, module_path in asset_map.items():
+            if not module_path.is_dir():
+                continue
+
+            pyproject_path = module_path / "pyproject.toml"
+            if not pyproject_path.exists():
+                continue
+
+            # Skip if already installed in this compilation run
+            # (same module might appear in multiple behaviors)
+            module_key = str(module_path.resolve())
+            if module_key in installed_modules:
+                continue
+            installed_modules.add(module_key)
+
+            self.logger.info(f"Installing dependencies for module '{module_id}'...")
+
+            try:
+                # Use uv pip install to install the module and its dependencies
+                # uv is called directly (not as python -m uv) since it's a standalone tool
+                result = subprocess.run(
+                    [
+                        "uv",
+                        "pip",
+                        "install",
+                        "--quiet",
+                        "--python",
+                        sys.executable,
+                        str(module_path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,  # 2 minute timeout per module
+                )
+
+                if result.returncode != 0:
+                    self.logger.warning(f"Failed to install dependencies for '{module_id}': {result.stderr.strip()}")
+                else:
+                    self.logger.debug(f"Dependencies installed for '{module_id}'")
+
+            except subprocess.TimeoutExpired:
+                self.logger.warning(f"Timeout installing dependencies for '{module_id}'")
+            except Exception as e:
+                self.logger.warning(f"Error installing dependencies for '{module_id}': {e}")
