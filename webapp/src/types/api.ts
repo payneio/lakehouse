@@ -186,6 +186,7 @@ export interface FileContentResponse {
   mime_type: string;
   is_viewable: boolean;
   is_image: boolean;
+  is_video: boolean;
 }
 
 export interface ComponentRef {

@@ -263,11 +263,24 @@ VIEWABLE_IMAGE_EXTENSIONS = {
     ".ico",
 }
 
+# Viewable video extensions
+VIEWABLE_VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".webm",
+    ".ogg",
+    ".ogv",
+    ".mov",
+    ".m4v",
+}
+
 # Max file size for viewing text (1MB)
 MAX_VIEWABLE_TEXT_SIZE = 1024 * 1024
 
 # Max file size for viewing images (10MB)
 MAX_VIEWABLE_IMAGE_SIZE = 10 * 1024 * 1024
+
+# Max file size for viewing videos (500MB)
+MAX_VIEWABLE_VIDEO_SIZE = 500 * 1024 * 1024
 
 
 def is_viewable_text_file(file_path: Path) -> bool:
@@ -281,6 +294,11 @@ def is_viewable_text_file(file_path: Path) -> bool:
 def is_viewable_image_file(file_path: Path) -> bool:
     """Check if a file is a viewable image."""
     return file_path.suffix.lower() in VIEWABLE_IMAGE_EXTENSIONS
+
+
+def is_viewable_video_file(file_path: Path) -> bool:
+    """Check if a file is a viewable video."""
+    return file_path.suffix.lower() in VIEWABLE_VIDEO_EXTENSIONS
 
 
 def get_mime_type(file_path: Path) -> str:
@@ -332,6 +350,22 @@ async def get_file_content(
                 "mime_type": mime_type,
                 "is_viewable": True,
                 "is_image": True,
+                "is_video": False,
+            }
+
+        # Check if it's a viewable video
+        is_video = is_viewable_video_file(file_path) and file_size <= MAX_VIEWABLE_VIDEO_SIZE
+        if is_video:
+            # Videos are viewable but we don't return content - frontend uses download URL
+            return {
+                "path": path,
+                "name": file_path.name,
+                "content": "",
+                "size": file_size,
+                "mime_type": mime_type,
+                "is_viewable": True,
+                "is_image": False,
+                "is_video": True,
             }
 
         # Check if it's a viewable text file
@@ -345,6 +379,7 @@ async def get_file_content(
                 "mime_type": mime_type,
                 "is_viewable": False,
                 "is_image": False,
+                "is_video": False,
             }
 
         # Read text file content
@@ -363,6 +398,7 @@ async def get_file_content(
                     "mime_type": mime_type,
                     "is_viewable": False,
                     "is_image": False,
+                    "is_video": False,
                 }
 
         return {
@@ -373,6 +409,7 @@ async def get_file_content(
             "mime_type": mime_type,
             "is_viewable": True,
             "is_image": False,
+            "is_video": False,
         }
 
     except HTTPException:
