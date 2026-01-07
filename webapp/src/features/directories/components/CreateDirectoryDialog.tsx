@@ -95,12 +95,12 @@ export function CreateDirectoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Create Amplified Directory</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form id="create-directory-form" onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 pr-2">
           {/* Path Field */}
           <div>
             <label className="block text-sm font-medium mb-1">
@@ -197,25 +197,27 @@ export function CreateDirectoryDialog({
             </div>
           )}
 
-          {/* Footer */}
-          <DialogFooter>
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 border rounded-md hover:bg-accent"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Creating...' : 'Create Directory'}
-            </button>
-          </DialogFooter>
         </form>
+
+        {/* Footer - outside form for sticky behavior, but still submits via form */}
+        <DialogFooter className="shrink-0 pt-4 border-t mt-4">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="px-4 py-2 border rounded-md hover:bg-accent"
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="create-directory-form"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Creating...' : 'Create Directory'}
+          </button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
