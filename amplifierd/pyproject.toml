@@ -42,7 +42,7 @@ include = ["amplifierd*"]
 members = []
 
 [tool.uv.sources]
-amplifier-core = { git = "https://github.com/microsoft/amplifier-core" }
+amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
 amplifier-library = { path = "../amplifier_library", editable = true }
 
 [dependency-groups]

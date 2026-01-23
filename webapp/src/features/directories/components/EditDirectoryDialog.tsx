@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import * as api from '@/api/profiles';
+import { listBundles } from '@/api/bundles';
 import type { AmplifiedDirectory } from '@/types/api';
 
 interface EditDirectoryDialogProps {
   open: boolean;
   directory: AmplifiedDirectory | null;
   onClose: () => void;
-  onSubmit: (data: { name?: string; description?: string; default_profile?: string }) => void;
+  onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;
   isLoading?: boolean;
   error?: string;
 }
@@ -22,9 +22,9 @@ export function EditDirectoryDialog({
   isLoading = false,
   error,
 }: EditDirectoryDialogProps) {
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['profiles'],
-    queryFn: api.listProfiles,
+  const { data: bundles = [] } = useQuery({
+    queryKey: ['bundles'],
+    queryFn: listBundles,
   });
 
   if (!directory) {
@@ -37,7 +37,7 @@ export function EditDirectoryDialog({
       key={directory.relative_path}
       open={open}
       directory={directory}
-      profiles={profiles}
+      bundles={bundles}
       onClose={onClose}
       onSubmit={onSubmit}
       isLoading={isLoading}
@@ -49,7 +49,7 @@ export function EditDirectoryDialog({
 function EditDirectoryForm({
   open,
   directory,
-  profiles,
+  bundles,
   onClose,
   onSubmit,
   isLoading,
@@ -57,16 +57,16 @@ function EditDirectoryForm({
 }: {
   open: boolean;
   directory: AmplifiedDirectory;
-  profiles: Array<{ name: string }>;
+  bundles: Array<{ name: string }>;
   onClose: () => void;
-  onSubmit: (data: { name?: string; description?: string; default_profile?: string }) => void;
+  onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;
   isLoading: boolean;
   error?: string;
 }) {
   const [formData, setFormData] = useState({
     name: (directory?.metadata?.name as string) || '',
     description: (directory?.metadata?.description as string) || '',
-    default_profile: directory?.default_profile || '',
+    default_bundle: directory?.default_bundle || '',
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -77,11 +77,11 @@ function EditDirectoryForm({
     if (formData.description.length > 500) {
       return 'Description must be 500 characters or less';
     }
-    if (formData.default_profile) {
-      // Build list of valid profile identifiers
-      const validProfileIds = profiles.map(p => p.name);
-      if (!validProfileIds.includes(formData.default_profile)) {
-        return 'Invalid profile selection';
+    if (formData.default_bundle) {
+      // Build list of valid bundle identifiers
+      const validBundleIds = bundles.map(b => b.name);
+      if (!validBundleIds.includes(formData.default_bundle)) {
+        return 'Invalid bundle selection';
       }
     }
     return null;
@@ -98,7 +98,7 @@ function EditDirectoryForm({
 
     setValidationError(null);
 
-    const submitData: { name?: string; description?: string; default_profile?: string } = {};
+    const submitData: { name?: string; description?: string; default_bundle?: string } = {};
 
     if (formData.name) {
       submitData.name = formData.name.trim();
@@ -106,8 +106,8 @@ function EditDirectoryForm({
     if (formData.description) {
       submitData.description = formData.description.trim();
     }
-    if (formData.default_profile) {
-      submitData.default_profile = formData.default_profile;
+    if (formData.default_bundle) {
+      submitData.default_bundle = formData.default_bundle;
     }
 
     onSubmit(submitData);
@@ -141,40 +141,40 @@ function EditDirectoryForm({
             </p>
           </div>
 
-          {/* Default Profile Field */}
+          {/* Default Bundle Field */}
           <div>
-            <label htmlFor="default_profile" className="block text-sm font-medium mb-1">
-              Default Profile
+            <label htmlFor="default_bundle" className="block text-sm font-medium mb-1">
+              Default Bundle
             </label>
-            {profiles.length > 0 ? (
+            {bundles.length > 0 ? (
               <select
-                id="default_profile"
-                value={formData.default_profile}
+                id="default_bundle"
+                value={formData.default_bundle}
                 onChange={(e) => {
-                  setFormData({ ...formData, default_profile: e.target.value });
+                  setFormData({ ...formData, default_bundle: e.target.value });
                   setValidationError(null);
                 }}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => (
-                  <option key={profile.name} value={profile.name}>
-                    {profile.name}
+                {bundles.map((bundle) => (
+                  <option key={bundle.name} value={bundle.name}>
+                    {bundle.name}
                   </option>
                 ))}
               </select>
             ) : (
               <input
-                id="default_profile"
+                id="default_bundle"
                 type="text"
-                value={formData.default_profile}
+                value={formData.default_bundle}
                 onChange={(e) => {
-                  setFormData({ ...formData, default_profile: e.target.value });
+                  setFormData({ ...formData, default_bundle: e.target.value });
                   setValidationError(null);
                 }}
                 className="w-full px-3 py-2 border rounded-md"
-                placeholder="profile-name"
+                placeholder="bundle-name"
                 disabled={isLoading}
               />
             )}

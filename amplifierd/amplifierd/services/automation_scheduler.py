@@ -382,26 +382,34 @@ class AutomationScheduler:
             if not amplified_dir:
                 raise ValueError(f"Project directory not amplified: {automation.project_id}")
 
-            profile_name = amplified_dir.metadata.get("default_profile")
-            if not profile_name:
-                raise ValueError(f"No default_profile set for project: {automation.project_id}")
+            # Get bundle name from directory metadata (try default_bundle, fallback to default_profile)
+            bundle_name = amplified_dir.metadata.get("default_bundle") or amplified_dir.metadata.get("default_profile")
+            if not bundle_name:
+                raise ValueError(f"No default_bundle set for project: {automation.project_id}")
 
             # Get absolute path for mount plan generation
             absolute_amplified_dir = str((data_path / automation.project_id).resolve())
 
-            # Generate mount plan
-            from amplifier_library.storage import get_share_dir
-            from amplifier_library.storage.paths import get_profiles_dir
+            # Generate mount plan using bundle manager
+            from amplifier_library.bundles import LakehouseBundleManager
 
-            from ..services.mount_plan_service import MountPlanService
-
-            share_dir = get_share_dir()
-            mount_plan_service = MountPlanService(share_dir)
-            mount_plan = mount_plan_service.generate_mount_plan(profile_name, Path(absolute_amplified_dir))
-
-            # Inject runtime configuration (working_dir, allowed_write_paths, etc.)
+            from ..config.loader import load_secrets
             from ..routers.sessions import _inject_runtime_config
 
+            bundle_manager = LakehouseBundleManager()
+
+            # Load secrets for API key injection
+            secrets = load_secrets()
+            api_key = next(iter(secrets.api_keys.values()), None) if secrets.api_keys else None
+
+            mount_plan = await bundle_manager.generate_mount_plan(
+                bundle_ref=bundle_name,
+                session_id=session_id,
+                amplified_dir=absolute_amplified_dir,
+                api_key=api_key,
+            )
+
+            # Inject runtime configuration (working_dir, allowed_write_paths, etc.)
             _inject_runtime_config(mount_plan, session_id, absolute_amplified_dir)
 
             # Add session metadata
@@ -411,13 +419,13 @@ class AutomationScheduler:
                 mount_plan["session"]["settings"] = {}
 
             mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
-            mount_plan["session"]["settings"]["profile_name"] = profile_name
+            mount_plan["session"]["settings"]["bundle_name"] = bundle_name
             mount_plan["session"]["settings"]["automation_id"] = automation_id
 
             # Create session with meaningful name (marked as created by automation)
             self.session_manager.create_session(
                 session_id=session_id,
-                profile_name=profile_name,
+                bundle_name=bundle_name,
                 mount_plan=mount_plan,
                 amplified_dir=automation.project_id,
                 name=session_name,
@@ -455,9 +463,9 @@ class AutomationScheduler:
             # Resolve runtime mentions
             from ..services.mention_resolver import MentionResolver
 
-            compiled_profile_dir = get_profiles_dir() / profile_name
+            bundle_dir = bundle_manager.bundles_dir / bundle_name
             resolver = MentionResolver(
-                compiled_profile_dir=compiled_profile_dir,
+                compiled_profile_dir=bundle_dir,
                 amplified_dir=Path(absolute_amplified_dir),
                 data_dir=data_path,
             )

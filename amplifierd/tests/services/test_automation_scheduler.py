@@ -200,7 +200,7 @@ class TestAutomationExecution:
         project_dir.mkdir()
         (project_dir / ".amplified").mkdir()
         (project_dir / ".amplified" / "metadata.json").write_text(
-            '{"default_profile": "foundation/foundation"}'
+            '{"default_bundle": "foundation/foundation"}'
         )
 
         # Create automation
@@ -215,38 +215,46 @@ class TestAutomationExecution:
         # Mock dependencies (using correct import paths from _execute_automation)
         with (
             patch("amplifierd.services.amplified_directory_service.AmplifiedDirectoryService") as mock_amplified_service,
-            patch("amplifierd.services.mount_plan_service.MountPlanService") as mock_mount_plan_service,
+            patch("amplifier_library.bundles.LakehouseBundleManager") as mock_bundle_manager,
             patch("amplifier_library.config.loader.load_config") as mock_config,
-            patch("amplifier_library.storage.get_share_dir") as mock_share_dir,
             patch("amplifierd.services.session_stream_registry.get_stream_registry") as mock_registry,
             patch("amplifierd.services.mention_resolver.MentionResolver") as mock_resolver,
+            patch("amplifierd.config.loader.load_secrets") as mock_secrets,
         ):
             # Setup mocks
             mock_config.return_value.data_path = str(tmp_path)
-            mock_share_dir.return_value = tmp_path / "share"
+            mock_secrets.return_value.api_keys = {}
 
             mock_amplified = MagicMock()
-            mock_amplified.metadata = {"default_profile": "foundation/foundation"}
+            mock_amplified.metadata = {"default_bundle": "foundation/foundation"}
 
             # Mock the AmplifiedDirectoryService instance and its get method
             mock_service_instance = MagicMock()
             mock_service_instance.get.return_value = mock_amplified
             mock_amplified_service.return_value = mock_service_instance
 
-            mock_mount_plan_service.return_value.generate_mount_plan.return_value = {
-                "session": {
-                    "settings": {},
-                    "orchestrator": {
-                        "module": "orchestrator/sequential-orchestrator",
-                        "source": "registry",
+            # Mock the bundle manager
+            mock_bundle_instance = MagicMock()
+            mock_bundle_instance.bundles_dir = tmp_path / "bundles"
+
+            async def mock_generate_mount_plan(*args, **kwargs):
+                return {
+                    "session": {
+                        "settings": {},
+                        "orchestrator": {
+                            "module": "orchestrator/sequential-orchestrator",
+                            "source": "registry",
+                        },
+                        "context": {
+                            "module": "context/simple-context",
+                            "source": "registry",
+                        },
                     },
-                    "context": {
-                        "module": "context/simple-context",
-                        "source": "registry",
-                    },
-                },
-                "tools": [],
-            }
+                    "tools": [],
+                }
+
+            mock_bundle_instance.generate_mount_plan = mock_generate_mount_plan
+            mock_bundle_manager.return_value = mock_bundle_instance
 
             # Mock mention resolver
             mock_resolver_instance = MagicMock()

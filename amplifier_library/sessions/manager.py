@@ -41,7 +41,7 @@ class SessionManager:
     def create_session(
         self,
         session_id: str,
-        profile_name: str,
+        bundle_name: str,
         mount_plan: Any = None,
         parent_session_id: str | None = None,
         amplified_dir: str = ".",
@@ -52,7 +52,7 @@ class SessionManager:
 
         Args:
             session_id: Unique session identifier
-            profile_name: Profile name for this session
+            bundle_name: Bundle name for this session
             mount_plan: Complete mount plan to persist
             parent_session_id: Optional parent session for sub-sessions
             amplified_dir: Relative path to amplified directory (defaults to ".")
@@ -100,7 +100,7 @@ class SessionManager:
                 session_id=session_id,
                 name=name,  # Optional human-readable name
                 amplified_dir=amplified_dir,
-                profile_name=profile_name,
+                bundle_name=bundle_name,
                 status=SessionStatus.ACTIVE,  # Start active immediately
                 created_at=now,
                 started_at=now,  # Set started_at to creation time
@@ -129,7 +129,7 @@ class SessionManager:
             # Update index
             self._update_index(metadata)
 
-            logger.info(f"Created session {session_id} with profile {profile_name}")
+            logger.info(f"Created session {session_id} with bundle {bundle_name}")
             return metadata
 
         except Exception as e:
@@ -358,7 +358,7 @@ class SessionManager:
     def list_sessions(
         self,
         status: SessionStatus | None = None,
-        profile_name: str | None = None,
+        bundle_name: str | None = None,
         amplified_dir: str | None = None,
         since: datetime | None = None,
         limit: int | None = None,
@@ -370,7 +370,7 @@ class SessionManager:
 
         Args:
             status: Optional filter by session status
-            profile_name: Optional filter by profile name
+            bundle_name: Optional filter by bundle name
             amplified_dir: Optional filter by amplified directory path
             since: Optional filter by creation time
             limit: Optional maximum number of results
@@ -387,7 +387,7 @@ class SessionManager:
         for entry in index.sessions.values():
             if status is not None and entry.status != status:
                 continue
-            if profile_name is not None and entry.profile_name != profile_name:
+            if bundle_name is not None and entry.bundle_name != bundle_name:
                 continue
             if amplified_dir is not None and entry.amplified_dir != amplified_dir:
                 continue
@@ -552,7 +552,7 @@ class SessionManager:
         entry = SessionIndexEntry(
             session_id=metadata.session_id,
             amplified_dir=metadata.amplified_dir,
-            profile_name=metadata.profile_name,
+            bundle_name=metadata.bundle_name,
             status=metadata.status,
             created_at=metadata.created_at,
             ended_at=metadata.ended_at,

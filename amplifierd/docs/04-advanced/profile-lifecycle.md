@@ -1,4 +1,9 @@
-# Profile Lifecycle
+# Profile Lifecycle (Legacy)
+
+> **⚠️ DEPRECATED**: The profile compilation system has been replaced by the simpler **bundle system**.
+> See [Bundles](../01-concepts/bundles.md) for the current approach.
+>
+> This documentation is preserved for historical reference only.
 
 **Complete transformation from profile definition to running session**
 

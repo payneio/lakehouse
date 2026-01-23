@@ -68,7 +68,7 @@ def mock_session_metadata(tmp_path: Path) -> SessionMetadata:
     return SessionMetadata(
         session_id="test_session_123",
         status=SessionStatus.ACTIVE,
-        profile_name="test-profile",
+        bundle_name="test-profile",
         mount_plan_path="mount_plan.json",
         amplified_dir="test-project",
         created_at=datetime.now(UTC),
@@ -205,7 +205,7 @@ async def test_session_creation_resolves_and_caches_profile_mentions(
     # Mock mount plan with agent instructions containing mentions
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "profile_name": "test-profile"}},
+        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
         "agents": {
             "test-agent": {
                 "module_id": "test-agent",
@@ -263,7 +263,7 @@ async def test_session_creation_with_no_mentions_no_cache(
     # Mount plan with no mentions
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "profile_name": "test-profile"}},
+        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Plain instructions without mentions."}},
     }
 
@@ -303,7 +303,7 @@ async def test_session_creation_missing_mention_files_graceful(
     # Mount plan with mention to non-existent file
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "profile_name": "test-profile"}},
+        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Follow @test-context:nonexistent.md"}},
     }
 
@@ -677,7 +677,7 @@ async def test_full_mention_resolution_flow(
 
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "profile_name": "test-profile"}},
+        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Follow @test-context:guidelines.md"}},
     }
 

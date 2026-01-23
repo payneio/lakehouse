@@ -136,43 +136,36 @@ async def send_message_for_execution(
         # Get config and paths
         from pathlib import Path
 
+        from amplifier_library.bundles import LakehouseBundleManager
         from amplifier_library.config.loader import load_config
-        from amplifier_library.storage.paths import get_profiles_dir
-        from amplifier_library.storage.paths import get_share_dir
 
         from ..services.mention_resolver import MentionResolver
-        from ..services.mount_plan_service import MountPlanService
-        from .sessions import _inject_runtime_config
 
         config = load_config()
         data_dir = Path(config.data_path)
         state_dir = get_state_dir()
-        share_dir = get_share_dir()
 
-        # Get amplified_dir and profile_name from session metadata
+        # Get amplified_dir from session metadata
         amplified_dir = Path(metadata.amplified_dir) if metadata.amplified_dir else Path(".")
         if not amplified_dir.is_absolute():
             amplified_dir = data_dir / amplified_dir
-        profile_name = metadata.profile_name
 
-        # Generate mount plan fresh from profile (single source of truth)
-        mount_plan_service = MountPlanService(share_dir=share_dir)
-        mount_plan = mount_plan_service.generate_mount_plan(profile_name, amplified_dir)
-
-        # Inject runtime configuration (working_dir, session_log_template, etc.)
-        _inject_runtime_config(mount_plan, session_id, str(amplified_dir))
-
-        # Save mount_plan.json for observability (snapshot of what was used)
+        # Load mount plan from session directory (created during session creation)
         mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
-        mount_plan_path.write_text(json.dumps(mount_plan, indent=2))
-        logger.info(f"Generated and saved fresh mount plan for session {session_id}")
+        if not mount_plan_path.exists():
+            raise HTTPException(status_code=500, detail=f"Mount plan not found for session {session_id}")
+        mount_plan = json.loads(mount_plan_path.read_text())
+        logger.debug(f"Loaded mount plan from {mount_plan_path}")
 
-        # Get compiled profile directory for mention resolution
-        compiled_profile_dir = get_profiles_dir() / profile_name
+        # Get bundle directory for mention resolution
+        bundle_name = metadata.bundle_name
+        bundle_manager = LakehouseBundleManager()
+        # Use bundle dir if available, otherwise fallback to amplified_dir for mention resolution
+        bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else amplified_dir
 
         # Resolve runtime mentions (AGENTS.md + user message)
         resolver = MentionResolver(
-            compiled_profile_dir=compiled_profile_dir,
+            compiled_profile_dir=bundle_dir,
             amplified_dir=amplified_dir,
             data_dir=data_dir,
         )

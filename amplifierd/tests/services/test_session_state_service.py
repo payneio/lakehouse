@@ -59,13 +59,13 @@ class TestSessionStateService:
         """Test creating session creates all required files."""
         metadata = service.create_session(
             session_id="sess_test",
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             mount_plan=sample_mount_plan,
         )
 
         # Verify metadata
         assert metadata.session_id == "sess_test"
-        assert metadata.profile_name == "foundation.base"
+        assert metadata.bundle_name == "foundation.base"
         assert metadata.status == SessionStatus.ACTIVE  # Auto-start in v0.2.0
         assert metadata.created_at is not None
         assert metadata.started_at is not None  # Set at creation time
@@ -106,7 +106,7 @@ class TestSessionStateService:
         """Test creating session with parent session ID."""
         metadata = service.create_session(
             session_id="sess_child",
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             mount_plan=sample_mount_plan,
             parent_session_id="sess_parent",
         )
@@ -121,14 +121,14 @@ class TestSessionStateService:
         """Test that creating duplicate session raises ValueError."""
         service.create_session(
             session_id="sess_dup",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
         with pytest.raises(ValueError) as exc_info:
             service.create_session(
                 session_id="sess_dup",
-                profile_name="test.profile",
+                bundle_name="test.profile",
                 mount_plan=sample_mount_plan,
             )
 
@@ -142,7 +142,7 @@ class TestSessionStateService:
         """Test transitioning session from CREATED to ACTIVE."""
         service.create_session(
             session_id="sess_start",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -161,7 +161,7 @@ class TestSessionStateService:
         """Test that starting already active session is idempotent (no-op)."""
         service.create_session(
             session_id="sess_bad_start",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
         # Session is already ACTIVE after creation (auto-start in v0.2.0)
@@ -181,7 +181,7 @@ class TestSessionStateService:
         """Test transitioning session from ACTIVE to COMPLETED."""
         service.create_session(
             session_id="sess_complete",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
         service.start_session("sess_complete")
@@ -201,7 +201,7 @@ class TestSessionStateService:
         """Test transitioning session from ACTIVE to FAILED with error."""
         service.create_session(
             session_id="sess_fail",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
         service.start_session("sess_fail")
@@ -228,7 +228,7 @@ class TestSessionStateService:
         """Test transitioning session from ACTIVE to TERMINATED."""
         service.create_session(
             session_id="sess_terminate",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
         service.start_session("sess_terminate")
@@ -249,7 +249,7 @@ class TestSessionStateService:
         """Test appending messages to transcript."""
         service.create_session(
             session_id="sess_messages",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -299,7 +299,7 @@ class TestSessionStateService:
         """Test appending message from specific agent."""
         service.create_session(
             session_id="sess_agent",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -323,7 +323,7 @@ class TestSessionStateService:
         """Test retrieving full transcript."""
         service.create_session(
             session_id="sess_transcript",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -350,7 +350,7 @@ class TestSessionStateService:
         """Test retrieving transcript with limit (last N messages)."""
         service.create_session(
             session_id="sess_limit",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -377,7 +377,7 @@ class TestSessionStateService:
         """Test getting session metadata."""
         created = service.create_session(
             session_id="sess_get",
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -386,7 +386,7 @@ class TestSessionStateService:
         assert retrieved is not None
         assert retrieved.session_id == created.session_id
         assert retrieved.status == created.status
-        assert retrieved.profile_name == created.profile_name
+        assert retrieved.bundle_name == created.bundle_name
 
     def test_get_session_not_found(self, service: SessionStateService) -> None:
         """Test getting nonexistent session returns None."""
@@ -404,7 +404,7 @@ class TestSessionStateService:
         for i in range(3):
             service.create_session(
                 session_id=f"sess_{i}",
-                profile_name="test.profile",
+                bundle_name="test.profile",
                 mount_plan=sample_mount_plan,
             )
 
@@ -442,10 +442,10 @@ class TestSessionStateService:
         service.create_session("sess_foundation", "foundation.base", sample_mount_plan)
         service.create_session("sess_custom", "custom.profile", sample_mount_plan)
 
-        sessions = service.list_sessions(profile_name="foundation.base")
+        sessions = service.list_sessions(bundle_name="foundation.base")
 
         assert len(sessions) == 1
-        assert sessions[0].profile_name == "foundation.base"
+        assert sessions[0].bundle_name == "foundation.base"
 
     def test_list_sessions_with_limit(
         self,
@@ -578,7 +578,7 @@ class TestSessionStateService:
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
-            profile_name="test/profile",
+            bundle_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -597,7 +597,7 @@ class TestSessionStateService:
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
-            profile_name="test/profile",
+            bundle_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -617,7 +617,7 @@ class TestSessionStateService:
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
-            profile_name="test/profile",
+            bundle_name="test/profile",
             mount_plan=sample_mount_plan,
         )
 
@@ -642,7 +642,7 @@ class TestSessionStateService:
         with pytest.raises(ValueError, match="Session.*already exists"):
             service.create_session(
                 session_id="test_session",
-                profile_name="test/profile",
+                bundle_name="test/profile",
                 mount_plan=sample_mount_plan,
             )
 
@@ -715,7 +715,7 @@ class TestSessionStateServiceIntegration:
         service.complete_session("sess_found_0")
 
         # Query foundation sessions
-        found_sessions = service.list_sessions(profile_name="foundation.base")
+        found_sessions = service.list_sessions(bundle_name="foundation.base")
         assert len(found_sessions) == 3
 
         # Query active sessions (2 foundation + 2 custom = 4 active)
@@ -724,7 +724,7 @@ class TestSessionStateServiceIntegration:
 
         # Query with combined filters
         custom_active = service.list_sessions(
-            profile_name="custom.profile",
+            bundle_name="custom.profile",
             status=SessionStatus.ACTIVE,
         )
         assert len(custom_active) == 2

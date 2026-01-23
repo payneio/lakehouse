@@ -1,4 +1,9 @@
-# Profiles
+# Profiles (Legacy)
+
+> **⚠️ DEPRECATED**: The profile system has been replaced by the simpler **bundle system**.
+> See [Bundles](bundles.md) for the current approach.
+>
+> This documentation is preserved for historical reference and migration purposes.
 
 **Reusable configuration templates for Amplifier sessions**
 

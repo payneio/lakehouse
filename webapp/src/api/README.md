@@ -16,11 +16,10 @@ Provides typed access to all amplifierd API endpoints with proper error handling
 ## Usage
 
 ```typescript
-import { listCollections, getProfile, createSession } from '@/api';
+import { listBundles, createSession } from '@/api';
 
-const collections = await listCollections();
-const profile = await getProfile('default');
-const session = await createSession({ profile_name: 'default' });
+const bundles = await listBundles();
+const session = await createSession({ bundle_name: 'default' });
 ```
 
 ## Environment Variables
@@ -42,11 +41,10 @@ Collection management endpoints.
 - `getCollection(identifier)` - Get collection by identifier
 - `syncCollections(params)` - Sync collections from registry
 
-### `profiles.ts`
-Profile management endpoints.
+### `bundles.ts`
+Bundle listing endpoints.
 
-- `listProfiles()` - Get all profiles
-- `getProfile(name)` - Get profile by name
+- `listBundles()` - Get all available bundles
 
 ### `directories.ts`
 Amplified directory management endpoints.

@@ -120,7 +120,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   const navigate = useNavigate();
 
   const createSession = useMutation({
-    mutationFn: (data: { profile_name?: string; amplified_dir?: string }) =>
+    mutationFn: (data: { bundle_name?: string; amplified_dir?: string }) =>
       api.createSession(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });

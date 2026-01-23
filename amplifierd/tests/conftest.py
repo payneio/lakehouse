@@ -155,7 +155,7 @@ def session_manager(mock_storage_env: Path):
 
     Example:
         >>> def test_session_creation(session_manager):
-        ...     session = session_manager.create_session(session_id="test", profile_name="default")
+        ...     session = session_manager.create_session(session_id="test", bundle_name="default")
         ...     assert session.id is not None
     """
     from amplifier_library.sessions.manager import SessionManager
@@ -170,19 +170,19 @@ def session_manager(mock_storage_env: Path):
 def sample_session(session_manager):
     """Create a sample session for testing.
 
-    Creates a session with default profile.
+    Creates a session with default bundle.
 
     Returns:
         Session object ready for testing
 
     Example:
         >>> def test_with_session(sample_session):
-        ...     assert sample_session.profile_name == "default"
+        ...     assert sample_session.bundle_name == "default"
         ...     assert sample_session.message_count == 0
     """
     import uuid
 
-    return session_manager.create_session(session_id=str(uuid.uuid4()), profile_name="default")
+    return session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="default")
 
 
 @pytest.fixture

@@ -72,7 +72,7 @@ export interface DirectoryMetadata {
 export interface AmplifiedDirectory {
   path: string;
   relative_path: string;
-  default_profile?: string;
+  default_bundle?: string;
   metadata?: DirectoryMetadata;
   agents_content?: string;
   is_amplified: boolean;
@@ -80,7 +80,7 @@ export interface AmplifiedDirectory {
 
 export interface AmplifiedDirectoryCreate {
   relative_path: string;
-  default_profile?: string;
+  default_bundle?: string;
   metadata?: DirectoryMetadata;
   create_marker?: boolean;
 }
@@ -88,7 +88,7 @@ export interface AmplifiedDirectoryCreate {
 export interface Session {
   sessionId: string;
   name?: string;
-  profileName: string;
+  bundleName: string;
   status: 'created' | 'active' | 'completed' | 'failed' | 'terminated';
   createdAt: string;
   startedAt?: string;
@@ -115,7 +115,7 @@ export interface SessionMessage {
 }
 
 export interface CreateSessionRequest {
-  profile_name?: string;  // API expects snake_case for POST body - optional, uses directory default if not provided
+  bundle_name?: string;  // API expects snake_case for POST body - optional, uses directory default if not provided
   amplified_dir?: string;  // API expects snake_case for POST body
   parent_session_id?: string;  // API expects snake_case for POST body
   settings_overrides?: Record<string, unknown>;

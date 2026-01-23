@@ -59,7 +59,7 @@ class SessionMetadata(CamelCaseModel):
     created_at: datetime = Field(description="Session creation timestamp")
     started_at: datetime | None = Field(default=None, description="Session start timestamp (ACTIVE)")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp (final state)")
-    profile_name: str = Field(description="Profile used for this session")
+    bundle_name: str = Field(description="Bundle used for this session")
     mount_plan_path: str = Field(description="Relative path to mount_plan.json")
     message_count: int = Field(default=0, description="Number of messages exchanged")
     agent_invocations: int = Field(default=0, description="Number of agent invocations")
@@ -94,7 +94,7 @@ class SessionIndexEntry(CamelCaseModel):
     session_id: str = Field(description="Session identifier")
     amplified_dir: str = Field(default=".", description="Relative path to amplified directory")
     status: SessionStatus = Field(description="Current session status")
-    profile_name: str = Field(description="Profile used for this session")
+    bundle_name: str = Field(description="Bundle used for this session")
     created_at: datetime = Field(description="Session creation timestamp")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp")
     message_count: int = Field(default=0, description="Number of messages exchanged")
@@ -119,7 +119,7 @@ class SessionQuery(CamelCaseModel):
     """
 
     status: SessionStatus | None = Field(default=None, description="Filter by session status")
-    profile_name: str | None = Field(default=None, description="Filter by profile name")
+    bundle_name: str | None = Field(default=None, description="Filter by bundle name")
     since: datetime | None = Field(default=None, description="Filter sessions created after this time")
     limit: int | None = Field(default=None, description="Maximum number of results to return")
 

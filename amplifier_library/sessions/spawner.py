@@ -200,7 +200,7 @@ async def spawn_agent(
     try:
         session_manager.create_session(
             session_id=child_id,
-            profile_name=agent_name,
+            bundle_name=agent_name,
             mount_plan=merged_config,
             parent_session_id=parent_id,
             amplified_dir=parent_amplified_dir,

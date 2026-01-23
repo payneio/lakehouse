@@ -7,9 +7,7 @@ to make it reusable across different applications (CLI, daemon, scripts).
 """
 
 from .module_service import ModuleService
-from .profile_service import ProfileService
 
 __all__ = [
-    "ProfileService",
     "ModuleService",
 ]

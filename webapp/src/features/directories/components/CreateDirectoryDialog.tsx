@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import * as api from '@/api/profiles';
+import { listBundles } from '@/api/bundles';
 import { DirectoryBrowser } from './DirectoryBrowser';
 import type { AmplifiedDirectoryCreate } from '@/types/api';
 
@@ -21,13 +21,13 @@ export function CreateDirectoryDialog({
   isLoading = false,
   error,
 }: CreateDirectoryDialogProps) {
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['profiles'],
-    queryFn: api.listProfiles,
+  const { data: bundles = [] } = useQuery({
+    queryKey: ['bundles'],
+    queryFn: listBundles,
   });
   const [formData, setFormData] = useState({
     relative_path: '',
-    default_profile: '',
+    default_bundle: '',
     name: '',
     description: '',
   });
@@ -62,8 +62,8 @@ export function CreateDirectoryDialog({
       create_marker: true,
     };
 
-    if (formData.default_profile) {
-      submitData.default_profile = formData.default_profile;
+    if (formData.default_bundle) {
+      submitData.default_bundle = formData.default_bundle;
     }
 
     const metadata: Record<string, unknown> = {};
@@ -84,7 +84,7 @@ export function CreateDirectoryDialog({
     if (!isLoading) {
       setFormData({
         relative_path: '',
-        default_profile: '',
+        default_bundle: '',
         name: '',
         description: '',
       });
@@ -119,34 +119,34 @@ export function CreateDirectoryDialog({
             </p>
           </div>
 
-          {/* Default Profile Field */}
+          {/* Default Bundle Field */}
           <div>
-            <label htmlFor="default_profile" className="block text-sm font-medium mb-1">
-              Default Profile
+            <label htmlFor="default_bundle" className="block text-sm font-medium mb-1">
+              Default Bundle
             </label>
-            {profiles.length > 0 ? (
+            {bundles.length > 0 ? (
               <select
-                id="default_profile"
-                value={formData.default_profile}
-                onChange={(e) => setFormData({ ...formData, default_profile: e.target.value })}
+                id="default_bundle"
+                value={formData.default_bundle}
+                onChange={(e) => setFormData({ ...formData, default_bundle: e.target.value })}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {profiles.map((profile) => (
-                  <option key={profile.name} value={profile.name}>
-                    {profile.name}
+                {bundles.map((bundle) => (
+                  <option key={bundle.name} value={bundle.name}>
+                    {bundle.name}
                   </option>
                 ))}
               </select>
             ) : (
               <input
-                id="default_profile"
+                id="default_bundle"
                 type="text"
-                value={formData.default_profile}
-                onChange={(e) => setFormData({ ...formData, default_profile: e.target.value })}
+                value={formData.default_bundle}
+                onChange={(e) => setFormData({ ...formData, default_bundle: e.target.value })}
                 className="w-full px-3 py-2 border rounded-md"
-                placeholder="profile-name"
+                placeholder="bundle-name"
                 disabled={isLoading}
               />
             )}

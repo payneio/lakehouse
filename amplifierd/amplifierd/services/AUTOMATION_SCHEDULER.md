@@ -86,8 +86,8 @@ Clear scheduler and re-register all enabled automations.
 
 - **AutomationManager**: Persistence and execution history
 - **SessionManager**: Session creation and lifecycle
-- **AmplifiedDirectoryService**: Project metadata and profiles
-- **MountPlanService**: Profile compilation for sessions
+- **AmplifiedDirectoryService**: Project metadata and bundles
+- **LakehouseBundleManager**: Bundle loading and mount plan generation
 
 ## Dependencies
 

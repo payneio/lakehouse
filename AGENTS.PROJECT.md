@@ -40,11 +40,11 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
 - Integrates naturally with synced data (calendar, email, OneDrive, etc.)
 - Privacy and control through local-first architecture
 
-### Profile-Based Personalization
+### Bundle-Based Personalization
 - Agents can be contextualized for different domains/situations
-- Profiles define agent behavior (separate from project context)
+- Bundles define agent behavior (separate from project context)
 - Can be switched within any chat session
-- Built on Amplifier Core's flexible module composition
+- Built on Amplifier Foundation's bundle system for module composition
 
 ### Always-Running Intelligence
 - Unlike CLI tools that only work when invoked, the daemon is always running
@@ -55,7 +55,7 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
 ### Project-Based Organization
 - Each amplified directory becomes a project with:
   - Chat sessions with historical context
-  - Default profiles and custom context
+  - Default bundles and custom context
   - Project-specific workflows and automation
   - Any file organization you prefer
 

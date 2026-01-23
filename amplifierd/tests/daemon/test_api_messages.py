@@ -18,7 +18,6 @@ from amplifierd.main import app
 from amplifierd.models.mount_plans import EmbeddedMount
 from amplifierd.models.mount_plans import MountPlan
 from amplifierd.models.mount_plans import SessionConfig
-from amplifierd.routers.mount_plans import get_mount_plan_service
 from amplifierd.routers.sessions import get_session_state_service
 
 
@@ -77,21 +76,6 @@ def mock_mount_plan() -> MountPlan:
 
 
 @pytest.fixture
-def mock_mount_plan_service(mock_mount_plan: MountPlan) -> Mock:
-    """Mock mount plan service.
-
-    Args:
-        mock_mount_plan: Sample mount plan fixture
-
-    Returns:
-        Mock service
-    """
-    service = Mock()
-    service.generate_mount_plan = Mock(return_value=mock_mount_plan.model_dump())
-    return service
-
-
-@pytest.fixture
 def mock_session_metadata() -> SessionMetadata:
     """Sample session metadata for testing.
 
@@ -101,7 +85,7 @@ def mock_session_metadata() -> SessionMetadata:
     return SessionMetadata(
         session_id="test_session_123",
         status=SessionStatus.CREATED,
-        profile_name="foundation/base",
+        bundle_name="foundation/base",
         mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
     )
@@ -126,14 +110,25 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
 
 
 @pytest.fixture
-def mock_amplified_directory_service(monkeypatch):
-    """Mock AmplifiedDirectoryService to bypass directory validation."""
+def mock_amplified_directory_service(monkeypatch, mock_mount_plan: MountPlan):
+    """Mock AmplifiedDirectoryService and LakehouseBundleManager to bypass directory validation.
+
+    Args:
+        monkeypatch: Pytest monkeypatch fixture
+        mock_mount_plan: Sample mount plan fixture
+
+    Yields:
+        None
+    """
+    from pathlib import Path
+    import tempfile
+
     from amplifierd.models.amplified_directories import AmplifiedDirectory
 
     mock_directory = AmplifiedDirectory(
         relative_path=".",
-        default_profile="foundation/base",
-        metadata={"default_profile": "foundation/base"},
+        default_bundle="foundation/base",
+        metadata={"default_bundle": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
         is_amplified=True,
@@ -142,17 +137,37 @@ def mock_amplified_directory_service(monkeypatch):
     mock_service = Mock()
     mock_service.get = Mock(return_value=mock_directory)
 
+    # Monkeypatch the AmplifiedDirectoryService class
     monkeypatch.setattr(
         "amplifierd.routers.sessions.AmplifiedDirectoryService",
         lambda data_dir: mock_service
     )
-    yield
+
+    # Create mock bundle manager
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        bundles_dir = Path(tmp_dir) / "bundles"
+        bundles_dir.mkdir(parents=True)
+
+        mock_bundle_manager = Mock()
+        mock_bundle_manager.bundles_dir = bundles_dir
+        mock_bundle_manager.home_dir = Path(tmp_dir)
+
+        async def mock_generate_mount_plan(*args, **kwargs):
+            return mock_mount_plan.model_dump()
+
+        mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
+
+        # Mock the LakehouseBundleManager class
+        monkeypatch.setattr(
+            "amplifier_library.bundles.LakehouseBundleManager",
+            lambda *args, **kwargs: mock_bundle_manager
+        )
+        yield
 
 
 @pytest.fixture
 def override_services(
     mock_session_manager: Mock,
-    mock_mount_plan_service: Mock,
     mock_session_state_service: Mock,
     mock_amplified_directory_service,
 ):
@@ -160,7 +175,6 @@ def override_services(
 
     Args:
         mock_session_manager: Mock session manager
-        mock_mount_plan_service: Mock mount plan service
         mock_session_state_service: Mock session state service
         mock_amplified_directory_service: Mock amplified directory service
 
@@ -170,7 +184,6 @@ def override_services(
     # Import here to avoid circular import issues
     from amplifierd.routers.messages import get_session_state_service as get_msg_svc
 
-    app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
     app.dependency_overrides[get_msg_svc] = lambda: mock_session_state_service
     yield
@@ -201,7 +214,7 @@ def session_id(client: TestClient) -> str:
     Returns:
         Session ID
     """
-    response = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"})
+    response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
     return response.json()["sessionId"]
 
 
@@ -323,7 +336,7 @@ class TestMessagesAPI:
             return SessionMetadata(
                 session_id=f"test_session_{session_counter[0]}",
                 status=SessionStatus.CREATED,
-                profile_name="foundation/base",
+                bundle_name="foundation/base",
                 mount_plan_path=f"state/sessions/test_session_{session_counter[0]}/mount_plan.json",
                 created_at=datetime.now(UTC),
             )
@@ -331,9 +344,9 @@ class TestMessagesAPI:
         mock_session_state_service.create_session.side_effect = create_session_side_effect
 
         # Create two sessions
-        session1 = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"}).json()["sessionId"]
+        session1 = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"}).json()["sessionId"]
 
-        session2 = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"}).json()["sessionId"]
+        session2 = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"}).json()["sessionId"]
 
         # Add messages to session1
         client.post(f"/api/v1/sessions/{session1}/messages", json={"role": "user", "content": "Session 1 message"})

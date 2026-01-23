@@ -1,0 +1,279 @@
+"""Tests for LakehouseBundleManager."""
+
+import pytest
+from pathlib import Path
+
+from amplifier_library.bundles import LakehouseBundleManager
+
+
+class TestLakehouseBundleManager:
+    """Tests for LakehouseBundleManager."""
+
+    def test_init_with_default_home(self, tmp_path: Path) -> None:
+        """Manager initializes with provided home directory."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        assert manager.home_dir == tmp_path
+        assert manager.bundles_dir == tmp_path / "bundles"
+
+    def test_discover_local_bundles(self, tmp_path: Path) -> None:
+        """Manager discovers bundles in bundles directory."""
+        # Create a test bundle
+        bundles_dir = tmp_path / "bundles"
+        test_bundle = bundles_dir / "test-bundle"
+        test_bundle.mkdir(parents=True)
+        (test_bundle / "bundle.yaml").write_text(
+            "bundle:\n  name: test-bundle\n  version: 1.0.0\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        # Check bundle was discovered
+        assert "test-bundle" in manager.list_available_bundles()
+
+    def test_discover_skips_non_bundles(self, tmp_path: Path) -> None:
+        """Manager skips directories without bundle files."""
+        bundles_dir = tmp_path / "bundles"
+        not_a_bundle = bundles_dir / "not-a-bundle"
+        not_a_bundle.mkdir(parents=True)
+        (not_a_bundle / "random.txt").write_text("not a bundle")
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        assert "not-a-bundle" not in manager.list_available_bundles()
+
+    @pytest.mark.asyncio
+    async def test_load_bundle_from_well_known_path(self, tmp_path: Path) -> None:
+        """Manager loads bundle from well-known bundles directory."""
+        # Create a test bundle
+        bundles_dir = tmp_path / "bundles"
+        test_bundle = bundles_dir / "test-bundle"
+        test_bundle.mkdir(parents=True)
+        (test_bundle / "bundle.yaml").write_text(
+            "bundle:\n  name: test-bundle\n  version: 1.0.0\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        bundle = await manager.load_bundle("test-bundle")
+
+        assert bundle.name == "test-bundle"
+        assert bundle.version == "1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_bundle_to_mount_plan(self, tmp_path: Path) -> None:
+        """bundle_to_mount_plan converts Bundle to dict."""
+        # Create a test bundle with tools
+        bundles_dir = tmp_path / "bundles"
+        test_bundle = bundles_dir / "test-bundle"
+        test_bundle.mkdir(parents=True)
+        (test_bundle / "bundle.yaml").write_text(
+            """bundle:
+  name: test-bundle
+  version: 1.0.0
+tools:
+  - module: tool-test
+    config:
+      setting: value
+"""
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        bundle = await manager.load_bundle("test-bundle")
+        mount_plan = manager.bundle_to_mount_plan(bundle)
+
+        assert "tools" in mount_plan
+        assert len(mount_plan["tools"]) == 1
+        assert mount_plan["tools"][0]["module"] == "tool-test"
+
+    @pytest.mark.asyncio
+    async def test_generate_mount_plan_injects_runtime_config(
+        self, tmp_path: Path
+    ) -> None:
+        """generate_mount_plan injects runtime configuration."""
+        # Create a test bundle with tools
+        bundles_dir = tmp_path / "bundles"
+        test_bundle = bundles_dir / "test-bundle"
+        test_bundle.mkdir(parents=True)
+        (test_bundle / "bundle.yaml").write_text(
+            """bundle:
+  name: test-bundle
+  version: 1.0.0
+tools:
+  - module: tool-filesystem
+    config: {}
+providers:
+  - module: provider-test
+    config: {}
+"""
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = await manager.generate_mount_plan(
+            bundle_ref="test-bundle",
+            session_id="sess-123",
+            amplified_dir="/data/projects/test",
+            api_key="test-api-key",
+        )
+
+        # Check working_dir injected
+        assert mount_plan["tools"][0]["config"]["working_dir"] == "/data/projects/test"
+
+        # Check allowed_write_paths injected for filesystem tool
+        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [
+            "/data/projects/test"
+        ]
+
+        # Check api_key injected into providers
+        assert mount_plan["providers"][0]["config"]["api_key"] == "test-api-key"
+
+    @pytest.mark.asyncio
+    async def test_generate_mount_plan_preserves_existing_config(
+        self, tmp_path: Path
+    ) -> None:
+        """generate_mount_plan doesn't overwrite existing config values."""
+        # Create a test bundle with pre-configured tools
+        bundles_dir = tmp_path / "bundles"
+        test_bundle = bundles_dir / "test-bundle"
+        test_bundle.mkdir(parents=True)
+        (test_bundle / "bundle.yaml").write_text(
+            """bundle:
+  name: test-bundle
+  version: 1.0.0
+tools:
+  - module: tool-filesystem
+    config:
+      working_dir: /custom/path
+      allowed_write_paths:
+        - /custom/allowed
+"""
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = await manager.generate_mount_plan(
+            bundle_ref="test-bundle",
+            session_id="sess-123",
+            amplified_dir="/data/projects/test",
+        )
+
+        # Existing config should be preserved
+        assert mount_plan["tools"][0]["config"]["working_dir"] == "/custom/path"
+        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [
+            "/custom/allowed"
+        ]
+
+    def test_list_available_bundles(self, tmp_path: Path) -> None:
+        """list_available_bundles returns sorted list of bundle names."""
+        bundles_dir = tmp_path / "bundles"
+
+        # Create multiple bundles
+        for name in ["zebra", "alpha", "middle"]:
+            bundle_dir = bundles_dir / name
+            bundle_dir.mkdir(parents=True)
+            (bundle_dir / "bundle.yaml").write_text(
+                f"bundle:\n  name: {name}\n  version: 1.0.0\n"
+            )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        bundles = manager.list_available_bundles()
+
+        # Should be sorted
+        assert bundles == ["alpha", "middle", "zebra"]
+
+
+class TestRuntimeConfigInjection:
+    """Tests for _inject_runtime_config method."""
+
+    def test_inject_working_dir_to_all_tools(self, tmp_path: Path) -> None:
+        """working_dir is injected into all tools."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = {
+            "tools": [
+                {"module": "tool-a", "config": {}},
+                {"module": "tool-b", "config": {}},
+            ]
+        }
+
+        result = manager._inject_runtime_config(
+            mount_plan=mount_plan,
+            session_id="sess-123",
+            amplified_dir="/test/path",
+        )
+
+        assert result["tools"][0]["config"]["working_dir"] == "/test/path"
+        assert result["tools"][1]["config"]["working_dir"] == "/test/path"
+
+    def test_inject_allowed_write_paths_only_to_filesystem_tools(
+        self, tmp_path: Path
+    ) -> None:
+        """allowed_write_paths only injected into filesystem tools."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = {
+            "tools": [
+                {"module": "tool-filesystem", "config": {}},
+                {"module": "tool-other", "config": {}},
+            ]
+        }
+
+        result = manager._inject_runtime_config(
+            mount_plan=mount_plan,
+            session_id="sess-123",
+            amplified_dir="/test/path",
+        )
+
+        # Filesystem tool should have allowed_write_paths
+        assert "allowed_write_paths" in result["tools"][0]["config"]
+
+        # Other tools should not
+        assert "allowed_write_paths" not in result["tools"][1]["config"]
+
+    def test_inject_api_key_to_providers(self, tmp_path: Path) -> None:
+        """api_key is injected into all providers."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = {
+            "providers": [
+                {"module": "provider-anthropic", "config": {}},
+            ]
+        }
+
+        result = manager._inject_runtime_config(
+            mount_plan=mount_plan,
+            session_id="sess-123",
+            amplified_dir="/test/path",
+            api_key="sk-test-key",
+        )
+
+        assert result["providers"][0]["config"]["api_key"] == "sk-test-key"
+
+    def test_no_api_key_when_not_provided(self, tmp_path: Path) -> None:
+        """api_key is not injected when not provided."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = {
+            "providers": [
+                {"module": "provider-anthropic", "config": {}},
+            ]
+        }
+
+        result = manager._inject_runtime_config(
+            mount_plan=mount_plan,
+            session_id="sess-123",
+            amplified_dir="/test/path",
+        )
+
+        assert "api_key" not in result["providers"][0]["config"]
+
+    def test_creates_config_dict_if_missing(self, tmp_path: Path) -> None:
+        """Creates config dict if tool/hook doesn't have one."""
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+        mount_plan = {
+            "tools": [
+                {"module": "tool-test"},  # No config key
+            ]
+        }
+
+        result = manager._inject_runtime_config(
+            mount_plan=mount_plan,
+            session_id="sess-123",
+            amplified_dir="/test/path",
+        )
+
+        assert "config" in result["tools"][0]
+        assert result["tools"][0]["config"]["working_dir"] == "/test/path"

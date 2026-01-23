@@ -46,14 +46,14 @@ class TestSessionMetadata:
             session_id="sess_123",
             status=SessionStatus.CREATED,
             created_at=now,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             mount_plan_path="mount_plan.json",
         )
 
         assert metadata.session_id == "sess_123"
         assert metadata.status == SessionStatus.CREATED
         assert metadata.created_at == now
-        assert metadata.profile_name == "foundation.base"
+        assert metadata.bundle_name == "foundation.base"
         assert metadata.mount_plan_path == "mount_plan.json"
 
         # Check defaults
@@ -79,7 +79,7 @@ class TestSessionMetadata:
             created_at=created,
             started_at=started,
             ended_at=ended,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             mount_plan_path="mount_plan.json",
             message_count=15,
             agent_invocations=8,
@@ -99,7 +99,7 @@ class TestSessionMetadata:
             session_id="sess_failed",
             status=SessionStatus.FAILED,
             created_at=datetime.now(),
-            profile_name="test.profile",
+            bundle_name="test.profile",
             mount_plan_path="mount_plan.json",
             error_message="Module import failed",
             error_details={"module": "provider.anthropic", "exception": "ImportError"},
@@ -186,13 +186,13 @@ class TestSessionIndexEntry:
         entry = SessionIndexEntry(
             session_id="sess_123",
             status=SessionStatus.CREATED,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             created_at=now,
         )
 
         assert entry.session_id == "sess_123"
         assert entry.status == SessionStatus.CREATED
-        assert entry.profile_name == "foundation.base"
+        assert entry.bundle_name == "foundation.base"
         assert entry.created_at == now
         assert entry.ended_at is None
         assert entry.message_count == 0
@@ -205,7 +205,7 @@ class TestSessionIndexEntry:
         entry = SessionIndexEntry(
             session_id="sess_completed",
             status=SessionStatus.COMPLETED,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             created_at=created,
             ended_at=ended,
             message_count=42,
@@ -233,14 +233,14 @@ class TestSessionIndex:
         entry1 = SessionIndexEntry(
             session_id="sess_1",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             created_at=now,
         )
 
         entry2 = SessionIndexEntry(
             session_id="sess_2",
             status=SessionStatus.COMPLETED,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             created_at=now,
         )
 
@@ -263,7 +263,7 @@ class TestSessionIndex:
         entry = SessionIndexEntry(
             session_id="sess_fast_lookup",
             status=SessionStatus.ACTIVE,
-            profile_name="test.profile",
+            bundle_name="test.profile",
             created_at=datetime.now(),
         )
 
@@ -283,7 +283,7 @@ class TestSessionQuery:
         query = SessionQuery()
 
         assert query.status is None
-        assert query.profile_name is None
+        assert query.bundle_name is None
         assert query.since is None
         assert query.limit is None
 
@@ -292,13 +292,13 @@ class TestSessionQuery:
         query = SessionQuery(status=SessionStatus.ACTIVE)
 
         assert query.status == SessionStatus.ACTIVE
-        assert query.profile_name is None
+        assert query.bundle_name is None
 
     def test_profile_filter(self) -> None:
         """Test query with profile name filter."""
-        query = SessionQuery(profile_name="foundation.base")
+        query = SessionQuery(bundle_name="foundation.base")
 
-        assert query.profile_name == "foundation.base"
+        assert query.bundle_name == "foundation.base"
 
     def test_time_filter(self) -> None:
         """Test query with time filter."""
@@ -318,13 +318,13 @@ class TestSessionQuery:
         since = datetime(2025, 1, 20, 0, 0, 0, tzinfo=UTC)
         query = SessionQuery(
             status=SessionStatus.COMPLETED,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             since=since,
             limit=5,
         )
 
         assert query.status == SessionStatus.COMPLETED
-        assert query.profile_name == "foundation.base"
+        assert query.bundle_name == "foundation.base"
         assert query.since == since
         assert query.limit == 5
 
@@ -341,7 +341,7 @@ class TestSessionModelIntegration:
             session_id="sess_123",
             status=SessionStatus.ACTIVE,
             created_at=now,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             mount_plan_path="mount_plan.json",
             message_count=10,
         )
@@ -350,7 +350,7 @@ class TestSessionModelIntegration:
         entry = SessionIndexEntry(
             session_id=metadata.session_id,
             status=metadata.status,
-            profile_name=metadata.profile_name,
+            bundle_name=metadata.bundle_name,
             created_at=metadata.created_at,
             ended_at=metadata.ended_at,
             message_count=metadata.message_count,
@@ -368,7 +368,7 @@ class TestSessionModelIntegration:
         entry = SessionIndexEntry(
             session_id="sess_match",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation.base",
+            bundle_name="foundation.base",
             created_at=now,
         )
 
@@ -376,8 +376,8 @@ class TestSessionModelIntegration:
         query1 = SessionQuery(status=SessionStatus.ACTIVE)
         assert entry.status == query1.status
 
-        query2 = SessionQuery(profile_name="foundation.base")
-        assert entry.profile_name == query2.profile_name
+        query2 = SessionQuery(bundle_name="foundation.base")
+        assert entry.bundle_name == query2.bundle_name
 
         # Query should not match
         query3 = SessionQuery(status=SessionStatus.COMPLETED)

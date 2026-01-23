@@ -16,13 +16,12 @@ from amplifier_library.config.loader import load_config
 from .config.loader import load_config as load_daemon_config
 from .routers import amplified_directories_router
 from .routers import automations_router
+from .routers import bundles_router
 from .routers import directories_router
 from .routers import events_router
 from .routers import messages_router
 from .routers import modules_router
 from .routers import mount_plans_router
-from .routers import profiles_router
-from .routers import registries_router
 from .routers import sessions_router
 from .routers import settings_router
 from .routers import status_router
@@ -161,14 +160,13 @@ logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 # Include routers
 app.include_router(amplified_directories_router)
 app.include_router(automations_router)
+app.include_router(bundles_router)
 app.include_router(directories_router)
 app.include_router(events_router)
 app.include_router(sessions_router)
 app.include_router(messages_router)
 app.include_router(settings_router)
 app.include_router(status_router)
-app.include_router(profiles_router)
-app.include_router(registries_router)
 app.include_router(modules_router)
 app.include_router(mount_plans_router)
 app.include_router(stream_router)

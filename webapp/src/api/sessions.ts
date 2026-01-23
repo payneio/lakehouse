@@ -3,13 +3,13 @@ import type { Session, SessionMessage, CreateSessionRequest } from '@/types/api'
 
 export const listSessions = (params?: {
   status?: string;
-  profile_name?: string;
+  bundle_name?: string;
   amplified_dir?: string;
   limit?: number;
 }) => {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
-  if (params?.profile_name) searchParams.set('profile_name', params.profile_name);
+  if (params?.bundle_name) searchParams.set('bundle_name', params.bundle_name);
   if (params?.amplified_dir) searchParams.set('amplified_dir', params.amplified_dir);
   if (params?.limit) searchParams.set('limit', String(params.limit));
 
@@ -64,10 +64,10 @@ export const deleteLastMessage = (sessionId: string) =>
     { method: 'DELETE' }
   );
 
-export const changeProfile = (sessionId: string, profileName: string) =>
-  fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-profile`, {
+export const changeBundle = (sessionId: string, bundleName: string) =>
+  fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-bundle`, {
     method: 'POST',
-    body: JSON.stringify({ profile_name: profileName }),
+    body: JSON.stringify({ bundle_name: bundleName }),
   });
 
 export const cloneSession = (sessionId: string) =>

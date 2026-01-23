@@ -1,19 +1,19 @@
 # Amplifierd Documentation
 
-**Profile management daemon for Amplifier**
+**Bundle management daemon for Amplifier**
 
 ---
 
 ## What is amplifierd?
 
-Amplifierd is a daemon that manages **profiles** - reusable session configurations for the Amplifier AI agent system. Think of profiles as templates that define which AI models, tools, agents, and settings to use for different workflows.
+Amplifierd is a daemon that manages **bundles** - reusable session configurations for the Amplifier AI agent system. Think of bundles as templates that define which AI models, tools, agents, and settings to use for different workflows.
 
-Instead of configuring each session manually, you define a profile once and reuse it across sessions.
+Instead of configuring each session manually, you define a bundle once and reuse it across sessions.
 
 **Example use cases:**
-- "coding" profile: Code-focused agents, development tools, code review workflows
-- "research" profile: Research agents, web search, knowledge synthesis tools
-- "writing" profile: Writing assistants, style guides, grammar tools
+- "coding" bundle: Code-focused agents, development tools, code review workflows
+- "research" bundle: Research agents, web search, knowledge synthesis tools
+- "writing" bundle: Writing assistants, style guides, grammar tools
 
 ---
 
@@ -21,7 +21,7 @@ Instead of configuring each session manually, you define a profile once and reus
 
 **1. Understand the system** (5 min):
 ```
-Profile (what you want)
+Bundle (what you want)
     ↓ (transformation)
 Mount Plan (what amplifier-core needs)
     ↓ (initialization)
@@ -30,33 +30,35 @@ Session (running instance)
 
 **2. See a real example**:
 ```yaml
-# profiles/foundation/base.md
----
-session:
-  orchestrator:
-    module: loop-streaming
-  context:
-    module: context-simple
-providers:
-- module: provider-anthropic
-tools:
-- module: tool-web
-agents:
-  code-expert: https://example.com/agents/code-expert.md
----
+# bundles/foundation/base/bundle.yaml
+bundle:
+  name: base
+  version: 1.0.0
+
+modules:
+  orchestrator: orchestrator/sequential
+  context_manager: context/simple
+
+  agents:
+    - ./agents/main-agent.md
+
+  tools:
+    - tool-filesystem
+    - tool-bash
 ```
 
-**3. Use a profile**:
+**3. Use a bundle**:
 ```bash
 # Start daemon
 amplifierd start
 
-# Create session with profile
-curl -X POST http://localhost:8000/api/v1/sessions \
-  -d '{"profile_name": "foundation/base"}'
+# Create session with bundle
+curl -X POST http://localhost:8420/api/v1/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"bundle_name": "foundation/base"}'
 
 # Execute prompt
-curl -X POST http://localhost:8000/api/v1/sessions/{id}/execute \
+curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
   -d '{"content": "Hello!"}'
 ```
 
@@ -68,36 +70,31 @@ curl -X POST http://localhost:8000/api/v1/sessions/{id}/execute \
 
 **15-minute introduction:**
 1. [Overview](01-concepts/overview.md) - The big picture
-2. [Profiles](01-concepts/profiles.md) - Profile structure and syntax
+2. [Bundles](01-concepts/bundles.md) - Bundle structure and usage
 3. [Mount Plans](01-concepts/mount-plans.md) - Runtime format
 
-### Advanced Topics
+### Legacy Documentation
 
-**Deep technical details:**
-- [Profile Lifecycle](04-advanced/profile-lifecycle.md) - Complete transformation flow
+- [Profiles (Legacy)](01-concepts/profiles.md) - Old profile system (deprecated)
+- [Profile Lifecycle (Legacy)](04-advanced/profile-lifecycle.md) - Old transformation flow
 
 ---
 
 ## Core Concepts at a Glance
 
-**Profile**: User-facing configuration template
-- Written in markdown with YAML frontmatter
-- References external modules (git URLs)
-- Named as `collection/profile` (e.g., `foundation/base`)
-
-**Collection**: Group of related profiles
-- Defined in `.amplifierd/share/collections.yaml`
-- Can be local or from git repositories
-- Example: `foundation` collection with `base`, `dev`, `production` profiles
+**Bundle**: User-facing configuration template
+- Directory with bundle.yaml and module references
+- Named as `collection/bundle` (e.g., `foundation/base`)
+- Loaded via `LakehouseBundleManager`
 
 **Mount Plan**: Runtime configuration dict
-- Generated from profiles
-- Contains module IDs + profile hints
+- Generated from bundles
+- Contains all module configurations and content
 - What amplifier-core uses to initialize sessions
 
 **Module**: Executable component
 - orchestrator: Controls execution loop
-- context: Manages conversation context
+- context_manager: Manages conversation context
 - providers: LLM providers (Anthropic, OpenAI, etc.)
 - tools: Capabilities (web, filesystem, etc.)
 - hooks: Lifecycle extensions
@@ -105,62 +102,66 @@ curl -X POST http://localhost:8000/api/v1/sessions/{id}/execute \
 
 ---
 
-## The Flow: Profile → Session
+## The Flow: Bundle → Session
 
 ```
-1. collections.yaml → Collection sources (git repos)
-   └─ Cached to: .amplifierd/cache/git/{hash}/
+1. Bundle directory
+   └─ Located at: ~/.amplifierd/bundles/{collection}/{bundle}/
 
-2. Collection → Profile specs (profile.md files)
-   └─ Compiled to: .amplifierd/share/profiles/{collection}/{profile}/
-
-3. Profile → Mount Plan (dict with module IDs)
+2. Bundle → Mount Plan (dict with all configurations)
+   └─ Generated by: LakehouseBundleManager
    └─ Saved to: .amplifierd/state/sessions/{id}/mount_plan.json
 
-4. Mount Plan → AmplifierSession (running instance)
-   └─ Modules loaded via DaemonModuleSourceResolver
+3. Mount Plan → AmplifierSession (running instance)
+   └─ Modules loaded and configured
 ```
 
 ---
 
 ## Real Example: foundation/base
 
-**Profile location:**
+**Bundle location:**
 ```
-registry/profiles/foundation/base.md
-```
-
-**Compiled to:**
-```
-.amplifierd/share/profiles/foundation/base/
-├── orchestrator/loop-streaming/
-├── context/context-simple/
-├── providers/provider-anthropic/
-├── tools/tool-web/
-├── hooks/hooks-logging/
-└── agents/code-expert.md
+~/.amplifierd/bundles/foundation/base/
+├── bundle.yaml
+├── agents/
+│   └── main-agent.md
+└── context/
+    └── project-context.md
 ```
 
 **Mount plan generated:**
 ```json
 {
+  "format_version": "1.0",
   "session": {
-    "orchestrator": {
-      "module": "loop-streaming",
-      "source": "foundation/base",
-      "config": {...}
-    }
+    "session_id": "sess_123",
+    "profile_id": "foundation/base",
+    "created_at": "2026-01-23T10:00:00Z",
+    "settings": {}
   },
-  "providers": [...],
-  "agents": {...}
+  "mount_points": [
+    {
+      "mount_type": "embedded",
+      "module_id": "foundation/base.agents.main",
+      "module_type": "agent",
+      "content": "# Main Agent\n..."
+    }
+  ]
 }
 ```
 
 **Session created:**
-```
-AmplifierSession(config=mount_plan)
-  ↓ (resolver translates "foundation/base" → filesystem path)
-Modules loaded and session ready!
+```python
+from amplifier_library.bundles import LakehouseBundleManager
+
+manager = LakehouseBundleManager()
+mount_plan = await manager.generate_mount_plan(
+    bundle_ref="foundation/base",
+    session_id="sess_123",
+    amplified_dir="/path/to/project",
+)
+# Session initialized with mount_plan
 ```
 
 ---
@@ -168,14 +169,14 @@ Modules loaded and session ready!
 ## Getting Help
 
 **Common questions:**
-- "What's a profile?" → [profiles.md](01-concepts/profiles.md)
+- "What's a bundle?" → [bundles.md](01-concepts/bundles.md)
 - "How do mount plans work?" → [mount-plans.md](01-concepts/mount-plans.md)
-- "Where are things cached?" → [profile-lifecycle.md](04-advanced/profile-lifecycle.md)
+- "How do I migrate from profiles?" → See migration section in [bundles.md](01-concepts/bundles.md)
 
 **Troubleshooting:**
-- Profile not found → Check cache: `.amplifierd/share/profiles/`
-- Module not loading → Check compilation logs
-- Session fails → Verify mount plan format
+- Bundle not found → Check: `~/.amplifierd/bundles/`
+- Module not loading → Check bundle.yaml syntax
+- Session fails → Verify mount plan structure
 
 ---
 

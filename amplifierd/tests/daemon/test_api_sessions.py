@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionStatus
 from amplifierd.main import app
-from amplifierd.routers.mount_plans import get_mount_plan_service
 from amplifierd.routers.sessions import get_session_state_service
 
 
@@ -25,7 +24,7 @@ def mock_session_metadata() -> SessionMetadata:
     return SessionMetadata(
         session_id="test_session_123",
         status=SessionStatus.ACTIVE,
-        profile_name="foundation/base",
+        bundle_name="foundation/base",
         mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
         started_at=datetime.now(UTC),
@@ -59,21 +58,6 @@ def mock_mount_plan() -> dict:
 
 
 @pytest.fixture
-def mock_mount_plan_service(mock_mount_plan: dict) -> Mock:
-    """Mock mount plan service.
-
-    Args:
-        mock_mount_plan: Sample mount plan fixture
-
-    Returns:
-        Mock service
-    """
-    service = Mock()
-    service.generate_mount_plan = Mock(return_value=mock_mount_plan)
-    return service
-
-
-@pytest.fixture
 def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
     """Mock session state service.
 
@@ -100,11 +84,12 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
 
 
 @pytest.fixture
-def mock_amplified_directory_service(monkeypatch):
-    """Mock AmplifiedDirectoryService to bypass directory validation.
+def mock_amplified_directory_service(monkeypatch, mock_mount_plan: dict):
+    """Mock AmplifiedDirectoryService and LakehouseBundleManager to bypass directory validation.
 
     Args:
         monkeypatch: Pytest monkeypatch fixture
+        mock_mount_plan: Sample mount plan fixture
 
     Yields:
         None
@@ -113,8 +98,8 @@ def mock_amplified_directory_service(monkeypatch):
 
     mock_directory = AmplifiedDirectory(
         relative_path=".",
-        default_profile="foundation/base",
-        metadata={"default_profile": "foundation/base"},
+        default_bundle="foundation/base",
+        metadata={"default_bundle": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
         is_amplified=True,
@@ -128,26 +113,47 @@ def mock_amplified_directory_service(monkeypatch):
         "amplifierd.routers.sessions.AmplifiedDirectoryService",
         lambda data_dir: mock_service
     )
-    yield
+
+    # Create mock bundle manager
+    from pathlib import Path
+    import tempfile
+
+    # Create a temporary directory for bundles
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        bundles_dir = Path(tmp_dir) / "bundles"
+        bundles_dir.mkdir(parents=True)
+
+        mock_bundle_manager = Mock()
+        mock_bundle_manager.bundles_dir = bundles_dir
+        mock_bundle_manager.home_dir = Path(tmp_dir)
+
+        async def mock_generate_mount_plan(*args, **kwargs):
+            return mock_mount_plan
+
+        mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
+
+        # Mock the LakehouseBundleManager class
+        monkeypatch.setattr(
+            "amplifier_library.bundles.LakehouseBundleManager",
+            lambda *args, **kwargs: mock_bundle_manager
+        )
+        yield
 
 
 @pytest.fixture
 def override_services(
-    mock_mount_plan_service: Mock,
     mock_session_state_service: Mock,
     mock_amplified_directory_service,
 ):
     """Override service dependencies with test services.
 
     Args:
-        mock_mount_plan_service: Mock mount plan service
         mock_session_state_service: Mock session state service
         mock_amplified_directory_service: Mock amplified directory service
 
     Yields:
         None
     """
-    app.dependency_overrides[get_mount_plan_service] = lambda: mock_mount_plan_service
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
     yield
     app.dependency_overrides.clear()
@@ -175,51 +181,65 @@ class TestSessionsAPI:
     def test_create_session_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/ creates session successfully."""
         # Make request
-        response = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"})
+        response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
 
         # Assert response
         assert response.status_code == 201
         data = response.json()
         assert data["sessionId"] == "test_session_123"
         assert data["status"] == "active"
-        assert data["profileName"] == "foundation/base"
+        assert data["bundleName"] == "foundation/base"
         assert data["startedAt"] is not None
 
         # Verify service was called
         mock_session_state_service.create_session.assert_called_once()
 
-    def test_create_session_with_settings_overrides(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
+    def test_create_session_with_settings_overrides(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/ accepts settings overrides."""
         # Make request with settings overrides
         response = client.post(
             "/api/v1/sessions/",
             json={
-                "profile_name": "foundation/base",
+                "bundle_name": "foundation/base",
                 "settings_overrides": {"llm": {"model": "gpt-4"}},
             },
         )
 
-        # Assert response
+        # Assert response - session created successfully
         assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == "active"
+        assert data["bundleName"] == "foundation/base"
 
-        # Verify mount plan service was called with profile_name
-        # The amplified_dir comes from the mock_amplified_directory_service fixture
-        mock_mount_plan_service.generate_mount_plan.assert_called_once()
-        call_args = mock_mount_plan_service.generate_mount_plan.call_args
-        assert call_args[0][0] == "foundation/base"  # profile_name
-        # amplified_dir is the second argument, comes from config
+    def test_create_session_invalid_bundle(
+        self, client: TestClient, mock_session_state_service: Mock, monkeypatch
+    ) -> None:
+        """Test POST /api/v1/sessions/ returns 404 for invalid bundle."""
+        # Create a mock bundle manager that raises FileNotFoundError
+        from pathlib import Path
+        import tempfile
 
-    def test_create_session_invalid_profile(self, client: TestClient, mock_mount_plan_service: Mock) -> None:
-        """Test POST /api/v1/sessions/ returns 404 for invalid profile."""
-        # Setup mock to raise FileNotFoundError
-        mock_mount_plan_service.generate_mount_plan.side_effect = FileNotFoundError("Profile not found")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            mock_bundle_manager = Mock()
+            mock_bundle_manager.bundles_dir = Path(tmp_dir) / "bundles"
+            mock_bundle_manager.home_dir = Path(tmp_dir)
 
-        # Make request
-        response = client.post("/api/v1/sessions/", json={"profile_name": "nonexistent"})
+            async def mock_generate_mount_plan_error(*args, **kwargs):
+                raise FileNotFoundError("Bundle 'nonexistent' not found")
 
-        # Assert
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+            mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
+
+            monkeypatch.setattr(
+                "amplifier_library.bundles.LakehouseBundleManager",
+                lambda *args, **kwargs: mock_bundle_manager
+            )
+
+            # Make request
+            response = client.post("/api/v1/sessions/", json={"bundle_name": "nonexistent"})
+
+            # Assert
+            assert response.status_code == 404
+            assert "not found" in response.json()["detail"].lower()
 
     def test_start_session_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/{session_id}/start transitions to ACTIVE."""
@@ -319,7 +339,7 @@ class TestSessionsAPI:
         data = response.json()
         assert data["sessionId"] == "test_session_123"
         assert data["status"] == "active"
-        assert data["profileName"] == "foundation/base"
+        assert data["bundleName"] == "foundation/base"
 
     def test_get_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test GET /api/v1/sessions/{session_id} returns 404 for missing session."""
@@ -352,7 +372,7 @@ class TestSessionsAPI:
             "/api/v1/sessions/",
             params={
                 "status": "active",
-                "profile_name": "foundation/base",
+                "bundle_name": "foundation/base",
                 "limit": 10,
             },
         )
@@ -363,7 +383,7 @@ class TestSessionsAPI:
         # Verify service was called with filters
         mock_session_state_service.list_sessions.assert_called_once_with(
             status=SessionStatus.ACTIVE,
-            profile_name="foundation/base",
+            bundle_name="foundation/base",
             amplified_dir=None,
             limit=10,
         )
@@ -559,18 +579,32 @@ class TestSessionsAPI:
     # --- Error Handling Tests ---
 
     def test_create_session_unexpected_error(
-        self, client: TestClient, mock_mount_plan_service: Mock, mock_session_state_service: Mock
+        self, client: TestClient, mock_session_state_service: Mock, monkeypatch
     ) -> None:
         """Test create_session with unexpected error during mount plan generation."""
-        # Mock mount plan service to raise generic Exception
-        mock_mount_plan_service.generate_mount_plan = Mock(
-            side_effect=Exception("Unexpected error in mount plan generation")
-        )
+        from pathlib import Path
+        import tempfile
 
-        response = client.post("/api/v1/sessions/", json={"profile_name": "foundation/base"})
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Create mock bundle manager that raises generic Exception
+            mock_bundle_manager = Mock()
+            mock_bundle_manager.bundles_dir = Path(tmp_dir) / "bundles"
+            mock_bundle_manager.home_dir = Path(tmp_dir)
 
-        assert response.status_code == 500
-        assert "Failed to create session" in response.json()["detail"]
+            async def mock_generate_mount_plan_error(*args, **kwargs):
+                raise Exception("Unexpected error in mount plan generation")
+
+            mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
+
+            monkeypatch.setattr(
+                "amplifier_library.bundles.LakehouseBundleManager",
+                lambda *args, **kwargs: mock_bundle_manager
+            )
+
+            response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
+
+            assert response.status_code == 500
+            assert "Failed to create session" in response.json()["detail"]
 
     def test_start_session_unexpected_error(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test start_session with unexpected error in state service."""
@@ -633,7 +667,7 @@ class TestSessionsAPI:
         source_metadata = SessionMetadata(
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation/base",
+            bundle_name="foundation/base",
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -649,7 +683,7 @@ class TestSessionsAPI:
                 return SessionMetadata(
                     session_id=created_session_id,
                     status=SessionStatus.ACTIVE,
-                    profile_name="foundation/base",
+                    bundle_name="foundation/base",
                     mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                     created_at=datetime.now(UTC),
                     started_at=datetime.now(UTC),
@@ -663,7 +697,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=created_session_id or "unknown",
                 status=SessionStatus.ACTIVE,
-                profile_name=kwargs.get("profile_name", "foundation/base"),
+                bundle_name=kwargs.get("bundle_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -719,7 +753,7 @@ class TestSessionsAPI:
             '{"event": "tool:pre", "ts": "2024-01-01T00:00:00Z"}\n'
             '{"event": "tool:post", "ts": "2024-01-01T00:00:01Z"}\n'
         )
-        (source_dir / "profile_context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
+        (source_dir / "bundle_context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
 
         # Mock get_state_dir
         import amplifierd.routers.sessions
@@ -733,7 +767,7 @@ class TestSessionsAPI:
         source_metadata = SessionMetadata(
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation/base",
+            bundle_name="foundation/base",
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -754,7 +788,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=created_session_id,
                 status=SessionStatus.ACTIVE,
-                profile_name=kwargs.get("profile_name", "foundation/base"),
+                bundle_name=kwargs.get("bundle_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -767,7 +801,7 @@ class TestSessionsAPI:
             SessionMetadata(
                 session_id=sid,
                 status=SessionStatus.ACTIVE,
-                profile_name="foundation/base",
+                bundle_name="foundation/base",
                 mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -788,7 +822,7 @@ class TestSessionsAPI:
             new_dir = tmp_path / "sessions" / created_session_id
             assert (new_dir / "transcript.jsonl").exists()
             assert (new_dir / "events.jsonl").exists()
-            assert (new_dir / "profile_context_messages.json").exists()
+            assert (new_dir / "bundle_context_messages.json").exists()
 
             # Verify content was copied
             transcript_content = (new_dir / "transcript.jsonl").read_text()
@@ -828,7 +862,7 @@ class TestSessionsAPI:
         parent_metadata = SessionMetadata(
             session_id="parent_session",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation/base",
+            bundle_name="foundation/base",
             mount_plan_path="state/sessions/parent_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -839,7 +873,7 @@ class TestSessionsAPI:
         child_metadata = SessionMetadata(
             session_id="child_session",
             status=SessionStatus.ACTIVE,
-            profile_name="foundation/base",
+            bundle_name="foundation/base",
             mount_plan_path="state/sessions/child_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -860,7 +894,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=session_id,
                 status=SessionStatus.ACTIVE,
-                profile_name=kwargs.get("profile_name", "foundation/base"),
+                bundle_name=kwargs.get("bundle_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -878,7 +912,7 @@ class TestSessionsAPI:
                 return SessionMetadata(
                     session_id=sid,
                     status=SessionStatus.ACTIVE,
-                    profile_name="foundation/base",
+                    bundle_name="foundation/base",
                     mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                     created_at=datetime.now(UTC),
                     started_at=datetime.now(UTC),

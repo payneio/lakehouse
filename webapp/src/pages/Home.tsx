@@ -134,7 +134,7 @@ export function HomePage() {
           />
           <StepCard
             step={3}
-            title="Switch Profiles"
+            title="Switch Bundles"
             description="Customize agent behavior for different domains and tasks."
             icon={<Users className="h-6 w-6" />}
           />
@@ -156,10 +156,10 @@ export function HomePage() {
           />
           <ConceptCard
             title="Contextual Intelligence"
-            description="Different expertise for different tasks. Switch profiles to customize agent behavior."
+            description="Different expertise for different tasks. Switch bundles to customize agent behavior."
             icon={<Users className="h-8 w-8" />}
-            linkText="Browse profiles"
-            linkTo="/collections"
+            linkText="Browse bundles"
+            linkTo="/bundles"
           />
           <ConceptCard
             title="Always Learning"
