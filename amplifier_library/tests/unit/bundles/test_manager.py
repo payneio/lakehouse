@@ -41,6 +41,70 @@ class TestLakehouseBundleManager:
 
         assert "not-a-bundle" not in manager.list_available_bundles()
 
+    def test_discover_single_file_bundles(self, tmp_path: Path) -> None:
+        """Manager discovers single .md file bundles."""
+        bundles_dir = tmp_path / "bundles"
+        bundles_dir.mkdir(parents=True)
+
+        # Create a single-file bundle (like basic.md)
+        (bundles_dir / "basic.md").write_text(
+            "---\nbundle:\n  name: basic\n  version: 1.0.0\n---\n# Basic Bundle\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        assert "basic" in manager.list_available_bundles()
+
+    def test_discover_bundles_in_share_directory(self, tmp_path: Path) -> None:
+        """Manager discovers bundles in share/bundles directory."""
+        share_bundles = tmp_path / "share" / "bundles"
+        share_bundles.mkdir(parents=True)
+
+        # Create a bundle in share directory
+        (share_bundles / "shared-bundle.md").write_text(
+            "---\nbundle:\n  name: shared-bundle\n  version: 1.0.0\n---\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        assert "shared-bundle" in manager.list_available_bundles()
+
+    def test_user_bundles_override_share_bundles(self, tmp_path: Path) -> None:
+        """User bundles in bundles/ take priority over share/bundles/."""
+        # Create bundle in share directory
+        share_bundles = tmp_path / "share" / "bundles"
+        share_bundles.mkdir(parents=True)
+        (share_bundles / "test-bundle.md").write_text(
+            "---\nbundle:\n  name: test-bundle\n  version: 1.0.0\n---\n"
+        )
+
+        # Create same bundle in user directory
+        user_bundles = tmp_path / "bundles"
+        user_bundles.mkdir(parents=True)
+        (user_bundles / "test-bundle.md").write_text(
+            "---\nbundle:\n  name: test-bundle\n  version: 2.0.0\n---\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        # Should only have one entry (user takes priority)
+        assert manager.list_available_bundles().count("test-bundle") == 1
+
+    def test_discover_nested_bundles(self, tmp_path: Path) -> None:
+        """Manager discovers bundles in subdirectories with prefix."""
+        bundles_dir = tmp_path / "bundles"
+        foundation_dir = bundles_dir / "foundation"
+        foundation_dir.mkdir(parents=True)
+
+        # Create nested bundle (like foundation/base.md)
+        (foundation_dir / "base.md").write_text(
+            "---\nbundle:\n  name: base\n  version: 1.0.0\n---\n"
+        )
+
+        manager = LakehouseBundleManager(home_dir=tmp_path)
+
+        assert "foundation/base" in manager.list_available_bundles()
+
     @pytest.mark.asyncio
     async def test_load_bundle_from_well_known_path(self, tmp_path: Path) -> None:
         """Manager loads bundle from well-known bundles directory."""

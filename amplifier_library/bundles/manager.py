@@ -68,34 +68,74 @@ class LakehouseBundleManager:
         return self._registry
 
     def _discover_local_bundles(self) -> None:
-        """Discover and register bundles in the well-known bundles directory.
+        """Discover and register bundles in well-known bundle directories.
 
-        Scans ~/.amplifierd/bundles/ for directories containing bundle.yaml or bundle.md.
+        Scans multiple locations for bundles:
+        - ~/.amplifierd/bundles/ (user bundles)
+        - ~/.amplifierd/share/bundles/ (system/shared bundles)
+
+        Supports multiple bundle formats:
+        - Single .md files (e.g., basic.md) - name derived from filename
+        - Directories containing bundle.yaml or bundle.md - name from directory
+
         Registers each as a local file:// URI.
         """
-        if not self._bundles_dir.exists():
-            logger.debug(f"Bundles directory does not exist: {self._bundles_dir}")
-            return
+        # Directories to scan for bundles (in priority order - user bundles first)
+        bundle_dirs = [
+            self._bundles_dir,  # ~/.amplifierd/bundles/
+            self._home_dir / "share" / "bundles",  # ~/.amplifierd/share/bundles/
+        ]
 
-        discovered = {}
-        for item in self._bundles_dir.iterdir():
-            if not item.is_dir():
+        discovered: dict[str, str] = {}
+
+        for bundles_dir in bundle_dirs:
+            if not bundles_dir.exists():
+                logger.debug(f"Bundles directory does not exist: {bundles_dir}")
                 continue
 
-            # Check for bundle files
-            bundle_md = item / "bundle.md"
-            bundle_yaml = item / "bundle.yaml"
-
-            if bundle_md.exists() or bundle_yaml.exists():
-                # Use directory name as bundle name
-                bundle_name = item.name
-                bundle_uri = f"file://{item.resolve()}"
-                discovered[bundle_name] = bundle_uri
-                logger.debug(f"Discovered local bundle: {bundle_name} -> {bundle_uri}")
+            self._discover_bundles_in_dir(bundles_dir, discovered)
 
         if discovered:
             self._registry.register(discovered)
-            logger.info(f"Discovered {len(discovered)} local bundles in {self._bundles_dir}")
+            logger.info(f"Discovered {len(discovered)} local bundles")
+
+    def _discover_bundles_in_dir(
+        self, bundles_dir: Path, discovered: dict[str, str], prefix: str = ""
+    ) -> None:
+        """Discover bundles in a directory, recursively scanning subdirectories.
+
+        Args:
+            bundles_dir: Directory to scan.
+            discovered: Dict to update with discovered bundles (name -> URI).
+            prefix: Prefix for nested bundles (e.g., "foundation/" for foundation/base.md).
+        """
+        for item in bundles_dir.iterdir():
+            if item.is_file() and item.suffix == ".md":
+                # Single .md file bundle (e.g., basic.md, software-developer.md)
+                bundle_name = prefix + item.stem  # Remove .md extension
+                bundle_uri = f"file://{item.resolve()}"
+
+                # Don't overwrite if already discovered (user bundles take priority)
+                if bundle_name not in discovered:
+                    discovered[bundle_name] = bundle_uri
+                    logger.debug(f"Discovered bundle file: {bundle_name} -> {bundle_uri}")
+
+            elif item.is_dir():
+                # Check if it's a bundle directory (contains bundle.md or bundle.yaml)
+                bundle_md = item / "bundle.md"
+                bundle_yaml = item / "bundle.yaml"
+
+                if bundle_md.exists() or bundle_yaml.exists():
+                    # Directory-style bundle
+                    bundle_name = prefix + item.name
+                    bundle_uri = f"file://{item.resolve()}"
+
+                    if bundle_name not in discovered:
+                        discovered[bundle_name] = bundle_uri
+                        logger.debug(f"Discovered bundle dir: {bundle_name} -> {bundle_uri}")
+                else:
+                    # Recurse into subdirectory (e.g., foundation/)
+                    self._discover_bundles_in_dir(item, discovered, prefix=prefix + item.name + "/")
 
     async def load_bundle(self, bundle_ref: str) -> Bundle:
         """Load a bundle by name or URI.
