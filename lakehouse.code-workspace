@@ -17,10 +17,6 @@
       "path": "webapp"
     },
     {
-      "name": "registry",
-      "path": "registry"
-    },
-    {
       "name": "guides",
       "path": "guides"
     },
@@ -86,6 +82,17 @@
       "esbenp.prettier-vscode",
       "dbaeumer.vscode-eslint",
       "bradlc.vscode-tailwindcss"
+    ]
+  },
+  "launch": {
+    "compounds": [
+      {
+        "name": "Daemon + Webapp",
+        "configurations": [
+          "Amplifierd: Run Daemon",
+          "Webapp"
+        ]
+      }
     ]
   }
 }

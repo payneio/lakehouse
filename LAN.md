@@ -33,17 +33,17 @@ Access your Amplifier daemon and webapp from any device on your local network:
 ```
 [Host Machine: your-machine.local]
   ├─ Amplifier Daemon (port 8420)
-  └─ Webapp Dev Server (port 5173)
+  └─ Webapp Dev Server (port 7777)
         ↓
 [Local Network: 192.168.1.x]
         ↓
 [Client Device]
-  └─ Browser → http://your-machine.local:5173
+  └─ Browser → http://your-machine.local:7777
 ```
 
 **How it works:**
 1. Daemon runs on host machine, binds to `0.0.0.0:8420` (accessible from network)
-2. Webapp dev server runs on host, binds to `0.0.0.0:5173` (accessible from network)
+2. Webapp dev server runs on host, binds to `0.0.0.0:7777` (accessible from network)
 3. Client devices connect via host's IP or hostname
 4. Webapp makes API calls to daemon from client browser
 
@@ -55,7 +55,7 @@ Access your Amplifier daemon and webapp from any device on your local network:
 
 - [ ] Host machine and client devices on same local network
 - [ ] Host machine has static IP or discoverable hostname
-- [ ] Firewall allows incoming connections on ports 8420 and 5173
+- [ ] Firewall allows incoming connections on ports 8420 (daemon) and 7777 (webapp)
 - [ ] You understand the security implications (see [Security Considerations](#security-considerations))
 
 ### Finding Your Host Machine Address
@@ -90,7 +90,7 @@ Most networks support `.local` mDNS resolution:
 **Linux (UFW)**
 ```bash
 sudo ufw allow 8420/tcp comment "Amplifier daemon"
-sudo ufw allow 5173/tcp comment "Amplifier webapp"
+sudo ufw allow 7777/tcp comment "Amplifier webapp"
 sudo ufw status
 ```
 
@@ -104,9 +104,9 @@ sudo ufw status
 
 **Windows Firewall**
 ```powershell
-# Allow inbound on ports 8420 and 5173
+# Allow inbound on ports 8420 and 7777
 New-NetFirewallRule -DisplayName "Amplifier Daemon" -Direction Inbound -LocalPort 8420 -Protocol TCP -Action Allow
-New-NetFirewallRule -DisplayName "Amplifier Webapp" -Direction Inbound -LocalPort 5173 -Protocol TCP -Action Allow
+New-NetFirewallRule -DisplayName "Amplifier Webapp" -Direction Inbound -LocalPort 7777 -Protocol TCP -Action Allow
 ```
 
 ---
@@ -122,10 +122,10 @@ daemon:
   host: 0.0.0.0  # Bind to all interfaces (default: 127.0.0.1)
   port: 8420
   cors_origins:
-    - "http://localhost:5173"          # Local development
-    - "http://localhost:5174"          # Alternative port
-    - "http://your-machine.local:5173" # LAN access via hostname
-    - "http://192.168.1.100:5173"      # LAN access via IP (use your actual IP)
+    - "http://localhost:7777"          # Local development
+    - "http://localhost:7778"          # Alternative port
+    - "http://your-machine.local:7777" # LAN access via hostname
+    - "http://192.168.1.100:7777"      # LAN access via IP (use your actual IP)
 ```
 
 **Before:**
@@ -133,7 +133,7 @@ daemon:
 daemon:
   host: 127.0.0.1  # Only localhost
   cors_origins:
-    - "http://localhost:5173"
+    - "http://localhost:7777"
 ```
 
 **After:**
@@ -141,9 +141,9 @@ daemon:
 daemon:
   host: 0.0.0.0    # All network interfaces
   cors_origins:
-    - "http://localhost:5173"
-    - "http://your-machine.local:5173"  # Add LAN URLs
-    - "http://192.168.1.100:5173"       # Add IP addresses
+    - "http://localhost:7777"
+    - "http://your-machine.local:7777"  # Add LAN URLs
+    - "http://192.168.1.100:7777"       # Add IP addresses
 ```
 
 **CRITICAL:** The `cors_origins` list must include the exact URL clients will use to access the webapp. Both hostname and IP address variants should be included.
@@ -172,7 +172,7 @@ lakehouse start && lakehouse logs -f
 
 **Access from client device:**
 ```
-http://your-machine.local:5173
+http://your-machine.local:7777
 ```
 
 **Note:** The `lakehouse` CLI runs services in the background, so you don't need multiple terminals. Use:
@@ -209,10 +209,10 @@ daemon:
   workers: 1              # Number of worker processes
   log_level: "INFO"       # Logging level (DEBUG, INFO, WARNING, ERROR)
   cors_origins:
-    - "http://localhost:5173"           # Local development
-    - "http://localhost:5174"           # Alternative port
-    - "http://your-machine.local:5173"  # LAN access via hostname
-    - "http://192.168.1.100:5173"       # LAN access via IP (use your actual IP)
+    - "http://localhost:7777"           # Local development
+    - "http://localhost:7778"           # Alternative port
+    - "http://your-machine.local:7777"  # LAN access via hostname
+    - "http://192.168.1.100:7777"       # LAN access via IP (use your actual IP)
   watch_for_changes: false              # Watch for config file changes
   watch_interval_seconds: 60            # How often to check for changes
   cache_ttl_hours: null                 # Cache expiration (null = no expiration)
@@ -224,7 +224,7 @@ daemon:
 - **NEVER use `["*"]`** - allows ANY website to access your daemon
 - Always list specific origins
 - For LAN access, you must add your host's IP/hostname to the list
-- Include both hostname (`http://your-machine.local:5173`) and IP (`http://192.168.1.100:5173`) variants
+- Include both hostname (`http://your-machine.local:7777`) and IP (`http://192.168.1.100:7777`) variants
 - Omitting a client's URL will result in CORS errors in the browser
 
 ### Webapp Configuration
@@ -461,6 +461,36 @@ ipconfig /all # Windows
 2. Check for network isolation/guest network restrictions
 3. Try different network (mobile hotspot, different WiFi)
 4. Verify both devices use same gateway (router)
+
+### Problem: SSE Streams Blocked in Firefox
+
+**Symptoms:**
+- Chrome works fine, Firefox shows "Blocked" for SSE connections
+- Network tab shows `/api/v1/events` and `/stream` requests as "Blocked"
+- CORS is configured correctly (verified with curl)
+
+**Root Cause:**
+Firefox 118+ includes Local Network Access (LNA) protection that blocks requests to local network addresses (including `.local` and `.lan` hostnames) from web pages.
+
+**Solutions:**
+
+**Option 1: Disable LNA blocking in Firefox (recommended for LAN development)**
+1. Open Firefox and navigate to `about:config`
+2. Accept the risk warning
+3. Search for `network.lna.blocking`
+4. Set it to `false` (double-click to toggle)
+5. Reload the webapp
+
+**Option 2: Use IP address instead of hostname**
+- Instead of `http://civil.lan:7777`, use `http://192.168.1.100:7777`
+- Update your `.env.local` and `daemon.yaml` accordingly
+- Some Firefox versions may still block private IP ranges
+
+**Option 3: Use Chrome/Chromium-based browsers**
+- Chrome doesn't have this restriction enabled by default
+- Edge, Brave, and other Chromium browsers work fine
+
+**Note:** This is a Firefox security feature to prevent malicious websites from scanning local networks. For development on your own LAN, disabling it is safe.
 
 ---
 

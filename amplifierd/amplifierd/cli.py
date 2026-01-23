@@ -204,6 +204,7 @@ def start(daemon_only: bool, webapp_only: bool):
                 with builtins.open(str(daemon_log), "a") as log_file:
                     subprocess.Popen(
                         daemon_cmd,
+                        stdin=subprocess.DEVNULL,
                         stdout=log_file,
                         stderr=log_file,
                         start_new_session=True,
@@ -234,6 +235,7 @@ def start(daemon_only: bool, webapp_only: bool):
                     subprocess.Popen(
                         webapp_cmd,
                         cwd=str(webapp_dir),
+                        stdin=subprocess.DEVNULL,
                         stdout=log_file,
                         stderr=log_file,
                         start_new_session=True,

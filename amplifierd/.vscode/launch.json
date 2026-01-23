@@ -10,7 +10,7 @@
       "justMyCode": false,
       "env": {
         "AMPLIFIERD_LOG_LEVEL": "debug",
-        "AMPLIFIERD_PORT": "8421"
+        "AMPLIFIERD_PORT": "8420"
       },
       "cwd": "${workspaceFolder}"
     },
