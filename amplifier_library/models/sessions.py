@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import Field
 from pydantic import computed_field
+from pydantic import model_validator
 
 from amplifier_library.config.loader import load_config
 from amplifier_library.models.base import CamelCaseModel
@@ -59,7 +60,9 @@ class SessionMetadata(CamelCaseModel):
     created_at: datetime = Field(description="Session creation timestamp")
     started_at: datetime | None = Field(default=None, description="Session start timestamp (ACTIVE)")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp (final state)")
-    bundle_name: str = Field(description="Bundle used for this session")
+    bundle_name: str = Field(default="", description="Bundle used for this session")
+    # Backward compatibility: old sessions have profile_name instead of bundle_name
+    profile_name: str | None = Field(default=None, exclude=True, description="Legacy field - use bundle_name")
     mount_plan_path: str = Field(description="Relative path to mount_plan.json")
     message_count: int = Field(default=0, description="Number of messages exchanged")
     agent_invocations: int = Field(default=0, description="Number of agent invocations")
@@ -68,6 +71,16 @@ class SessionMetadata(CamelCaseModel):
     error_details: dict[str, Any] | None = Field(default=None, description="Additional error context")
     is_unread: bool = Field(default=False, description="Whether session has unread content")
     last_read_at: datetime | None = Field(default=None, description="When session was last marked as read")
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_profile_name(cls, data: Any) -> Any:
+        """Migrate legacy profile_name to bundle_name for backward compatibility."""
+        if isinstance(data, dict):
+            # If bundle_name is missing or empty but profile_name exists, use profile_name
+            if not data.get("bundle_name") and data.get("profile_name"):
+                data["bundle_name"] = data["profile_name"]
+        return data
 
 
 class SessionMessage(CamelCaseModel):
@@ -88,16 +101,27 @@ class SessionIndexEntry(CamelCaseModel):
     """Lightweight entry in session index.
 
     Used for fast lookups without loading full session metadata.
-    Enables queries like "list all active sessions" or "find sessions by profile".
+    Enables queries like "list all active sessions" or "find sessions by bundle".
     """
 
     session_id: str = Field(description="Session identifier")
     amplified_dir: str = Field(default=".", description="Relative path to amplified directory")
     status: SessionStatus = Field(description="Current session status")
-    bundle_name: str = Field(description="Bundle used for this session")
+    bundle_name: str = Field(default="", description="Bundle used for this session")
+    # Backward compatibility: old index entries may have profile_name
+    profile_name: str | None = Field(default=None, exclude=True, description="Legacy field - use bundle_name")
     created_at: datetime = Field(description="Session creation timestamp")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp")
     message_count: int = Field(default=0, description="Number of messages exchanged")
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_profile_name(cls, data: Any) -> Any:
+        """Migrate legacy profile_name to bundle_name for backward compatibility."""
+        if isinstance(data, dict):
+            if not data.get("bundle_name") and data.get("profile_name"):
+                data["bundle_name"] = data["profile_name"]
+        return data
 
 
 class SessionIndex(CamelCaseModel):
