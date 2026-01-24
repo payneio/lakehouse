@@ -10,13 +10,13 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from lakehouse_library.config.loader import load_config
 
 from .config.loader import load_config as load_daemon_config
 from .routers import automations_router
 from .routers import bundles_router
 from .routers import events_router
+from .routers import files_router
 from .routers import messages_router
 from .routers import modules_router
 from .routers import mount_plans_router
@@ -96,7 +96,6 @@ async def lifespan(app: FastAPI):
     # Initialize module resolver (Foundation's BundleModuleResolver)
     try:
         from amplifier_foundation.modules.activator import ModuleActivator
-
         from lakehouse_library.storage.paths import get_cache_dir
 
         cache_dir = get_cache_dir()
@@ -183,6 +182,7 @@ logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 app.include_router(automations_router)
 app.include_router(bundles_router)
 app.include_router(events_router)
+app.include_router(files_router)
 app.include_router(messages_router)
 app.include_router(modules_router)
 app.include_router(mount_plans_router)
