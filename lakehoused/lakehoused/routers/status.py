@@ -1,4 +1,4 @@
-"""Status router for amplifierd API.
+"""Status router for lakehoused API.
 
 Provides health check and status information.
 """

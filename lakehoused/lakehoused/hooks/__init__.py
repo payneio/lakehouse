@@ -1,4 +1,4 @@
-"""Hook system extensions for amplifierd.
+"""Hook system extensions for lakehoused.
 
 Provides StreamingHookRegistry that wraps amplifier-core hooks
 to bridge events to frontend via SSE.

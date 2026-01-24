@@ -1,4 +1,4 @@
-"""Request models for amplifierd API.
+"""Request models for lakehoused API.
 
 Pydantic models for validating incoming API requests.
 """

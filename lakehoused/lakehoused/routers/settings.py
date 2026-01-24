@@ -1,4 +1,4 @@
-"""Settings router for amplifierd API.
+"""Settings router for lakehoused API.
 
 Provides endpoints for viewing and updating daemon configuration and API keys.
 """

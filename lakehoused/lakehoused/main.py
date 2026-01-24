@@ -1,4 +1,4 @@
-"""Main FastAPI application for amplifierd daemon.
+"""Main FastAPI application for lakehoused daemon.
 
 This module creates and configures the FastAPI application that exposes
 the amplifier_library via REST API with SSE streaming.
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     config = load_config()
-    logger.info(f"Starting amplifierd daemon on {config.host}:{config.port}")
+    logger.info(f"Starting lakehoused daemon on {config.host}:{config.port}")
     logger.info(f"Data root: {config.data_path}")
 
     # Auto-create root project on startup
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Shutting down amplifierd daemon")
+    logger.info("Shutting down lakehoused daemon")
 
     # Stop automation scheduler
     if scheduler is not None:
@@ -162,7 +162,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI application
 app = FastAPI(
-    title="amplifierd",
+    title="lakehoused",
     description="REST API daemon for amplifier-core with SSE streaming support",
     version="0.1.0",
     lifespan=lifespan,
@@ -201,7 +201,7 @@ async def root() -> dict[str, str]:
         Welcome message with API information
     """
     return {
-        "name": "amplifierd",
+        "name": "lakehoused",
         "version": "0.1.0",
         "description": "REST API daemon for amplifier-core",
         "docs": "/docs",

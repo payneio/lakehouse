@@ -1,4 +1,4 @@
-"""SSE streaming utilities for amplifierd.
+"""SSE streaming utilities for lakehoused.
 
 Provides utilities for Server-Sent Events (SSE) streaming.
 """

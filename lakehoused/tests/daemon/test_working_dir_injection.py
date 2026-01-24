@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:
     """Test that working_dir is injected into all tool configs when creating mount plans."""
-    # This test verifies the fix in amplifierd/routers/sessions.py
+    # This test verifies the fix in lakehoused/routers/sessions.py
     # that injects working_dir into all tool configs
 
     data_root = tmp_path / "data"

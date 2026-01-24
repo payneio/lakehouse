@@ -1,4 +1,4 @@
-"""Messages router for amplifierd API.
+"""Messages router for lakehoused API.
 
 Handles message operations: send message, get transcript, send message for execution.
 """

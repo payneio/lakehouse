@@ -26,7 +26,7 @@ class TestStatusAPI:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "amplifierd"
+        assert data["name"] == "lakehoused"
         assert "version" in data
         assert "docs" in data
 

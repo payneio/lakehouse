@@ -1,4 +1,4 @@
-"""amplifierd - REST API daemon for amplifier-core.
+"""lakehoused - REST API daemon for amplifier-core.
 
 This package provides a FastAPI-based daemon that exposes amplifier-core
 functionality via REST API with SSE streaming support.

@@ -14,7 +14,7 @@ from .spawner import SessionNotFoundError
 from .spawner import resume_spawned_agent
 from .spawner import spawn_agent
 
-# Alias for backward compatibility with amplifierd
+# Alias for backward compatibility with lakehoused
 SessionStateService = SessionManager
 
 __all__ = [

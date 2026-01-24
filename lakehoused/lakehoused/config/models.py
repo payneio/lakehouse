@@ -1,4 +1,4 @@
-"""Configuration models for amplifierd daemon.
+"""Configuration models for lakehoused daemon.
 
 These models define the structure of the daemon's configuration file,
 including startup behavior, cache management, and daemon settings.

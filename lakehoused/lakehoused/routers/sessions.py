@@ -41,7 +41,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_
     cannot be known at profile compilation time:
     - working_dir for tools (derived from project_path)
     - allowed_write_paths for tool-filesystem (derived from project_path)
-    - session_log_template for hooks-logging (points to amplifierd session dir)
+    - session_log_template for hooks-logging (points to lakehoused session dir)
     - api_key for providers (from secrets.yaml)
 
     Args:
@@ -68,7 +68,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_
                 tool["config"]["allowed_write_paths"] = [project_path]
 
     # 2. Inject session_log_template for hooks-logging
-    # This ensures events.jsonl is written to amplifierd's session directory
+    # This ensures events.jsonl is written to lakehoused's session directory
     # instead of the default ~/.amplifier/projects/... path
     state_dir = get_state_dir()
     session_log_path = str(state_dir / "sessions" / "{session_id}" / "events.jsonl")
@@ -87,7 +87,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_
             if is_logging_hook:
                 if "config" not in hook:
                     hook["config"] = {}
-                # Always override to ensure logs go to amplifierd session dir
+                # Always override to ensure logs go to lakehoused session dir
                 hook["config"]["session_log_template"] = session_log_path
                 logger.debug(f"Injected session_log_template for hooks-logging: {session_log_path}")
 

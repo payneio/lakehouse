@@ -13,9 +13,9 @@ from unittest.mock import patch
 
 import pytest
 
-# Mock amplifierd module before import to avoid dependency issues
-sys.modules["amplifierd"] = MagicMock()
-sys.modules["amplifierd.module_resolver"] = MagicMock()
+# Mock lakehoused module before import to avoid dependency issues
+sys.modules["lakehoused"] = MagicMock()
+sys.modules["lakehoused.module_resolver"] = MagicMock()
 sys.modules["amplifier_core"] = MagicMock()
 
 from lakehouse_library.models.sessions import SessionStatus
@@ -81,16 +81,14 @@ class TestSpawnAgentIntegration:
     """Integration tests for spawn_agent with real SessionManager."""
 
     @pytest.mark.asyncio
-    async def test_end_to_end_spawn_creates_persistent_session(
-        self, session_manager, parent_session, agent_configs
-    ):
+    async def test_end_to_end_spawn_creates_persistent_session(self, session_manager, parent_session, agent_configs):
         """Given parent session and agent configs
         When spawning agent end-to-end
         Then should create persisted session with all artifacts
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             # Mock successful execution
@@ -140,16 +138,14 @@ class TestSpawnAgentIntegration:
             assert transcript[1].content == "Found 5 bugs in auth.py"
 
     @pytest.mark.asyncio
-    async def test_spawn_with_config_overlay_affects_behavior(
-        self, session_manager, parent_session, agent_configs
-    ):
+    async def test_spawn_with_config_overlay_affects_behavior(self, session_manager, parent_session, agent_configs):
         """Given agent with temperature override in config
         When spawning agent
         Then merged config should reflect agent-specific settings
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -186,7 +182,7 @@ class TestSpawnAgentIntegration:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -225,7 +221,7 @@ class TestResumeAgentIntegration:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             # Setup mocks
@@ -276,7 +272,7 @@ class TestResumeAgentIntegration:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             # First spawn to create history
@@ -324,7 +320,7 @@ class TestResumeAgentIntegration:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -372,7 +368,7 @@ class TestResumeAgentIntegration:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -425,7 +421,7 @@ class TestSessionHierarchy:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -457,7 +453,7 @@ class TestSessionHierarchy:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -512,7 +508,7 @@ class TestConfigPersistence:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()
@@ -553,7 +549,7 @@ class TestConfigPersistence:
         """
         with (
             patch("amplifier_core.AmplifierSession") as mock_session_class,
-            patch("amplifierd.module_resolver.DaemonModuleSourceResolver"),
+            patch("lakehoused.module_resolver.DaemonModuleSourceResolver"),
             patch("lakehouse_library.storage.paths.get_share_dir"),
         ):
             mock_session = AsyncMock()

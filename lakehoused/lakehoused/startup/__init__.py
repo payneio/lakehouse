@@ -1,4 +1,4 @@
-"""Startup handlers for amplifierd daemon.
+"""Startup handlers for lakehoused daemon.
 
 Handles bundle registry parsing and startup tasks.
 """

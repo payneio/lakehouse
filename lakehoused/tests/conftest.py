@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for amplifierd test suite.
+Shared pytest fixtures for lakehoused test suite.
 
 Provides fixtures for:
 - Temporary storage directories

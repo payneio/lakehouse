@@ -1,4 +1,4 @@
-"""Automation scheduler service for amplifierd.
+"""Automation scheduler service for lakehoused.
 
 Manages scheduled execution of automations using APScheduler.
 Integrates with AutomationManager and SessionManager to create sessions

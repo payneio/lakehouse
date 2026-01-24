@@ -1,4 +1,4 @@
-"""Configuration loader for amplifierd daemon.
+"""Configuration loader for lakehoused daemon.
 
 Handles loading configuration from files, environment variables, and defaults.
 """

@@ -1,4 +1,4 @@
-"""API models for amplifierd daemon.
+"""API models for lakehoused daemon.
 
 This module defines request and response models for the REST API.
 """

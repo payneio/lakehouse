@@ -1,4 +1,4 @@
-"""API routers for amplifierd daemon.
+"""API routers for lakehoused daemon.
 
 This module contains FastAPI routers for all API endpoints.
 """

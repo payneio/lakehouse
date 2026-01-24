@@ -1,4 +1,4 @@
-"""Configuration loading for amplifierd daemon.
+"""Configuration loading for lakehoused daemon.
 
 This module handles loading daemon configuration from YAML files
 and environment variables.
@@ -19,7 +19,7 @@ from .settings import DaemonSettings
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG = """# amplifierd daemon configuration
+DEFAULT_CONFIG = """# lakehoused daemon configuration
 # This configures the daemon transport layer only
 # For amplifier-core configuration, see amplifier-core docs
 

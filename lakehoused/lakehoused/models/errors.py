@@ -1,4 +1,4 @@
-"""Error models for amplifierd API.
+"""Error models for lakehoused API.
 
 Pydantic models for error responses.
 """

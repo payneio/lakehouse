@@ -1,4 +1,4 @@
-"""Mount plan data models for amplifierd.
+"""Mount plan data models for lakehoused.
 
 This module defines the data structures for mount plans - complete specifications
 of how to assemble a session from cached profile resources. Mount plans include

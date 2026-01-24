@@ -1,1 +1,1 @@
-"""Utility functions for amplifierd."""
+"""Utility functions for lakehoused."""

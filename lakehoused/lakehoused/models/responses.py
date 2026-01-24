@@ -1,4 +1,4 @@
-"""Response models for amplifierd API.
+"""Response models for lakehoused API.
 
 Pydantic models for API responses.
 """

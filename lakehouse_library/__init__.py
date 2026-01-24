@@ -1,6 +1,6 @@
 """Amplifier library layer.
 
-This is the business logic layer that sits between amplifierd (transport)
+This is the business logic layer that sits between lakehoused (transport)
 and amplifier-core (execution engine).
 
 Public Interface:

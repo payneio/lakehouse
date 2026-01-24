@@ -1,4 +1,4 @@
-"""Entry point for running amplifierd daemon.
+"""Entry point for running lakehoused daemon.
 
 This module provides the CLI entry point for starting the daemon.
 """
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """Run the amplifierd daemon.
+    """Run the lakehoused daemon.
 
     Loads configuration and starts the uvicorn server.
     """
