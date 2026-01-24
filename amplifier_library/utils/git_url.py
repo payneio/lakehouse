@@ -5,6 +5,7 @@ Shared logic for parsing git+ URL format across services.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -62,3 +63,41 @@ def parse_git_url(source: str) -> ParsedGitUrl:
         url, ref = url.rsplit("@", 1)
 
     return ParsedGitUrl(url=url, ref=ref, subdirectory=subdirectory)
+
+
+def to_raw_github_url(git_url: str) -> str | None:
+    """Convert git+ URL to raw.githubusercontent.com URL.
+
+    Transforms URLs like:
+        git+https://github.com/microsoft/amplifier-foundation@main#bundles/amplifier-dev.md
+    To:
+        https://raw.githubusercontent.com/microsoft/amplifier-foundation/main/bundles/amplifier-dev.md
+
+    Args:
+        git_url: Git URL in git+ format with subdirectory path.
+
+    Returns:
+        Raw GitHub URL if conversion succeeds, None otherwise.
+
+    Examples:
+        >>> to_raw_github_url("git+https://github.com/org/repo@main#path/file.md")
+        'https://raw.githubusercontent.com/org/repo/main/path/file.md'
+
+        >>> to_raw_github_url("git+https://github.com/org/repo#file.md")
+        'https://raw.githubusercontent.com/org/repo/HEAD/file.md'
+    """
+    parsed = parse_git_url(git_url)
+
+    # Extract org/repo from URL like https://github.com/microsoft/amplifier-foundation
+    match = re.match(r"https://github\.com/([^/]+)/([^/]+)", parsed.url)
+    if not match:
+        return None
+
+    org, repo = match.groups()
+    ref = parsed.ref or "HEAD"
+    path = parsed.subdirectory
+
+    if not path:
+        return None
+
+    return f"https://raw.githubusercontent.com/{org}/{repo}/{ref}/{path}"

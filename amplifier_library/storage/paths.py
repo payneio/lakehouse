@@ -152,3 +152,25 @@ def get_compiled_profiles_dir() -> Path:
     compiled_dir = get_share_dir() / "profiles"
     compiled_dir.mkdir(parents=True, exist_ok=True)
     return compiled_dir
+
+
+def get_bundles_dir() -> Path:
+    """Get system/shared bundles directory.
+
+    Returns:
+        Path to shared bundles ($AMPLIFIERD_HOME/share/bundles)
+    """
+    bundles_dir = get_share_dir() / "bundles"
+    bundles_dir.mkdir(parents=True, exist_ok=True)
+    return bundles_dir
+
+
+def get_user_bundles_dir() -> Path:
+    """Get user bundles directory.
+
+    Returns:
+        Path to user bundles ($AMPLIFIERD_HOME/bundles)
+    """
+    bundles_dir = get_home_dir() / "bundles"
+    bundles_dir.mkdir(parents=True, exist_ok=True)
+    return bundles_dir

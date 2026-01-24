@@ -1,0 +1,83 @@
+"""Bundle registry parsing from BUNDLES.txt.
+
+Parses bundle name-to-URI mappings for registration with Foundation's BundleRegistry.
+Foundation handles git cloning/caching - we just provide the registry mappings.
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+DEFAULT_BUNDLES_TXT = """\
+# Amplifier Foundation bundles
+# Format: name:git+https://github.com/owner/repo@branch#path/to/bundle.md
+#
+# Foundation handles git cloning/caching to ~/.amplifier/cache/
+# This preserves full repo structure for namespace:path resolution
+#
+amplifier-dev:git+https://github.com/microsoft/amplifier-foundation@main#bundles/amplifier-dev.md
+minimal:git+https://github.com/microsoft/amplifier-foundation@main#bundles/minimal.md
+
+# Personal bundles (payneio/payne-amplifier)
+software-developer:git+https://github.com/payneio/payne-amplifier@main#bundles/software-developer.md
+basic:git+https://github.com/payneio/payne-amplifier@main#bundles/basic.md
+"""
+
+
+def ensure_bundles_file(bundles_file: Path) -> None:
+    """Create BUNDLES.txt with defaults if it doesn't exist.
+
+    Args:
+        bundles_file: Path to BUNDLES.txt file.
+    """
+    if not bundles_file.exists():
+        bundles_file.parent.mkdir(parents=True, exist_ok=True)
+        bundles_file.write_text(DEFAULT_BUNDLES_TXT)
+        logger.info(f"Created default BUNDLES.txt at {bundles_file}")
+
+
+def parse_bundles_file(bundles_file: Path) -> dict[str, str]:
+    """Parse BUNDLES.txt and return name->URI mappings.
+
+    Does NOT download files. The URIs are registered directly with
+    Foundation's BundleRegistry, which handles git cloning/caching.
+
+    Args:
+        bundles_file: Path to BUNDLES.txt file.
+
+    Returns:
+        Dict mapping bundle name to git+ URI.
+    """
+    bundles: dict[str, str] = {}
+
+    for line in bundles_file.read_text().splitlines():
+        line = line.strip()
+
+        # Skip empty lines and comments
+        if not line or line.startswith("#"):
+            continue
+
+        # Parse name:git_ref format
+        if ":" not in line:
+            logger.warning(f"Invalid BUNDLES.txt line (missing ':'): {line}")
+            continue
+
+        try:
+            name, git_ref = line.split(":", 1)
+            name = name.strip()
+            git_ref = git_ref.strip()
+
+            if not name or not git_ref:
+                logger.warning(f"Invalid BUNDLES.txt line (empty name or ref): {line}")
+                continue
+
+            bundles[name] = git_ref
+        except ValueError:
+            logger.warning(f"Invalid BUNDLES.txt line: {line}")
+            continue
+
+    return bundles
