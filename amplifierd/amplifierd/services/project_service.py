@@ -42,14 +42,14 @@ class ProjectService:
         self._cache_lock = Lock()
         self._max_scan_depth: int = max_scan_depth
 
-    def _resolve_default_profile(self, relative_path: str, provided_profile: str | None) -> str:
+    def _resolve_default_bundle(self, relative_path: str, provided_profile: str | None) -> str:
         """Resolve default profile for directory.
 
         Resolution order:
         1. If provided_profile given → use it
-        2. Else → find parent project and use its default_profile
-        3. If no parent → use root's default_profile
-        4. Root uses AMPLIFIERD_DEFAULT_PROFILE env var (default: foundation/foundation)
+        2. Else → find parent project and use its default_bundle
+        3. If no parent → use root's default_bundle
+        4. Root uses AMPLIFIERD_DEFAULT_BUNDLE env var (default: foundation/foundation)
         """
         if provided_profile:
             logger.debug(f"Using provided profile: {provided_profile}")
@@ -59,14 +59,14 @@ class ProjectService:
 
         if parent_path:
             parent_metadata = self._read_metadata(parent_path)
-            if parent_metadata and "default_profile" in parent_metadata:
-                inherited_profile = parent_metadata["default_profile"]
+            if parent_metadata and "default_bundle" in parent_metadata:
+                inherited_profile = parent_metadata["default_bundle"]
                 logger.debug(f"Inheriting profile from parent {parent_path}: {inherited_profile}")
                 return inherited_profile
 
-        default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
-        logger.debug(f"Using default profile from environment: {default_profile}")
-        return default_profile
+        default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+        logger.debug(f"Using default profile from environment: {default_bundle}")
+        return default_bundle
 
     def _find_parent_project(self, relative_path: str) -> Path | None:
         """Find nearest parent project.
@@ -110,7 +110,7 @@ class ProjectService:
         Side Effects:
             - Creates target directory if missing
             - Creates .amplified marker directory if create_marker=True
-            - Writes metadata.json with default_profile
+            - Writes metadata.json with default_bundle
         """
         dir_path = self._validate_and_resolve_path(create_req.relative_path)
 
@@ -118,10 +118,10 @@ class ProjectService:
             raise ValueError(f"Directory is already a project: {create_req.relative_path}")
 
         try:
-            default_profile = self._resolve_default_profile(create_req.relative_path, create_req.default_profile)
+            default_bundle = self._resolve_default_bundle(create_req.relative_path, create_req.default_bundle)
 
             metadata = create_req.metadata.copy() if create_req.metadata else {}
-            metadata["default_profile"] = default_profile
+            metadata["default_bundle"] = default_bundle
 
             dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -134,7 +134,7 @@ class ProjectService:
             now = datetime.now(UTC)
             project = Project(
                 relative_path=create_req.relative_path,
-                default_profile=metadata.get("default_profile"),
+                default_bundle=metadata.get("default_bundle"),
                 metadata=metadata,
                 created_at=now,
                 last_used_at=None,
@@ -142,7 +142,7 @@ class ProjectService:
                 is_project=True,
             )
 
-            logger.info(f"Created project: {create_req.relative_path} with profile: {default_profile}")
+            logger.info(f"Created project: {create_req.relative_path} with profile: {default_bundle}")
 
             # Invalidate cache so new project appears in list
             self.invalidate_cache()
@@ -178,11 +178,11 @@ class ProjectService:
                 logger.warning(f"Project {relative_path} has no metadata.json")
                 return None
 
-            if "default_profile" not in metadata:
-                logger.warning(f"Project {relative_path} missing default_profile in metadata")
+            if "default_bundle" not in metadata:
+                logger.warning(f"Project {relative_path} missing default_bundle in metadata")
 
-            # Extract default_profile from metadata for top-level field
-            default_profile = metadata.get("default_profile")
+            # Extract default_bundle from metadata for top-level field
+            default_bundle = metadata.get("default_bundle")
 
             # Read AGENTS.md content
             agents_content = self._read_agents_file(dir_path)
@@ -190,7 +190,7 @@ class ProjectService:
             now = datetime.now(UTC)
             return Project(
                 relative_path=relative_path,
-                default_profile=default_profile,
+                default_bundle=default_bundle,
                 metadata=metadata,
                 agents_content=agents_content,
                 created_at=now,
@@ -272,8 +272,8 @@ class ProjectService:
                     logger.warning(f"Skipping project {relative_path} - no metadata.json")
                     continue
 
-                if "default_profile" not in metadata:
-                    logger.warning(f"Project {relative_path} missing default_profile")
+                if "default_bundle" not in metadata:
+                    logger.warning(f"Project {relative_path} missing default_bundle")
 
                 # Read AGENTS.md content
                 agents_content = self._read_agents_file(dir_path)
@@ -281,7 +281,7 @@ class ProjectService:
                 projects.append(
                     Project(
                         relative_path=relative_path,
-                        default_profile=metadata.get("default_profile"),
+                        default_bundle=metadata.get("default_bundle"),
                         metadata=metadata,
                         agents_content=agents_content,
                         created_at=datetime.now(UTC),
@@ -336,9 +336,9 @@ class ProjectService:
             # Read existing metadata
             existing_metadata = self._read_metadata(dir_path) or {}
 
-            # Merge default_profile if provided
-            if update_req.default_profile is not None:
-                existing_metadata["default_profile"] = update_req.default_profile
+            # Merge default_bundle if provided
+            if update_req.default_bundle is not None:
+                existing_metadata["default_bundle"] = update_req.default_bundle
 
             # Merge metadata if provided
             if update_req.metadata is not None:

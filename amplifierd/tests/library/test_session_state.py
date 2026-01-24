@@ -10,9 +10,9 @@ from datetime import datetime
 
 import pytest
 
-from amplifier_library.models import Session
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.sessions import state
+from lakehouse_library.models import Session
+from lakehouse_library.models.sessions import SessionMessage
+from lakehouse_library.sessions import state
 
 
 @pytest.mark.unit

@@ -4,7 +4,7 @@ REST API daemon for amplifier-core with SSE streaming support.
 
 ## Overview
 
-`amplifierd` exposes the `amplifier_library` functionality via a FastAPI REST API with Server-Sent Events (SSE) streaming for real-time execution updates.
+`amplifierd` exposes the `lakehouse_library` functionality via a FastAPI REST API with Server-Sent Events (SSE) streaming for real-time execution updates.
 
 ## Running the Daemon
 
@@ -152,4 +152,4 @@ uv run python -m amplifierd
 - `uvicorn` - ASGI server
 - `sse-starlette` - Server-Sent Events support
 - `pydantic` - Data validation
-- `amplifier_library` - Core library layer
+- `lakehouse_library` - Core library layer

@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 
-from amplifier_library.storage.paths import get_config_dir
+from lakehouse_library.storage.paths import get_config_dir
 
 from .models import Config
 from .models import Secrets

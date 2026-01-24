@@ -11,9 +11,9 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
+from lakehouse_library.models.sessions import SessionMessage
+from lakehouse_library.models.sessions import SessionMetadata
+from lakehouse_library.models.sessions import SessionStatus
 from amplifierd.main import app
 from amplifierd.models.mount_plans import EmbeddedMount
 from amplifierd.models.mount_plans import MountPlan
@@ -61,7 +61,7 @@ def mock_mount_plan() -> MountPlan:
         format_version="1.0",
         session=SessionConfig(
             session_id="test_session_123",
-            profile_id="foundation/base",
+            bundle_id="foundation/base",
             created_at=datetime.now(UTC).isoformat(),
             settings={},
         ),
@@ -156,7 +156,7 @@ def mock_project_service(mock_mount_plan: MountPlan):
             "amplifierd.services.project_service.ProjectService",
             return_value=mock_service
         ), patch(
-            "amplifier_library.bundles.LakehouseBundleManager",
+            "lakehouse_library.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager
         ):
             yield

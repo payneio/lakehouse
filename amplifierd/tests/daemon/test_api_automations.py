@@ -19,9 +19,9 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from amplifier_library.models.automations import Automation
-from amplifier_library.models.automations import ExecutionRecord
-from amplifier_library.models.automations import ScheduleConfig
+from lakehouse_library.models.automations import Automation
+from lakehouse_library.models.automations import ExecutionRecord
+from lakehouse_library.models.automations import ScheduleConfig
 from amplifierd.main import app
 from amplifierd.routers.automations import get_automation_manager
 from amplifierd.routers.automations import get_automation_scheduler
@@ -133,7 +133,7 @@ def mock_project_exists(monkeypatch, tmp_path):
     test_project_dir.mkdir(parents=True, exist_ok=True)
 
     # Mock load_config to return config with our tmp_path as data_path
-    from amplifier_library.config.settings import DaemonSettings
+    from lakehouse_library.config.settings import DaemonSettings
 
     mock_config = DaemonSettings(
         host="127.0.0.1",
@@ -143,9 +143,9 @@ def mock_project_exists(monkeypatch, tmp_path):
     )
 
     # Patch at the location where it's imported in the automations module
-    import amplifier_library.config.loader
+    import lakehouse_library.config.loader
 
-    monkeypatch.setattr(amplifier_library.config.loader, "load_config", lambda: mock_config)
+    monkeypatch.setattr(lakehouse_library.config.loader, "load_config", lambda: mock_config)
 
 
 @pytest.fixture

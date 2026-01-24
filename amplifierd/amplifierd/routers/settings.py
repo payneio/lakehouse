@@ -153,7 +153,7 @@ async def get_settings() -> SettingsResponse:
     Returns daemon configuration, startup settings, and which API keys are configured.
     API key values are masked for security.
     """
-    from amplifier_library.config.loader import load_config as load_library_config
+    from lakehouse_library.config.loader import load_config as load_library_config
 
     config = load_config()
     secrets = load_secrets()

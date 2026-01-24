@@ -21,11 +21,11 @@ from fastapi import Request
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
 
-from amplifier_library.automations.manager import AutomationManager
-from amplifier_library.models.automations import Automation
-from amplifier_library.models.automations import ExecutionRecord
-from amplifier_library.models.automations import ScheduleConfig
-from amplifier_library.storage import get_state_dir
+from lakehouse_library.automations.manager import AutomationManager
+from lakehouse_library.models.automations import Automation
+from lakehouse_library.models.automations import ExecutionRecord
+from lakehouse_library.models.automations import ScheduleConfig
+from lakehouse_library.storage import get_state_dir
 
 if TYPE_CHECKING:
     from amplifierd.services.automation_scheduler import AutomationScheduler  # noqa: F401

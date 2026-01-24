@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
-from amplifier_library.sessions.manager import SessionManager as SessionStateService
+from lakehouse_library.models.sessions import SessionMessage
+from lakehouse_library.models.sessions import SessionMetadata
+from lakehouse_library.models.sessions import SessionStatus
+from lakehouse_library.sessions.manager import SessionManager as SessionStateService
 from amplifierd.models.mount_plans import MountPlan
 from amplifierd.models.mount_plans import SessionConfig
 
@@ -36,7 +36,7 @@ class TestSessionStateService:
         """Create sample mount plan for testing."""
         session_config = SessionConfig(
             session_id="test_session",
-            profile_id="foundation/base",
+            bundle_id="foundation/base",
             created_at=datetime.now(UTC).isoformat(),
         )
         return MountPlan(session=session_config, mount_points=[])
@@ -664,7 +664,7 @@ class TestSessionStateServiceIntegration:
         """Create sample mount plan."""
         config = SessionConfig(
             session_id="integration_test",
-            profile_id="foundation/base",
+            bundle_id="foundation/base",
             created_at=datetime.now(UTC).isoformat(),
         )
         return MountPlan(session=config, mount_points=[])

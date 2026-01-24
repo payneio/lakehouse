@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from amplifier_library.config import loader
-from amplifier_library.config.settings import DaemonSettings
+from lakehouse_library.config import loader
+from lakehouse_library.config.settings import DaemonSettings
 
 
 @pytest.mark.unit
@@ -121,7 +121,7 @@ workers: 4
         # Reload module to pick up env vars
         from importlib import reload
 
-        from amplifier_library.config import settings as settings_module
+        from lakehouse_library.config import settings as settings_module
 
         reload(settings_module)
 

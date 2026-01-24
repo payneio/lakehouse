@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 
-from amplifier_library.config.loader import load_config
 from amplifierd.models.projects import AgentsContentResponse
 from amplifierd.models.projects import AgentsContentUpdate
 from amplifierd.models.projects import Project
@@ -16,6 +15,7 @@ from amplifierd.models.projects import ProjectCreate
 from amplifierd.models.projects import ProjectList
 from amplifierd.models.projects import ProjectUpdate
 from amplifierd.services.project_service import ProjectService
+from lakehouse_library.config.loader import load_config
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def create_project(
     """Create/register a new project.
 
     Creates directory structure and .amplified marker if requested.
-    Resolves default_profile using inheritance if not provided.
+    Resolves default_bundle using inheritance if not provided.
 
     Args:
         create_req: Creation request with path, optional profile, metadata

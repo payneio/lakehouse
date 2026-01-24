@@ -17,15 +17,16 @@ import re
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from amplifier_library.automations.manager import AutomationManager
-from amplifier_library.models.automations import Automation
-from amplifier_library.sessions.manager import SessionManager
+from lakehouse_library.automations.manager import AutomationManager
+from lakehouse_library.models.automations import Automation
+from lakehouse_library.sessions.manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class AutomationScheduler:
         automation_manager: AutomationManager,
         session_manager: SessionManager,
         timezone: str = "UTC",
+        module_resolver: Any = None,
     ) -> None:
         """Initialize automation scheduler.
 
@@ -49,10 +51,12 @@ class AutomationScheduler:
             automation_manager: Manager for automation persistence
             session_manager: Manager for session lifecycle
             timezone: IANA timezone identifier for scheduling (e.g., "America/Los_Angeles")
+            module_resolver: BundleModuleResolver from Foundation (daemon-level)
         """
         self.automation_manager = automation_manager
         self.session_manager = session_manager
         self.timezone = timezone
+        self.module_resolver = module_resolver
         self.scheduler = AsyncIOScheduler(timezone=timezone)
         self._running = False
         logger.info(f"Automation scheduler initialized with timezone: {timezone}")
@@ -370,7 +374,7 @@ class AutomationScheduler:
 
             # Create session in automation's project
             # Note: We need to load the project metadata to get the default bundle
-            from amplifier_library.config.loader import load_config
+            from lakehouse_library.config.loader import load_config
 
             from ..services.project_service import ProjectService
 
@@ -382,8 +386,8 @@ class AutomationScheduler:
             if not project:
                 raise ValueError(f"Project directory not found: {automation.project_id}")
 
-            # Get bundle name from project metadata (try default_bundle, fallback to default_profile)
-            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_profile")
+            # Get bundle name from project metadata (try default_bundle, fallback to default_bundle)
+            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_bundle")
             if not bundle_name:
                 raise ValueError(f"No default_bundle set for project: {automation.project_id}")
 
@@ -391,7 +395,7 @@ class AutomationScheduler:
             absolute_project_path = str((data_path / automation.project_id).resolve())
 
             # Generate mount plan using bundle manager
-            from amplifier_library.bundles import LakehouseBundleManager
+            from lakehouse_library.bundles import LakehouseBundleManager
 
             from ..config.loader import load_secrets
 
@@ -451,7 +455,7 @@ class AutomationScheduler:
                 )
 
             # Convert to library SessionMetadata for execution
-            from amplifier_library.models.sessions import SessionMetadata as LibrarySessionMetadata
+            from lakehouse_library.models.sessions import SessionMetadata as LibrarySessionMetadata
 
             session_metadata = self.session_manager.get_session(session_id)
             if not session_metadata:
@@ -475,7 +479,7 @@ class AutomationScheduler:
             from ..services.session_stream_registry import get_stream_registry
 
             registry = get_stream_registry()
-            manager = await registry.get_or_create(session_id, mount_plan)
+            manager = await registry.get_or_create(session_id, mount_plan, self.module_resolver)
 
             # Get runner
             runner = await manager.get_runner(session)

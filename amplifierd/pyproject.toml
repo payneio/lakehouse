@@ -9,7 +9,7 @@ description = "Amplifier daemon - HTTP API for the Amplifier AI platform"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "amplifier-library",
+    "lakehouse-library",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
@@ -43,7 +43,7 @@ members = []
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
-amplifier-library = { path = "../amplifier_library", editable = true }
+lakehouse-library = { path = "../lakehouse_library", editable = true }
 
 [dependency-groups]
 dev = [

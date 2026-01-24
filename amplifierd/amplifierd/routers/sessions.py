@@ -20,11 +20,11 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
 
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
-from amplifier_library.sessions.manager import SessionManager as SessionStateService
-from amplifier_library.storage import get_state_dir
+from lakehouse_library.models.sessions import SessionMessage
+from lakehouse_library.models.sessions import SessionMetadata
+from lakehouse_library.models.sessions import SessionStatus
+from lakehouse_library.sessions.manager import SessionManager as SessionStateService
+from lakehouse_library.storage import get_state_dir
 
 from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
@@ -147,7 +147,7 @@ def _get_lakehouse_context() -> str:
         Lakehouse context string, or empty string if unavailable
     """
     try:
-        from amplifier_library.storage import get_share_dir
+        from lakehouse_library.storage import get_share_dir
 
         share_dir = get_share_dir()
         lakehouse_context_file = share_dir / "lakehouse.md"
@@ -272,7 +272,7 @@ async def create_session(
         # Get data root from daemon config
         from pathlib import Path
 
-        from amplifier_library.config.loader import load_config
+        from lakehouse_library.config.loader import load_config
 
         config = load_config()
         data_path = Path(config.data_path)
@@ -289,9 +289,9 @@ async def create_session(
                 detail=f"Directory '{project_path}' is not a project. Create it first using POST /api/v1/projects/",
             )
 
-        # If no bundle specified, use directory's default_bundle (or legacy default_profile)
+        # If no bundle specified, use directory's default_bundle (or legacy default_bundle)
         if not bundle_name:
-            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_profile")
+            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_bundle")
             if not bundle_name:
                 raise HTTPException(
                     status_code=400,
@@ -302,7 +302,7 @@ async def create_session(
         absolute_project_path = str((Path(data_path) / project_path).resolve())
 
         # Generate mount plan using bundle manager
-        from amplifier_library.bundles import LakehouseBundleManager
+        from lakehouse_library.bundles import LakehouseBundleManager
 
         from ..startup import get_registry_bundles
 
@@ -411,7 +411,7 @@ def _clone_single_session(
     """
     import uuid
 
-    from amplifier_library.config.loader import load_config
+    from lakehouse_library.config.loader import load_config
 
     state_dir = get_state_dir()
     source_session_dir = state_dir / "sessions" / source_session.session_id
@@ -1480,8 +1480,8 @@ async def change_session_bundle(
             )
 
         # 2. Generate new mount plan using bundle manager
-        from amplifier_library.bundles import LakehouseBundleManager
-        from amplifier_library.config.loader import load_config
+        from lakehouse_library.bundles import LakehouseBundleManager
+        from lakehouse_library.config.loader import load_config
 
         from ..startup import get_registry_bundles
 

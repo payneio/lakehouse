@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionStatus
+from lakehouse_library.models.sessions import SessionMetadata
+from lakehouse_library.models.sessions import SessionStatus
 from amplifierd.main import app
 from amplifierd.routers.sessions import get_session_state_service
 
@@ -42,7 +42,7 @@ def mock_mount_plan() -> dict:
         "format_version": "1.0",
         "session": {
             "session_id": "test_session_123",
-            "profile_id": "foundation/base",
+            "bundle_id": "foundation/base",
             "created_at": datetime.now(UTC).isoformat(),
             "settings": {},
         },
@@ -140,10 +140,10 @@ def mock_project_service(mock_mount_plan: dict):
             "amplifierd.services.project_service.ProjectService",
             return_value=mock_service
         ), patch(
-            "amplifier_library.bundles.LakehouseBundleManager",
+            "lakehouse_library.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager
         ), patch(
-            "amplifier_library.storage.get_share_dir",
+            "lakehouse_library.storage.get_share_dir",
             return_value=share_dir
         ):
             yield
@@ -243,7 +243,7 @@ class TestSessionsAPI:
             mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
 
             monkeypatch.setattr(
-                "amplifier_library.bundles.LakehouseBundleManager",
+                "lakehouse_library.bundles.LakehouseBundleManager",
                 lambda *args, **kwargs: mock_bundle_manager
             )
 
@@ -453,7 +453,7 @@ class TestSessionsAPI:
     def test_get_transcript_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test GET /api/v1/sessions/{session_id}/transcript returns messages."""
         # Setup mock to return messages
-        from amplifier_library.models.sessions import SessionMessage
+        from lakehouse_library.models.sessions import SessionMessage
 
         mock_session_state_service.get_transcript.return_value = [
             SessionMessage(
@@ -608,7 +608,7 @@ class TestSessionsAPI:
             mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
 
             monkeypatch.setattr(
-                "amplifier_library.bundles.LakehouseBundleManager",
+                "lakehouse_library.bundles.LakehouseBundleManager",
                 lambda *args, **kwargs: mock_bundle_manager
             )
 

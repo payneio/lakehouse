@@ -12,7 +12,7 @@ class Project(BaseModel):
 
     Contract:
     - relative_path: Path relative to AMPLIFIERD_DATA_PATH
-    - default_profile: Default profile for new sessions (extracted from metadata)
+    - default_bundle: Default bundle for new sessions (extracted from metadata)
     - metadata: User-defined metadata
     - created_at: Directory registration timestamp
     - last_used_at: Last session creation timestamp
@@ -21,7 +21,7 @@ class Project(BaseModel):
 
     Metadata schema:
     {
-        "default_profile": "foundation/foundation",  # Required: profile for new sessions
+        "default_bundle": "foundation/foundation",  # Required: bundle for new sessions
         "name": "Project Name",                      # Optional: human-readable name
         "description": "...",                        # Optional: description
         ... other user-defined fields
@@ -29,7 +29,7 @@ class Project(BaseModel):
     """
 
     relative_path: str = Field(..., description="Path relative to AMPLIFIERD_DATA_PATH")
-    default_profile: str | None = Field(None, description="Default profile for new sessions")
+    default_bundle: str | None = Field(None, description="Default bundle for new sessions")
     metadata: dict = Field(..., description="User metadata")
     agents_content: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -53,7 +53,7 @@ class ProjectCreate(BaseModel):
     """Request to create/register a new project"""
 
     relative_path: str
-    default_profile: str | None = None
+    default_bundle: str | None = None
     metadata: dict | None = None
     create_marker: bool = Field(default=True, description="Create .amplified if missing")
 
@@ -61,7 +61,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     """Request to update project metadata"""
 
-    default_profile: str | None = None
+    default_bundle: str | None = None
     metadata: dict | None = None
 
 

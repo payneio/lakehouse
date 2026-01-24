@@ -58,7 +58,7 @@ async def _sync_system_bundles() -> None:
     Note: This does NOT download files. Foundation handles git cloning/caching
     when bundles are actually loaded, preserving full repo structure.
     """
-    from amplifier_library.storage.paths import get_bundles_dir
+    from lakehouse_library.storage.paths import get_bundles_dir
 
     bundles_dir = get_bundles_dir()  # ~/.amplifierd/share/bundles/
     bundles_file = bundles_dir / "BUNDLES.txt"

@@ -95,7 +95,7 @@ class TestProjectService:
 
         # Verify result
         assert result.relative_path == "test_project"
-        assert "default_profile" in result.metadata
+        assert "default_bundle" in result.metadata
         assert result.created_at is not None
         assert result.last_used_at is None
 
@@ -105,15 +105,15 @@ class TestProjectService:
         assert (test_root / "test_project" / ".amplified" / "metadata.json").exists()
 
     def test_create_with_explicit_profile(self, service: ProjectService) -> None:
-        """Test creating directory with explicit default_profile."""
+        """Test creating directory with explicit default_bundle."""
         create_req = ProjectCreate(
             relative_path="custom_project",
-            default_profile="developer-expertise/dev",
+            default_bundle="developer-expertise/dev",
         )
 
         result = service.create(create_req)
 
-        assert result.metadata["default_profile"] == "developer-expertise/dev"
+        assert result.metadata["default_bundle"] == "developer-expertise/dev"
 
     def test_create_with_custom_metadata(self, service: ProjectService) -> None:
         """Test creating directory with additional metadata."""
@@ -131,7 +131,7 @@ class TestProjectService:
         assert result.metadata["name"] == "My Project"
         assert result.metadata["description"] == "Test project"
         assert result.metadata["tags"] == ["test", "example"]
-        assert "default_profile" in result.metadata  # Should still be set
+        assert "default_bundle" in result.metadata  # Should still be set
 
     def test_create_with_explicit_marker_flag(self, service: ProjectService, test_root: Path) -> None:
         """Test that create_marker flag controls marker directory creation."""
@@ -171,7 +171,7 @@ class TestProjectService:
         assert result is not None
         assert result.relative_path == "to_retrieve"
         assert result.metadata["name"] == "Retrievable"
-        assert result.metadata["default_profile"] == created.metadata["default_profile"]
+        assert result.metadata["default_bundle"] == created.metadata["default_bundle"]
 
     def test_get_nonexistent_returns_none(self, service: ProjectService) -> None:
         """Test that getting non-existent directory returns None."""
@@ -224,7 +224,7 @@ class TestProjectService:
             metadata={
                 "name": "Updated",
                 "description": "New description",
-                "default_profile": "foundation/base",
+                "default_bundle": "foundation/base",
             }
         )
         result = service.update("to_update", update_req)
@@ -232,7 +232,7 @@ class TestProjectService:
         assert result is not None
         assert result.metadata["name"] == "Updated"
         assert result.metadata["description"] == "New description"
-        assert result.metadata["default_profile"] == "foundation/base"
+        assert result.metadata["default_bundle"] == "foundation/base"
 
     def test_update_nonexistent_returns_none(self, service: ProjectService) -> None:
         """Test that updating non-existent directory returns None."""
@@ -307,79 +307,79 @@ class TestProjectService:
         """Test that explicit profile is used when provided."""
         create_req = ProjectCreate(
             relative_path="explicit",
-            default_profile="custom/profile",
+            default_bundle="custom/profile",
         )
 
         result = service.create(create_req)
 
-        assert result.metadata["default_profile"] == "custom/profile"
+        assert result.metadata["default_bundle"] == "custom/profile"
 
     def test_inherits_from_parent_directory(self, service: ProjectService, test_root: Path) -> None:
-        """Test that child inherits default_profile from parent."""
-        # Create parent with explicit profile
+        """Test that child inherits default_bundle from parent."""
+        # Create parent with explicit bundle
         parent_req = ProjectCreate(
             relative_path="parent",
-            default_profile="parent/profile",
+            default_bundle="parent/profile",
         )
         service.create(parent_req)
 
-        # Create child without explicit profile
+        # Create child without explicit bundle
         child_req = ProjectCreate(relative_path="parent/child")
         child = service.create(child_req)
 
-        assert child.metadata["default_profile"] == "parent/profile"
+        assert child.metadata["default_bundle"] == "parent/profile"
 
     def test_inherits_from_root_when_no_parent(self, service: ProjectService, test_root: Path) -> None:
         """Test that directory inherits from root when no parent amplified."""
         # Amplify root first
         root_req = ProjectCreate(
             relative_path=".",
-            default_profile="root/profile",
+            default_bundle="root/profile",
         )
         service.create(root_req)
 
-        # Create directory without explicit profile (no intermediate parent)
+        # Create directory without explicit bundle (no intermediate parent)
         child_req = ProjectCreate(relative_path="orphan")
         child = service.create(child_req)
 
-        assert child.metadata["default_profile"] == "root/profile"
+        assert child.metadata["default_bundle"] == "root/profile"
 
-    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_PROFILE": "env/profile"})
+    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_BUNDLE": "env/profile"})
     def test_root_uses_env_var_default(self, service: ProjectService) -> None:
         """Test that root uses environment variable for default profile."""
         create_req = ProjectCreate(relative_path="project")
 
         result = service.create(create_req)
 
-        assert result.metadata["default_profile"] == "env/profile"
+        assert result.metadata["default_bundle"] == "env/profile"
 
     def test_nested_inheritance_chain(self, service: ProjectService) -> None:
         """Test inheritance through multiple levels."""
         # Create grandparent
         grandparent_req = ProjectCreate(
             relative_path="grandparent",
-            default_profile="grandparent/profile",
+            default_bundle="grandparent/profile",
         )
         service.create(grandparent_req)
 
         # Create parent (inherits from grandparent)
         parent_req = ProjectCreate(relative_path="grandparent/parent")
         parent = service.create(parent_req)
-        assert parent.metadata["default_profile"] == "grandparent/profile"
+        assert parent.metadata["default_bundle"] == "grandparent/profile"
 
         # Create child (inherits from parent)
         child_req = ProjectCreate(relative_path="grandparent/parent/child")
         child = service.create(child_req)
-        assert child.metadata["default_profile"] == "grandparent/profile"
+        assert child.metadata["default_bundle"] == "grandparent/profile"
 
         # Now update parent to have different profile
-        parent_update = ProjectUpdate(metadata={"default_profile": "parent/profile"})
+        parent_update = ProjectUpdate(metadata={"default_bundle": "parent/profile"})
         service.update("grandparent/parent", parent_update)
 
         # Create new child (should inherit parent's updated profile)
         child2_req = ProjectCreate(relative_path="grandparent/parent/child2")
         child2 = service.create(child2_req)
-        assert child2.metadata["default_profile"] == "parent/profile"
+        assert child2.metadata["default_bundle"] == "parent/profile"
 
     # --- Edge Cases ---
 
@@ -427,9 +427,9 @@ class TestProjectService:
 
         assert result is None
 
-    def test_missing_default_profile_in_metadata(self, service: ProjectService, test_root: Path) -> None:
-        """Test handling of project missing default_profile."""
-        # Create directory manually without default_profile
+    def test_missing_default_bundle_in_metadata(self, service: ProjectService, test_root: Path) -> None:
+        """Test handling of project missing default_bundle."""
+        # Create directory manually without default_bundle
         marker_path = test_root / "no_profile" / ".amplified"
         marker_path.mkdir(parents=True)
 
@@ -441,7 +441,7 @@ class TestProjectService:
 
         assert result is not None
         assert result.metadata["name"] == "No Profile"
-        assert "default_profile" not in result.metadata
+        assert "default_bundle" not in result.metadata
 
     def test_special_characters_in_path(self, service: ProjectService) -> None:
         """Test paths with special but valid characters."""
@@ -520,7 +520,7 @@ class TestProjectService:
 
         # Update with new metadata (merging with existing)
         update_req = ProjectUpdate(
-            metadata={"field1": "updated", "field3": "value3", "default_profile": "foundation/base"}
+            metadata={"field1": "updated", "field3": "value3", "default_bundle": "foundation/base"}
         )
         result = service.update("preserve", update_req)
 
@@ -558,7 +558,7 @@ class TestProjectService:
         tmp_path = metadata_path.with_suffix(".tmp")
 
         # Update metadata
-        update_req = ProjectUpdate(metadata={"test": "atomic", "default_profile": "foundation/base"})
+        update_req = ProjectUpdate(metadata={"test": "atomic", "default_bundle": "foundation/base"})
         service.update("atomic", update_req)
 
         # Verify tmp file doesn't exist after successful write

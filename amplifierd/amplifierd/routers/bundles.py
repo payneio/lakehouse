@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/v1/bundles", tags=["bundles"])
 
 def _get_bundle_manager():
     """Get the bundle manager instance."""
-    from amplifier_library.bundles import LakehouseBundleManager
+    from lakehouse_library.bundles import LakehouseBundleManager
 
     from ..startup import get_registry_bundles
 

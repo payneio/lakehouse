@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from amplifier_library.config.loader import load_config
+from lakehouse_library.config.loader import load_config
 
 from .config.loader import load_config as load_daemon_config
 from .routers import automations_router
@@ -60,13 +60,13 @@ async def lifespan(app: FastAPI):
 
         # Ensure root is a project
         if not project_service.is_project("."):
-            default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
-            logger.info(f"Auto-creating root project with profile: {default_profile}")
+            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+            logger.info(f"Auto-creating root project with profile: {default_bundle}")
 
             project_service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile=default_profile,
+                    default_bundle=default_bundle,
                     metadata={
                         "name": "root",
                         "description": "Root project (auto-created)",
@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
     try:
         from amplifier_foundation.modules.activator import ModuleActivator
 
-        from amplifier_library.storage.paths import get_cache_dir
+        from lakehouse_library.storage.paths import get_cache_dir
 
         cache_dir = get_cache_dir()
         activator = ModuleActivator(cache_dir=cache_dir, install_deps=True)
@@ -118,9 +118,9 @@ async def lifespan(app: FastAPI):
     # Initialize automation scheduler
     scheduler = None
     try:
-        from amplifier_library.automations.manager import AutomationManager
-        from amplifier_library.sessions.manager import SessionManager
-        from amplifier_library.storage import get_state_dir
+        from lakehouse_library.automations.manager import AutomationManager
+        from lakehouse_library.sessions.manager import SessionManager
+        from lakehouse_library.storage import get_state_dir
 
         from .services.automation_scheduler import AutomationScheduler
 
@@ -135,6 +135,7 @@ async def lifespan(app: FastAPI):
             automation_manager=automation_manager,
             session_manager=session_manager,
             timezone=scheduler_timezone,
+            module_resolver=resolver,
         )
         await scheduler.start()
         logger.info(f"Automation scheduler started with timezone: {scheduler_timezone}")

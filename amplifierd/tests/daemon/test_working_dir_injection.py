@@ -20,7 +20,7 @@ def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:
     test_dir = data_root / "test_project"
     test_dir.mkdir()
 
-    # Call the internal mount plan builder with a minimal profile
+    # Call the internal mount plan builder with a minimal bundle
     mount_plan = {
         "session": {"settings": {}},
         "tools": [

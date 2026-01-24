@@ -105,7 +105,7 @@ class SessionConfig(CamelCaseModel):
 
     Attributes:
         session_id: Unique session identifier (UUID)
-        profile_id: Profile used to generate this mount plan
+        bundle_id: Bundle used to generate this mount plan
         parent_session_id: Parent session ID for sub-sessions/delegation
         settings: Session-level settings (max_turns, streaming, etc.)
         created_at: ISO format datetime when session was created
@@ -113,7 +113,7 @@ class SessionConfig(CamelCaseModel):
     Example:
         >>> config = SessionConfig(
         ...     session_id="sess_abc123",
-        ...     profile_id="foundation.base",
+        ...     bundle_id="foundation.base",
         ...     parent_session_id=None,
         ...     settings={"max_turns": 10, "streaming": True},
         ...     created_at="2025-01-25T10:30:00Z"
@@ -121,7 +121,7 @@ class SessionConfig(CamelCaseModel):
     """
 
     session_id: str = Field(description="Unique session identifier")
-    profile_id: str = Field(description="Profile ID that generated this mount plan")
+    bundle_id: str = Field(description="Bundle ID that generated this mount plan")
     parent_session_id: str | None = Field(
         default=None,
         description="Parent session ID for sub-sessions",
@@ -272,29 +272,29 @@ class MountPlan(CamelCaseModel):
 
 
 class MountPlanRequest(CamelCaseModel):
-    """Request to generate a mount plan from a cached profile.
+    """Request to generate a mount plan from a cached bundle.
 
     This is the input model for the mount plan generation API. It specifies
-    which profile to use and any session-specific customizations.
+    which bundle to use and any session-specific customizations.
 
     Attributes:
-        profile_id: ID of the cached profile to use
+        bundle_id: ID of the cached bundle to use
         project_path: Absolute path to project directory (for @mention resolution)
         session_id: Optional explicit session ID (generated if not provided)
         parent_session_id: Parent session for sub-sessions/delegation
-        settings_overrides: Session-specific settings that override profile defaults
+        settings_overrides: Session-specific settings that override bundle defaults
         agent_overlay: Optional agent customizations for sub-sessions
 
     Example:
         >>> request = MountPlanRequest(
-        ...     profile_id="foundation.base",
+        ...     bundle_id="foundation.base",
         ...     project_path="/data/projects/my-project",
         ...     session_id="sess_abc123",
         ...     settings_overrides={"max_turns": 20, "streaming": False}
         ... )
     """
 
-    profile_id: str = Field(description="Profile ID to generate mount plan from")
+    bundle_id: str = Field(description="Bundle ID to generate mount plan from")
     project_path: str = Field(description="Absolute path to project directory (for @mention resolution)")
     session_id: str | None = Field(
         default=None,
@@ -322,7 +322,7 @@ class MountPlanSummary(CamelCaseModel):
 
     Attributes:
         session_id: Session identifier
-        profile_id: Profile used for this mount plan
+        bundle_id: Bundle used for this mount plan
         created_at: ISO format datetime of creation
         mount_point_count: Total number of mount points
         module_types: Count of each module type (e.g., {"agent": 3, "provider": 2})
@@ -330,7 +330,7 @@ class MountPlanSummary(CamelCaseModel):
     Example:
         >>> summary = MountPlanSummary(
         ...     session_id="sess_abc123",
-        ...     profile_id="foundation.base",
+        ...     bundle_id="foundation.base",
         ...     created_at="2025-01-25T10:30:00Z",
         ...     mount_point_count=15,
         ...     module_types={"agent": 5, "context": 2, "provider": 3, "tool": 4, "hook": 1}
@@ -338,7 +338,7 @@ class MountPlanSummary(CamelCaseModel):
     """
 
     session_id: str = Field(description="Session identifier")
-    profile_id: str = Field(description="Profile ID used for this mount plan")
+    bundle_id: str = Field(description="Bundle ID used for this mount plan")
     created_at: str = Field(description="ISO format datetime of creation")
     mount_point_count: int = Field(description="Total number of mount points")
     module_types: dict[str, int] = Field(

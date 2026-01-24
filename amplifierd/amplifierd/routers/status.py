@@ -6,8 +6,9 @@ Provides health check and status information.
 import logging
 import time
 
-from amplifier_library.config.loader import load_config
 from fastapi import APIRouter
+
+from lakehouse_library.config.loader import load_config
 
 from ..models import StatusResponse
 

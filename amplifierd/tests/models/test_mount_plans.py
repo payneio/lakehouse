@@ -126,14 +126,14 @@ class TestSessionConfig:
         """Test creating valid session config."""
         config = SessionConfig(
             session_id="sess_abc123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             parent_session_id=None,
             settings={"max_turns": 10, "streaming": True},
             created_at="2025-01-25T10:30:00Z",
         )
 
         assert config.session_id == "sess_abc123"
-        assert config.profile_id == "foundation.base"
+        assert config.bundle_id == "foundation.base"
         assert config.parent_session_id is None
         assert config.settings["max_turns"] == 10
         assert config.created_at == "2025-01-25T10:30:00Z"
@@ -142,7 +142,7 @@ class TestSessionConfig:
         """Test session config with parent session ID."""
         config = SessionConfig(
             session_id="sess_child",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             parent_session_id="sess_parent",
             settings={},
             created_at="2025-01-25T10:30:00Z",
@@ -154,7 +154,7 @@ class TestSessionConfig:
         """Test that settings default to empty dict."""
         config = SessionConfig(
             session_id="sess_123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -168,7 +168,7 @@ class TestMountPlan:
         """Test creating mount plan with no mount points."""
         session_config = SessionConfig(
             session_id="sess_empty",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -201,7 +201,7 @@ class TestMountPlan:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -242,7 +242,7 @@ class TestMountPlan:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -279,7 +279,7 @@ class TestMountPlan:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -302,7 +302,7 @@ class TestMountPlan:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="test.profile",
+            bundle_id="test.profile",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -322,9 +322,9 @@ class TestMountPlanRequest:
 
     def test_minimal_request(self) -> None:
         """Test request with only required fields."""
-        request = MountPlanRequest(profile_id="foundation.base", project_path="/tmp/test")
+        request = MountPlanRequest(bundle_id="foundation.base", project_path="/tmp/test")
 
-        assert request.profile_id == "foundation.base"
+        assert request.bundle_id == "foundation.base"
         assert request.project_path == "/tmp/test"
         assert request.session_id is None
         assert request.parent_session_id is None
@@ -334,7 +334,7 @@ class TestMountPlanRequest:
     def test_full_request(self) -> None:
         """Test request with all fields."""
         request = MountPlanRequest(
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             project_path="/tmp/test",
             session_id="sess_custom",
             parent_session_id="sess_parent",
@@ -342,7 +342,7 @@ class TestMountPlanRequest:
             agent_overlay={"custom": "config"},
         )
 
-        assert request.profile_id == "foundation.base"
+        assert request.bundle_id == "foundation.base"
         assert request.project_path == "/tmp/test"
         assert request.session_id == "sess_custom"
         assert request.parent_session_id == "sess_parent"
@@ -357,14 +357,14 @@ class TestMountPlanSummary:
         """Test creating mount plan summary."""
         summary = MountPlanSummary(
             session_id="sess_abc123",
-            profile_id="foundation.base",
+            bundle_id="foundation.base",
             created_at="2025-01-25T10:30:00Z",
             mount_point_count=15,
             module_types={"agent": 5, "context": 2, "provider": 3, "tool": 4, "hook": 1},
         )
 
         assert summary.session_id == "sess_abc123"
-        assert summary.profile_id == "foundation.base"
+        assert summary.bundle_id == "foundation.base"
         assert summary.mount_point_count == 15
         assert summary.module_types["agent"] == 5
         assert sum(summary.module_types.values()) == 15
@@ -373,7 +373,7 @@ class TestMountPlanSummary:
         """Test summary with no module types."""
         summary = MountPlanSummary(
             session_id="sess_empty",
-            profile_id="test.profile",
+            bundle_id="test.profile",
             created_at="2025-01-25T10:30:00Z",
             mount_point_count=0,
             module_types={},
@@ -398,7 +398,7 @@ class TestDiscriminatedUnion:
         # Parse as MountPlan to test discriminated union
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="test",
+            bundle_id="test",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -422,7 +422,7 @@ class TestDiscriminatedUnion:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="test",
+            bundle_id="test",
             created_at="2025-01-25T10:30:00Z",
         )
 
@@ -446,7 +446,7 @@ class TestDiscriminatedUnion:
 
         session_config = SessionConfig(
             session_id="sess_123",
-            profile_id="test",
+            bundle_id="test",
             created_at="2025-01-25T10:30:00Z",
         )
 

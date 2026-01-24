@@ -7,9 +7,9 @@ Tests ExecutionRunner with mocked amplifier-core to avoid real LLM calls.
 import pytest
 from unittest.mock import Mock
 
-from amplifier_library.execution.runner import ExecutionRunner
-from amplifier_library.models import Session
-from amplifier_library.sessions import state
+from lakehouse_library.execution.runner import ExecutionRunner
+from lakehouse_library.models import Session
+from lakehouse_library.sessions import state
 
 
 @pytest.fixture

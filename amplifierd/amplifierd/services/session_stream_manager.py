@@ -12,14 +12,15 @@ which writes to events.jsonl. Trace is aggregated on-the-fly when requested.
 import asyncio
 import logging
 from typing import TYPE_CHECKING
+from typing import Any
 
-from amplifier_library.execution.runner import ExecutionRunner
+from lakehouse_library.execution.runner import ExecutionRunner
 
 from ..hooks import StreamingHookRegistry
 from ..streaming import EventQueueEmitter  # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
-    from amplifier_library.models import Session
+    from lakehouse_library.models import Session
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class SessionStreamManager:
     One instance per active session with SSE connections.
     """
 
-    def __init__(self: "SessionStreamManager", session_id: str, mount_plan: dict, resolver: any) -> None:
+    def __init__(self: "SessionStreamManager", session_id: str, mount_plan: dict, resolver: Any) -> None:
         """Initialize session stream manager.
 
         Args:
@@ -73,8 +74,8 @@ class SessionStreamManager:
         """
         if self._runner is None:
             # Import here to avoid circular dependency
-            from amplifier_library.sessions.manager import SessionManager
-            from amplifier_library.storage.paths import get_state_dir
+            from lakehouse_library.sessions.manager import SessionManager
+            from lakehouse_library.storage.paths import get_state_dir
 
             # Create session manager
             state_dir = get_state_dir()

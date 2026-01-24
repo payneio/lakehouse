@@ -29,12 +29,12 @@ class TestStartupInitialization:
         """Test that root directory is auto-amplified on daemon startup."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
+            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile=default_profile,
+                    default_bundle=default_bundle,
                     metadata={
                         "name": "root",
                         "description": "Root amplified directory (auto-created)",
@@ -52,24 +52,24 @@ class TestStartupInitialization:
         assert root_dir is not None
         assert root_dir.metadata["name"] == "root"
         assert root_dir.metadata["auto_created"] is True
-        assert "default_profile" in root_dir.metadata
+        assert "default_bundle" in root_dir.metadata
 
         # Verify marker exists
         marker_path = test_root / ".amplified"
         assert marker_path.exists()
         assert marker_path.is_dir()
 
-    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_PROFILE": "custom/profile"})
-    def test_root_uses_env_var_profile(self, service: ProjectService) -> None:
-        """Test that root uses AMPLIFIERD_DEFAULT_PROFILE environment variable."""
+    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_BUNDLE": "custom/profile"})
+    def test_root_uses_env_var_bundle(self, service: ProjectService) -> None:
+        """Test that root uses AMPLIFIERD_DEFAULT_BUNDLE environment variable."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
+            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile=default_profile,
+                    default_bundle=default_bundle,
                     metadata={
                         "name": "root",
                         "description": "Root amplified directory (auto-created)",
@@ -78,10 +78,10 @@ class TestStartupInitialization:
                 )
             )
 
-        # Verify profile from environment
+        # Verify bundle from environment
         root_dir = service.get(".")
         assert root_dir is not None
-        assert root_dir.metadata["default_profile"] == "custom/profile"
+        assert root_dir.metadata["default_bundle"] == "custom/profile"
 
     def test_startup_idempotent(self, service: ProjectService) -> None:
         """Test that startup logic is idempotent (safe to run multiple times)."""
@@ -90,7 +90,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile="foundation/foundation",
+                    default_bundle="foundation/foundation",
                     metadata={
                         "name": "root",
                         "auto_created": True,
@@ -109,7 +109,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile="foundation/foundation",
+                    default_bundle="foundation/foundation",
                     metadata={
                         "name": "root",
                         "auto_created": True,
@@ -128,7 +128,7 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_profile="existing/profile",
+                default_bundle="existing/profile",
                 metadata={"name": "Existing Root"},
             )
         )
@@ -165,7 +165,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile="foundation/foundation",
+                    default_bundle="foundation/foundation",
                     metadata={"name": "root"},
                     create_marker=True,
                 )
@@ -181,19 +181,19 @@ class TestStartupInitialization:
         assert metadata_path.is_file()
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_startup_default_profile_fallback(self, service: ProjectService) -> None:
-        """Test that startup uses fallback profile when env var not set."""
-        # Ensure AMPLIFIERD_DEFAULT_PROFILE is not set
-        assert "AMPLIFIERD_DEFAULT_PROFILE" not in os.environ
+    def test_startup_default_bundle_fallback(self, service: ProjectService) -> None:
+        """Test that startup uses fallback bundle when env var not set."""
+        # Ensure AMPLIFIERD_DEFAULT_BUNDLE is not set
+        assert "AMPLIFIERD_DEFAULT_BUNDLE" not in os.environ
 
         # Simulate startup
         if not service.is_project("."):
-            default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
+            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile=default_profile,
+                    default_bundle=default_bundle,
                     metadata={"name": "root"},
                 )
             )
@@ -201,7 +201,7 @@ class TestStartupInitialization:
         # Verify fallback was used
         root_dir = service.get(".")
         assert root_dir is not None
-        assert root_dir.metadata["default_profile"] == "foundation/foundation"
+        assert root_dir.metadata["default_bundle"] == "foundation/foundation"
 
     def test_startup_preserves_existing_root_metadata(self, service: ProjectService) -> None:
         """Test that startup doesn't overwrite existing root metadata."""
@@ -209,7 +209,7 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_profile="custom/profile",
+                default_bundle="custom/profile",
                 metadata={
                     "name": "Custom Root",
                     "version": 1,
@@ -228,7 +228,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile="foundation/foundation",
+                    default_bundle="foundation/foundation",
                     metadata={"name": "root"},
                 )
             )
@@ -247,12 +247,12 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_profile="root/profile",
+                default_bundle="root/profile",
                 metadata={"name": "root"},
             )
         )
 
-        # Create child directory without explicit profile
+        # Create child directory without explicit bundle
         child = service.create(
             ProjectCreate(
                 relative_path="child_project",
@@ -260,7 +260,7 @@ class TestStartupInitialization:
         )
 
         # Verify child inherited from root
-        assert child.metadata["default_profile"] == "root/profile"
+        assert child.metadata["default_bundle"] == "root/profile"
 
     def test_startup_error_doesnt_crash_daemon(self, service: ProjectService, test_root: Path) -> None:
         """Test that startup errors don't crash the daemon."""
@@ -274,7 +274,7 @@ class TestStartupInitialization:
                     service.create(
                         ProjectCreate(
                             relative_path=".",
-                            default_profile="foundation/foundation",
+                            default_bundle="foundation/foundation",
                             metadata={"name": "root"},
                         )
                     )
@@ -296,7 +296,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_profile="foundation/foundation",
+                    default_bundle="foundation/foundation",
                     metadata={"name": "root", "startup_count": 1},
                 )
             )
@@ -316,4 +316,4 @@ class TestStartupInitialization:
         # Verify state is consistent
         assert state_after_multiple.relative_path == state_after_first.relative_path
         assert state_after_multiple.metadata["name"] == state_after_first.metadata["name"]
-        assert state_after_multiple.metadata["default_profile"] == state_after_first.metadata["default_profile"]
+        assert state_after_multiple.metadata["default_bundle"] == state_after_first.metadata["default_bundle"]

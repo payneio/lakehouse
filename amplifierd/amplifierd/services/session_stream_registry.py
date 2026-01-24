@@ -11,7 +11,7 @@ from datetime import datetime
 from datetime import timedelta
 from typing import Any
 
-from amplifier_library.execution.runner import ExecutionRunner
+from lakehouse_library.execution.runner import ExecutionRunner
 
 from .session_stream_manager import SessionStreamManager
 
@@ -130,8 +130,8 @@ class ExecutionRunnerRegistry:
         async with self._lock:
             if session_id not in self._runners:
                 # Import here to avoid circular dependency
-                from amplifier_library.sessions.manager import SessionManager
-                from amplifier_library.storage.paths import get_state_dir
+                from lakehouse_library.sessions.manager import SessionManager
+                from lakehouse_library.storage.paths import get_state_dir
 
                 # Create session manager
                 state_dir = get_state_dir()

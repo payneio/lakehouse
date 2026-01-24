@@ -3,12 +3,12 @@
 This module defines request and response models for the REST API.
 """
 
-from amplifier_library.models.sessions import SessionIndex
-from amplifier_library.models.sessions import SessionIndexEntry
-from amplifier_library.models.sessions import SessionMessage
-from amplifier_library.models.sessions import SessionMetadata
-from amplifier_library.models.sessions import SessionQuery
-from amplifier_library.models.sessions import SessionStatus
+from lakehouse_library.models.sessions import SessionIndex
+from lakehouse_library.models.sessions import SessionIndexEntry
+from lakehouse_library.models.sessions import SessionMessage
+from lakehouse_library.models.sessions import SessionMetadata
+from lakehouse_library.models.sessions import SessionQuery
+from lakehouse_library.models.sessions import SessionStatus
 
 from .bundles import BundleDetails
 from .bundles import BundleListItem
