@@ -35,15 +35,17 @@ class SessionStreamManager:
     One instance per active session with SSE connections.
     """
 
-    def __init__(self: "SessionStreamManager", session_id: str, mount_plan: dict) -> None:
+    def __init__(self: "SessionStreamManager", session_id: str, mount_plan: dict, resolver: any) -> None:
         """Initialize session stream manager.
 
         Args:
             session_id: Session identifier
             mount_plan: Amplifier configuration/mount plan
+            resolver: BundleModuleResolver from Foundation (daemon-level)
         """
         self.session_id = session_id
         self.mount_plan = mount_plan
+        self.resolver = resolver
 
         # Create streaming infrastructure
         self.emitter = EventQueueEmitter()
@@ -78,11 +80,12 @@ class SessionStreamManager:
             state_dir = get_state_dir()
             session_manager = SessionManager(state_dir)
 
-            # Create runner
+            # Create runner with daemon-level resolver
             self._runner = ExecutionRunner(
                 session_manager=session_manager,
                 config=self.mount_plan,
                 session_id=self.session_id,
+                resolver=self.resolver,
             )
             self._runner_initialized = False
             self._hooks_mounted = False

@@ -21,9 +21,15 @@ async def test_session_stream_manager_update_mount_plan(tmp_path) -> None:
         ]
     }
 
+    # Create mock resolver
+    from unittest.mock import Mock
+
+    mock_resolver = Mock()
+    mock_resolver.async_resolve = Mock()
+
     # Create manager
     session_id = "test-session"
-    manager = SessionStreamManager(session_id, initial_mount_plan)
+    manager = SessionStreamManager(session_id, initial_mount_plan, mock_resolver)
 
     # Verify initial state
     assert manager.mount_plan == initial_mount_plan
@@ -35,8 +41,9 @@ async def test_session_stream_manager_update_mount_plan(tmp_path) -> None:
     from amplifier_library.sessions.manager import SessionManager
 
     session_manager = SessionManager(tmp_path)
+
     manager._runner = ExecutionRunner(
-        session_manager=session_manager, config=initial_mount_plan, session_id=session_id
+        session_manager=session_manager, config=initial_mount_plan, session_id=session_id, resolver=mock_resolver
     )
     manager._runner_initialized = True
     original_runner = manager._runner
@@ -69,6 +76,8 @@ async def test_session_stream_manager_update_mount_plan(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_session_stream_registry_update_mount_plan() -> None:
     """Test SessionStreamRegistry.update_mount_plan() updates existing manager."""
+    from unittest.mock import Mock
+
     registry = SessionStreamRegistry()
 
     initial_mount_plan = {
@@ -77,8 +86,12 @@ async def test_session_stream_registry_update_mount_plan() -> None:
 
     session_id = "test-session-2"
 
+    # Create mock resolver
+    mock_resolver = Mock()
+    mock_resolver.async_resolve = Mock()
+
     # Create manager
-    manager = await registry.get_or_create(session_id, initial_mount_plan)
+    manager = await registry.get_or_create(session_id, initial_mount_plan, mock_resolver)
     assert manager.mount_plan == initial_mount_plan
 
     # Update via registry

@@ -20,17 +20,26 @@ def mock_session_manager() -> Mock:
     return session_manager
 
 
+@pytest.fixture
+def mock_resolver() -> Mock:
+    """Create mock BundleModuleResolver."""
+    resolver = Mock()
+    resolver.async_resolve = Mock()
+    return resolver
+
+
 @pytest.mark.unit
 class TestExecutionRunner:
     """Test ExecutionRunner operations."""
 
-    def test_execution_runner_init(self, mock_session_manager: Mock) -> None:
+    def test_execution_runner_init(self, mock_session_manager: Mock, mock_resolver: Mock) -> None:
         """Test ExecutionRunner initialization."""
         config = {"model": "gpt-4"}
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config=config,
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         assert runner.config == config
@@ -38,13 +47,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_adds_user_message(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test execute adds user message to session state."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         await runner.execute(sample_session, "Hello")
@@ -56,13 +66,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_adds_assistant_response(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test execute adds assistant response to session state."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         response = await runner.execute(sample_session, "Test prompt")
@@ -78,13 +89,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_returns_response(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test execute returns the assistant's response."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         response = await runner.execute(sample_session, "Test")
@@ -93,13 +105,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_creates_amplifier_session_once(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test execute creates AmplifierSession only once."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         assert runner._session is None
@@ -115,7 +128,7 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_handles_missing_amplifier_core(
-        self, sample_session: Session, mock_session_manager: Mock, monkeypatch
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, monkeypatch
     ) -> None:
         """Test execute raises helpful error if amplifier-core not installed."""
         # Remove the mock module
@@ -140,6 +153,7 @@ class TestExecutionRunner:
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         with pytest.raises(RuntimeError, match="amplifier-core is required"):
@@ -147,7 +161,7 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_execute_handles_execution_error(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test execute handles errors during execution gracefully."""
 
@@ -164,6 +178,7 @@ class TestExecutionRunner:
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
         runner._session = FailingSession()  # type: ignore[assignment]
 
@@ -178,13 +193,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_cleanup_clears_session(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test cleanup clears the internal AmplifierSession."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         await runner.execute(sample_session, "Test")
@@ -195,13 +211,14 @@ class TestExecutionRunner:
 
     @pytest.mark.asyncio
     async def test_multiple_executions_update_transcript(
-        self, sample_session: Session, mock_session_manager: Mock, mock_amplifier_module
+        self, sample_session: Session, mock_session_manager: Mock, mock_resolver: Mock, mock_amplifier_module
     ) -> None:
         """Test multiple executions build up the transcript."""
         runner = ExecutionRunner(
             session_manager=mock_session_manager,
             config={},
             session_id="test-session",
+            resolver=mock_resolver,
         )
 
         await runner.execute(sample_session, "First question")

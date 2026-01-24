@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Request
 from pydantic import BaseModel
 
 from amplifier_library.execution.runner import ExecutionRunner
@@ -92,8 +93,9 @@ async def send_message(
 @router.post("/send-message", status_code=202)
 async def send_message_for_execution(
     session_id: str,
-    request: SendMessageRequest,
+    message_request: SendMessageRequest,
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
+    request: Request,
 ) -> dict[str, str]:
     """Send message and trigger execution (SSE-only architecture).
 
@@ -164,13 +166,16 @@ async def send_message_for_execution(
         bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else project_path
 
         # Resolve runtime mentions (AGENTS.md + user message)
-        resolver = MentionResolver(
+        mention_resolver = MentionResolver(
             compiled_profile_dir=bundle_dir,
             project_path=project_path,
             data_dir=data_dir,
         )
-        runtime_context_messages = resolver.resolve_runtime_mentions(request.content)
+        runtime_context_messages = mention_resolver.resolve_runtime_mentions(message_request.content)
         logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
+
+        # Get module resolver from app state (daemon-level)
+        module_resolver = request.app.state.module_resolver
 
         # Get stream registry and update/create manager with fresh mount plan
         registry = get_stream_registry()
@@ -182,7 +187,7 @@ async def send_message_for_execution(
             logger.debug(f"Updated existing manager with fresh mount plan for session {session_id}")
         else:
             # Create new manager
-            manager = await registry.get_or_create(session_id, mount_plan)
+            manager = await registry.get_or_create(session_id, mount_plan, module_resolver)
 
         # Note: Don't save user message here - ExecutionRunner.execute_stream() does it
         # to avoid duplicates in transcript
@@ -190,7 +195,7 @@ async def send_message_for_execution(
         # Emit user_message_saved to ALL subscribers
         await manager.emitter.emit(
             "user_message_saved",
-            {"role": "user", "content": request.content, "timestamp": datetime.now(UTC).isoformat()},
+            {"role": "user", "content": message_request.content, "timestamp": datetime.now(UTC).isoformat()},
         )
 
         # Get runner (handles hook mounting internally via _hooks_mounted flag)
@@ -206,14 +211,14 @@ async def send_message_for_execution(
         if manager.hook_registry:
             await manager.hook_registry.emit(
                 "assistant_message:start",
-                {"user_message": request.content, "timestamp": datetime.now(UTC).isoformat()},
+                {"user_message": message_request.content, "timestamp": datetime.now(UTC).isoformat()},
             )
 
         # Execute in background task - don't block response
         async def execute_and_emit():
             try:
                 full_response = ""
-                async for token in runner.execute_stream(session, request.content, runtime_context_messages):
+                async for token in runner.execute_stream(session, message_request.content, runtime_context_messages):
                     full_response += token
                     # Emit each token to ALL subscribers
                     await manager.emitter.emit("content", {"type": "content", "content": token})

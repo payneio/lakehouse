@@ -225,12 +225,14 @@ async def spawn_agent(
             "amplifier-core is required for agent spawning. Install it with: pip install amplifier-core"
         ) from e
 
-    # Import module resolver
+    # Get resolver from parent session's coordinator
+    # The parent AmplifierSession already has a BundleModuleResolver mounted
     try:
-        from amplifier_library.storage.paths import get_share_dir
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-    except ImportError as e:
-        raise ExecutionError("Could not import required modules for agent execution") from e
+        parent_resolver = parent_session.coordinator.get_capability("module-source-resolver")
+        if not parent_resolver:
+            raise ExecutionError("Parent session has no module-source-resolver mounted")
+    except Exception as e:
+        raise ExecutionError(f"Could not get resolver from parent session: {e}") from e
 
     # Create and initialize AmplifierSession
     child_session = None
@@ -238,10 +240,8 @@ async def spawn_agent(
         # Create session
         child_session = AmplifierSession(merged_config, session_id=child_id)
 
-        # Mount resolver
-        share_dir = get_share_dir()
-        resolver = DaemonModuleSourceResolver(share_dir)
-        await child_session.coordinator.mount("module-source-resolver", resolver)
+        # Mount the same resolver from parent (BundleModuleResolver is stateless)
+        await child_session.coordinator.mount("module-source-resolver", parent_resolver)
 
         # Initialize
         await child_session.initialize()
@@ -389,12 +389,14 @@ async def resume_spawned_agent(
             "amplifier-core is required for agent resumption. Install it with: pip install amplifier-core"
         ) from e
 
-    # Import module resolver
+    # Get resolver from parent session's coordinator
+    # The parent AmplifierSession already has a BundleModuleResolver mounted
     try:
-        from amplifier_library.storage.paths import get_share_dir
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-    except ImportError as e:
-        raise ExecutionError("Could not import required modules for agent execution") from e
+        parent_resolver = parent_session.coordinator.get_capability("module-source-resolver")
+        if not parent_resolver:
+            raise ExecutionError("Parent session has no module-source-resolver mounted")
+    except Exception as e:
+        raise ExecutionError(f"Could not get resolver from parent session: {e}") from e
 
     # Create and initialize AmplifierSession
     child_session = None
@@ -402,10 +404,8 @@ async def resume_spawned_agent(
         # Create session
         child_session = AmplifierSession(merged_config, session_id=session_id)
 
-        # Mount resolver
-        share_dir = get_share_dir()
-        resolver = DaemonModuleSourceResolver(share_dir)
-        await child_session.coordinator.mount("module-source-resolver", resolver)
+        # Mount the same resolver from parent (BundleModuleResolver is stateless)
+        await child_session.coordinator.mount("module-source-resolver", parent_resolver)
 
         # Initialize
         await child_session.initialize()

@@ -34,19 +34,21 @@ class SessionStreamRegistry:
         self: "SessionStreamRegistry",
         session_id: str,
         mount_plan: dict,
+        resolver: Any,
     ) -> SessionStreamManager:
         """Get existing manager or create new one.
 
         Args:
             session_id: Session identifier
             mount_plan: Amplifier configuration/mount plan
+            resolver: BundleModuleResolver from Foundation (daemon-level)
 
         Returns:
             SessionStreamManager for the session
         """
         async with self._lock:
             if session_id not in self._managers:
-                self._managers[session_id] = SessionStreamManager(session_id, mount_plan)
+                self._managers[session_id] = SessionStreamManager(session_id, mount_plan, resolver)
                 logger.info(f"Created SessionStreamManager for session {session_id}")
             return self._managers[session_id]
 
@@ -113,12 +115,14 @@ class ExecutionRunnerRegistry:
         self: "ExecutionRunnerRegistry",
         session_id: str,
         mount_plan: dict[str, Any],
+        resolver: Any,
     ) -> ExecutionRunner:
         """Get existing ExecutionRunner or create new one.
 
         Args:
             session_id: Session identifier
             mount_plan: Mount plan configuration
+            resolver: BundleModuleResolver from Foundation (daemon-level)
 
         Returns:
             ExecutionRunner instance
@@ -137,6 +141,7 @@ class ExecutionRunnerRegistry:
                     session_manager=session_manager,
                     config=mount_plan,
                     session_id=session_id,
+                    resolver=resolver,
                 )
                 logger.info(f"Created new ExecutionRunner for session {session_id}")
 
@@ -232,9 +237,9 @@ def get_stream_registry() -> SessionStreamRegistry:
     return _stream_registry
 
 
-async def get_or_create_runner(session_id: str, mount_plan: dict[str, Any]) -> ExecutionRunner:
+async def get_or_create_runner(session_id: str, mount_plan: dict[str, Any], resolver: Any) -> ExecutionRunner:
     """Get or create ExecutionRunner for session."""
-    return await _runner_registry.get_or_create(session_id, mount_plan)
+    return await _runner_registry.get_or_create(session_id, mount_plan, resolver)
 
 
 async def change_session_profile(session_id: str, new_mount_plan: dict[str, Any]) -> None:

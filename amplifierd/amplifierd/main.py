@@ -93,6 +93,28 @@ async def lifespan(app: FastAPI):
         logger.error(f"Startup cache handling failed: {e}")
         # Don't fail startup, just log the error
 
+    # Initialize module resolver (Foundation's BundleModuleResolver)
+    try:
+        from amplifier_foundation.modules.activator import ModuleActivator
+
+        from amplifier_library.storage.paths import get_cache_dir
+
+        cache_dir = get_cache_dir()
+        activator = ModuleActivator(cache_dir=cache_dir, install_deps=True)
+
+        # Create an empty resolver - PreparedBundles will populate it with their module paths
+        # For now, we just need the activator functionality for git-based modules
+        from amplifier_foundation.bundle import BundleModuleResolver
+
+        resolver = BundleModuleResolver(module_paths={}, activator=activator)
+
+        # Store resolver in app state for access from routers
+        app.state.module_resolver = resolver
+        logger.info(f"Initialized BundleModuleResolver with cache_dir={cache_dir}")
+    except Exception as e:
+        logger.error(f"Failed to initialize module resolver: {e}")
+        # Don't fail startup, just log the error
+
     # Initialize automation scheduler
     scheduler = None
     try:

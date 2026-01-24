@@ -50,17 +50,20 @@ class ExecutionRunner:
         session_manager: SessionManager,
         config: dict[str, Any],
         session_id: str,
+        resolver: Any,  # BundleModuleResolver from Foundation
     ) -> None:
         """Initialize execution runner.
 
         Args:
             session_manager: Session manager for loading transcript history
-            config: Amplifier configuration dictionary
+            config: Amplifier configuration dictionary (mount plan)
             session_id: Session identifier (stored separately for continuity)
+            resolver: BundleModuleResolver from Foundation's PreparedBundle
         """
         self.session_manager = session_manager
         self.config = config
         self._session_id = session_id
+        self._resolver = resolver
         self._session: AmplifierSession | None = None
         self._execution_lock = asyncio.Lock()
 
@@ -111,18 +114,12 @@ class ExecutionRunner:
                 "amplifier-core is required for execution. Install it with: pip install amplifier-core"
             ) from e
 
-        from amplifier_library.storage.paths import get_share_dir
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-
         # Create session
         self._session = AmplifierSession(self.config, session_id=self._session_id)
 
-        # Mount resolver with bundle_name as default profile
-        share_dir = get_share_dir()
-        bundle_name = self.config.get("session", {}).get("settings", {}).get("bundle_name")
-        resolver = DaemonModuleSourceResolver(share_dir, default_profile=bundle_name)
-        await self._session.coordinator.mount("module-source-resolver", resolver)
-        logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}, bundle_name={bundle_name}")
+        # Mount resolver from Foundation's PreparedBundle
+        await self._session.coordinator.mount("module-source-resolver", self._resolver)
+        logger.info("Mounted BundleModuleResolver from Foundation")
 
         # Initialize
         await self._session.initialize()

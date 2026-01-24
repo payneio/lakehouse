@@ -75,6 +75,14 @@ def mock_session_metadata(tmp_path: Path) -> SessionMetadata:
     )
 
 
+@pytest.fixture
+def mock_resolver() -> Mock:
+    """Create mock BundleModuleResolver."""
+    resolver = Mock()
+    resolver.async_resolve = Mock()
+    return resolver
+
+
 # --- Unit Tests for MentionResolver (Baseline) ---
 
 
@@ -439,10 +447,14 @@ async def test_execution_runner_injects_profile_context(
     # Create ExecutionRunner
     from amplifier_library.execution.runner import ExecutionRunner
 
+    mock_resolver_instance = Mock()
+    mock_resolver_instance.async_resolve = Mock()
+
     runner = ExecutionRunner(
         session_manager=mock_session_manager,
         config={},
         session_id=session_id,
+        resolver=mock_resolver_instance,
     )
 
     # Inject mocked session
@@ -451,8 +463,7 @@ async def test_execution_runner_injects_profile_context(
     # Call _ensure_session to trigger context loading
     with patch("amplifier_core.AmplifierSession", return_value=mock_amplifier_session):
         with patch("amplifier_library.storage.paths.get_share_dir", return_value=tmp_path / "share"):
-            with patch("amplifierd.module_resolver.DaemonModuleSourceResolver"):
-                await runner._ensure_session()
+            await runner._ensure_session()
 
     # Simulate the profile context injection logic from execute_stream
     if context_file.exists():
@@ -505,10 +516,14 @@ async def test_execution_runner_injects_runtime_context(
     # Create ExecutionRunner
     from amplifier_library.execution.runner import ExecutionRunner
 
+    mock_resolver_instance = Mock()
+    mock_resolver_instance.async_resolve = Mock()
+
     runner = ExecutionRunner(
         session_manager=mock_session_manager,
         config={},
         session_id=session_id,
+        resolver=mock_resolver_instance,
     )
     runner._session = mock_amplifier_session
 
@@ -630,10 +645,14 @@ async def test_execution_runner_works_with_no_context(
     # Create runner
     from amplifier_library.execution.runner import ExecutionRunner
 
+    mock_resolver_instance = Mock()
+    mock_resolver_instance.async_resolve = Mock()
+
     runner = ExecutionRunner(
         session_manager=mock_session_manager,
         config={},
         session_id=session_id,
+        resolver=mock_resolver_instance,
     )
     runner._session = mock_amplifier_session
 
