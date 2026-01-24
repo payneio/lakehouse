@@ -6,7 +6,7 @@
     },
     {
       "name": "lakehouse-library",
-      "path": "lakehouse_library",
+      "path": "lakehouse-library",
     },
     {
       "name": "daemon",
