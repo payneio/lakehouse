@@ -9,6 +9,7 @@ export interface Collection {
   metadata?: Record<string, unknown>;
 }
 
+// @deprecated - Use Bundle interface from bundles.ts instead. Profiles replaced by bundles in v3.
 export interface Profile {
   name: string;
   description?: string;
@@ -41,6 +42,7 @@ export interface SessionConfig {
   contextManager?: ModuleConfig;
 }
 
+// @deprecated - Use BundleDetails interface from bundles.ts instead. Profiles replaced by bundles in v3.
 export interface ProfileDetails {
   name: string;
   schemaVersion: number;
@@ -135,6 +137,7 @@ export interface ListProjectsResponse {
 // Backward compatibility alias
 export type ListDirectoriesResponse = ListProjectsResponse;
 
+// @deprecated - Profile creation removed in v3. Use bundles instead.
 export interface CreateProfileRequest {
   name: string;
   version?: string;
@@ -146,6 +149,7 @@ export interface CreateProfileRequest {
   instruction?: string;
 }
 
+// @deprecated - Profile updates removed in v3. Use bundles instead.
 export interface UpdateProfileRequest {
   version?: string;
   description?: string;

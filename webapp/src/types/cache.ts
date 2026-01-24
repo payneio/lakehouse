@@ -5,6 +5,7 @@ export interface CacheTimestamps {
   cacheBuilt: string | null;
 }
 
+// @deprecated - Use BundleCacheStatus instead. Bundles replaced profiles in v3.
 export interface ProfileCacheStatus {
   profileId: string;
   status: CacheStatus;
@@ -13,6 +14,15 @@ export interface ProfileCacheStatus {
   cachePath: string | null;
 }
 
+export interface BundleCacheStatus {
+  bundleId: string;
+  status: CacheStatus;
+  timestamps: CacheTimestamps;
+  sourcePath: string;
+  cachePath: string | null;
+}
+
+// @deprecated - Collections removed in v3.
 export interface CollectionCacheStatus {
   collectionId: string;
   status: CacheStatus;
@@ -27,9 +37,18 @@ export interface AllCacheStatus {
   collections: CollectionCacheStatus[];
 }
 
+// @deprecated - Use BundleUpdateResult instead. Bundles replaced profiles in v3.
 export interface ProfileUpdateResult {
   profileId: string;
   collectionId: string;
+  status: CacheStatus;
+  action: 'built' | 'skipped' | 'removed';
+  message: string;
+  error?: string;
+}
+
+export interface BundleUpdateResult {
+  bundleId: string;
   status: CacheStatus;
   action: 'built' | 'skipped' | 'removed';
   message: string;
