@@ -240,7 +240,7 @@ async def test_session_creation_resolves_and_caches_profile_mentions(
     profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
 
     # Save to session directory
-    context_file = session_dir / "profile_context_messages.json"
+    context_file = session_dir / "bundle_context_messages.json"
     context_file.write_text(json.dumps([msg.model_dump() for msg in profile_context_messages], indent=2))
 
     # Verify file exists and contains correct content
@@ -291,7 +291,7 @@ async def test_session_creation_with_no_mentions_no_cache(
     assert profile_context_messages == []
 
     # Verify no cache file created
-    context_file = session_dir / "profile_context_messages.json"
+    context_file = session_dir / "bundle_context_messages.json"
     assert not context_file.exists()
 
 
@@ -423,7 +423,7 @@ async def test_execution_runner_injects_profile_context(
             "source_mentions": ["@test-context:guidelines.md"],
         }
     ]
-    context_file = session_dir / "profile_context_messages.json"
+    context_file = session_dir / "bundle_context_messages.json"
     context_file.write_text(json.dumps(profile_context_messages, indent=2))
 
     # Mock the session manager and context
@@ -567,12 +567,12 @@ async def test_execution_runner_context_injection_order(
     session_dir = session_storage / session_id
     session_dir.mkdir()
 
-    # Create cached profile context
-    profile_context_messages = [
+    # Create cached bundle context
+    bundle_context_messages = [
         {"role": "developer", "content": "PROFILE CONTEXT", "source_mentions": ["@test-context:guidelines.md"]}
     ]
-    context_file = session_dir / "profile_context_messages.json"
-    context_file.write_text(json.dumps(profile_context_messages, indent=2))
+    context_file = session_dir / "bundle_context_messages.json"
+    context_file.write_text(json.dumps(bundle_context_messages, indent=2))
 
     # Mock context that records order of add_message calls
     call_order = []
@@ -656,9 +656,9 @@ async def test_execution_runner_works_with_no_context(
     )
     runner._session = mock_amplifier_session
 
-    # Simulate execute_stream with no profile context file
-    profile_context_path = session_dir / "profile_context_messages.json"
-    assert not profile_context_path.exists()
+    # Simulate execute_stream with no bundle context file
+    bundle_context_path = session_dir / "bundle_context_messages.json"
+    assert not bundle_context_path.exists()
 
     # Simulate with no runtime context
     runtime_context_messages = None
@@ -709,10 +709,10 @@ async def test_full_mention_resolution_flow(
             all_instructions.append(agent_data["content"])
 
     resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
-    profile_context_messages = resolver.resolve_profile_instructions("\n\n".join(all_instructions))
+    bundle_context_messages = resolver.resolve_profile_instructions("\n\n".join(all_instructions))
 
-    context_file = session_dir / "profile_context_messages.json"
-    context_file.write_text(json.dumps([msg.model_dump() for msg in profile_context_messages], indent=2))
+    context_file = session_dir / "bundle_context_messages.json"
+    context_file.write_text(json.dumps([msg.model_dump() for msg in bundle_context_messages], indent=2))
 
     # Step 2: User sends message with mentions
     user_message = "Check @FEATURE.md and @README.md"

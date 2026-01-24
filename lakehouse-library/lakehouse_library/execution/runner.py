@@ -223,24 +223,24 @@ class ExecutionRunner:
             await self._ensure_session()
             assert self._session is not None  # Type guard - guaranteed by _ensure_session()
 
-            # Load cached profile context messages
+            # Load cached bundle context messages
             import json
             from pathlib import Path
 
             session_dir = Path(self.session_manager.storage_dir) / session.session_id
-            profile_context_path = session_dir / "profile_context_messages.json"
-            if profile_context_path.exists():
+            bundle_context_path = session_dir / "bundle_context_messages.json"
+            if bundle_context_path.exists():
                 try:
-                    with open(profile_context_path) as f:
-                        profile_context_data = json.load(f)
-                    # Inject profile context
+                    with open(bundle_context_path) as f:
+                        bundle_context_data = json.load(f)
+                    # Inject bundle context
                     context = self._session.coordinator.get("context")
-                    if context and profile_context_data:
-                        for msg_data in profile_context_data:
+                    if context and bundle_context_data:
+                        for msg_data in bundle_context_data:
                             await context.add_message(msg_data)
-                        logger.debug(f"Injected {len(profile_context_data)} profile context messages")
+                        logger.debug(f"Injected {len(bundle_context_data)} bundle context messages")
                 except (OSError, json.JSONDecodeError) as e:
-                    logger.warning(f"Failed to load profile context messages: {e}")
+                    logger.warning(f"Failed to load bundle context messages: {e}")
 
             # Inject runtime context messages into coordinator context
             if runtime_context_messages:
