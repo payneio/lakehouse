@@ -2,16 +2,11 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
 from typing import Any
 
 from pydantic import Field
-from pydantic import model_validator
 
 from amplifier_library.models.base import CamelCaseModel
-
-if TYPE_CHECKING:
-    pass
 
 
 class SessionStatus(str, Enum):
@@ -58,8 +53,6 @@ class SessionMetadata(CamelCaseModel):
     started_at: datetime | None = Field(default=None, description="Session start timestamp (ACTIVE)")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp (final state)")
     bundle_name: str = Field(default="", description="Bundle used for this session")
-    # Backward compatibility: old sessions have profile_name instead of bundle_name
-    profile_name: str | None = Field(default=None, exclude=True, description="Legacy field - use bundle_name")
     mount_plan_path: str = Field(description="Relative path to mount_plan.json")
     message_count: int = Field(default=0, description="Number of messages exchanged")
     agent_invocations: int = Field(default=0, description="Number of agent invocations")
@@ -68,19 +61,6 @@ class SessionMetadata(CamelCaseModel):
     error_details: dict[str, Any] | None = Field(default=None, description="Additional error context")
     is_unread: bool = Field(default=False, description="Whether session has unread content")
     last_read_at: datetime | None = Field(default=None, description="When session was last marked as read")
-
-    @model_validator(mode="before")
-    @classmethod
-    def migrate_legacy_fields(cls, data: Any) -> Any:
-        """Migrate legacy field names for backward compatibility."""
-        if isinstance(data, dict):
-            # Migrate profile_name to bundle_name
-            if not data.get("bundle_name") and data.get("profile_name"):
-                data["bundle_name"] = data["profile_name"]
-            # Migrate amplified_dir to project_path
-            if not data.get("project_path") and data.get("amplified_dir"):
-                data["project_path"] = data["amplified_dir"]
-        return data
 
 
 class SessionMessage(CamelCaseModel):
@@ -108,24 +88,9 @@ class SessionIndexEntry(CamelCaseModel):
     project_path: str = Field(default=".", description="Relative path to project directory")
     status: SessionStatus = Field(description="Current session status")
     bundle_name: str = Field(default="", description="Bundle used for this session")
-    # Backward compatibility: old index entries may have profile_name
-    profile_name: str | None = Field(default=None, exclude=True, description="Legacy field - use bundle_name")
     created_at: datetime = Field(description="Session creation timestamp")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp")
     message_count: int = Field(default=0, description="Number of messages exchanged")
-
-    @model_validator(mode="before")
-    @classmethod
-    def migrate_legacy_fields(cls, data: Any) -> Any:
-        """Migrate legacy field names for backward compatibility."""
-        if isinstance(data, dict):
-            # Migrate profile_name to bundle_name
-            if not data.get("bundle_name") and data.get("profile_name"):
-                data["bundle_name"] = data["profile_name"]
-            # Migrate amplified_dir to project_path
-            if not data.get("project_path") and data.get("amplified_dir"):
-                data["project_path"] = data["amplified_dir"]
-        return data
 
 
 class SessionIndex(CamelCaseModel):
