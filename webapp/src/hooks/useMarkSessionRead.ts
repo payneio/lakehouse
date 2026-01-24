@@ -13,7 +13,6 @@ export function useMarkSessionRead(sessionId: string | undefined) {
 
   const markRead = useMutation({
     mutationFn: async (sid: string) => {
-      console.log('[useMarkSessionRead] Marking session as read:', sid);
       const response = await fetch(
         `${BASE_URL}/api/v1/sessions/${sid}/mark-read`,
         { method: 'POST' }
@@ -24,8 +23,7 @@ export function useMarkSessionRead(sessionId: string | undefined) {
       }
       return response.json();
     },
-    onSuccess: (_, sid) => {
-      console.log('[useMarkSessionRead] Session marked as read:', sid);
+    onSuccess: () => {
       // Query invalidation happens via SSE session:updated event
       // But also invalidate locally for immediate feedback
       queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
@@ -38,16 +36,12 @@ export function useMarkSessionRead(sessionId: string | undefined) {
   useEffect(() => {
     if (!sessionId) return;
 
-    console.log('[useMarkSessionRead] Starting timer for session:', sessionId);
-
     // Mark as read after 2 seconds of viewing (debounced)
     const timer = setTimeout(() => {
-      console.log('[useMarkSessionRead] Timer expired, marking session as read');
       markRead.mutate(sessionId);
     }, 2000);
 
     return () => {
-      console.log('[useMarkSessionRead] Clearing timer for session:', sessionId);
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
