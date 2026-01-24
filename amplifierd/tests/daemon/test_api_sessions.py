@@ -58,11 +58,12 @@ def mock_mount_plan() -> dict:
 
 
 @pytest.fixture
-def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
+def mock_session_state_service(mock_session_metadata: SessionMetadata, tmp_path) -> Mock:
     """Mock session state service.
 
     Args:
         mock_session_metadata: Sample session metadata fixture
+        tmp_path: pytest temporary directory fixture
 
     Returns:
         Mock service
@@ -80,39 +81,37 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
     service.get_transcript = Mock(return_value=[])
     service.delete_session = Mock(return_value=True)
     service.cleanup_old_sessions = Mock(return_value=5)
+    # storage_dir is used for saving bundle context messages
+    service.storage_dir = tmp_path / "sessions"
+    service.storage_dir.mkdir(parents=True, exist_ok=True)
     return service
 
 
 @pytest.fixture
-def mock_amplified_directory_service(monkeypatch, mock_mount_plan: dict):
-    """Mock AmplifiedDirectoryService and LakehouseBundleManager to bypass directory validation.
+def mock_project_service(mock_mount_plan: dict):
+    """Mock ProjectService and LakehouseBundleManager to bypass directory validation.
 
     Args:
-        monkeypatch: Pytest monkeypatch fixture
         mock_mount_plan: Sample mount plan fixture
 
     Yields:
         None
     """
-    from amplifierd.models.amplified_directories import AmplifiedDirectory
+    from unittest.mock import patch
 
-    mock_directory = AmplifiedDirectory(
+    from amplifierd.models.projects import Project
+
+    mock_project = Project(
         relative_path=".",
         default_bundle="foundation/base",
         metadata={"default_bundle": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
-        is_amplified=True,
+        is_project=True,
     )
 
     mock_service = Mock()
-    mock_service.get = Mock(return_value=mock_directory)
-
-    # Monkeypatch the AmplifiedDirectoryService class
-    monkeypatch.setattr(
-        "amplifierd.routers.sessions.AmplifiedDirectoryService",
-        lambda data_dir: mock_service
-    )
+    mock_service.get = Mock(return_value=mock_project)
 
     # Create mock bundle manager
     from pathlib import Path
@@ -132,29 +131,43 @@ def mock_amplified_directory_service(monkeypatch, mock_mount_plan: dict):
 
         mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
 
-        # Mock the LakehouseBundleManager class
-        monkeypatch.setattr(
+        # Create share directory for lakehouse context
+        share_dir = Path(tmp_dir) / "share"
+        share_dir.mkdir(parents=True)
+
+        # Use unittest.mock.patch for reliable patching
+        with patch(
+            "amplifierd.services.project_service.ProjectService",
+            return_value=mock_service
+        ), patch(
             "amplifier_library.bundles.LakehouseBundleManager",
-            lambda *args, **kwargs: mock_bundle_manager
-        )
-        yield
+            return_value=mock_bundle_manager
+        ), patch(
+            "amplifier_library.storage.get_share_dir",
+            return_value=share_dir
+        ):
+            yield
 
 
 @pytest.fixture
 def override_services(
     mock_session_state_service: Mock,
-    mock_amplified_directory_service,
+    mock_project_service,
 ):
     """Override service dependencies with test services.
 
     Args:
         mock_session_state_service: Mock session state service
-        mock_amplified_directory_service: Mock amplified directory service
+        mock_project_service: Mock project service
 
     Yields:
         None
     """
+    # Import messages router's get_session_state_service too
+    from amplifierd.routers.messages import get_session_state_service as get_msg_svc
+
     app.dependency_overrides[get_session_state_service] = lambda: mock_session_state_service
+    app.dependency_overrides[get_msg_svc] = lambda: mock_session_state_service
     yield
     app.dependency_overrides.clear()
 
@@ -384,7 +397,7 @@ class TestSessionsAPI:
         mock_session_state_service.list_sessions.assert_called_once_with(
             status=SessionStatus.ACTIVE,
             bundle_name="foundation/base",
-            amplified_dir=None,
+            project_path=None,
             limit=10,
         )
 
@@ -416,13 +429,11 @@ class TestSessionsAPI:
         # Assert
         assert response.status_code == 201
 
-        # Verify service was called
+        # Verify service was called (endpoint only passes role and content, ignores agent/token_count)
         mock_session_state_service.append_message.assert_called_once_with(
             session_id="test_session_123",
             role="user",
             content="Hello, world!",
-            agent="user",
-            token_count=5,
         )
 
     def test_append_message_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
@@ -671,7 +682,7 @@ class TestSessionsAPI:
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
-            amplified_dir=".",
+            project_path=".",
             name="Test Session",
         )
 
@@ -771,7 +782,7 @@ class TestSessionsAPI:
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
-            amplified_dir=".",
+            project_path=".",
             message_count=2,
             agent_invocations=1,
         )
@@ -792,7 +803,7 @@ class TestSessionsAPI:
                 mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
-                amplified_dir=kwargs.get("amplified_dir", "."),
+                project_path=kwargs.get("project_path", "."),
             )
 
         mock_session_state_service.create_session.side_effect = mock_create_session
@@ -805,7 +816,7 @@ class TestSessionsAPI:
                 mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
-                amplified_dir=".",
+                project_path=".",
                 name="test_session_123 (copy)",
             )
         )
@@ -866,7 +877,7 @@ class TestSessionsAPI:
             mount_plan_path="state/sessions/parent_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
-            amplified_dir=".",
+            project_path=".",
             name="Parent Session",
         )
 
@@ -877,7 +888,7 @@ class TestSessionsAPI:
             mount_plan_path="state/sessions/child_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
-            amplified_dir=".",
+            project_path=".",
             parent_session_id="parent_session",
             name="Child Session",
         )
@@ -898,7 +909,7 @@ class TestSessionsAPI:
                 mount_plan_path=f"state/sessions/{session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
-                amplified_dir=kwargs.get("amplified_dir", "."),
+                project_path=kwargs.get("project_path", "."),
                 parent_session_id=kwargs.get("parent_session_id"),
             )
 
@@ -916,7 +927,7 @@ class TestSessionsAPI:
                     mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                     created_at=datetime.now(UTC),
                     started_at=datetime.now(UTC),
-                    amplified_dir=".",
+                    project_path=".",
                     name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
                 )
 

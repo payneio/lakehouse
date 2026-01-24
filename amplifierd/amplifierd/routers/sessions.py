@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Annotated
 from typing import Any
 
-import yaml
 from fastapi import APIRouter
 from fastapi import Body
 from fastapi import Depends
@@ -30,26 +29,25 @@ from amplifier_library.storage import get_state_dir
 from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
 from ..models.mount_plans import MountPlan
-from ..services.amplified_directory_service import AmplifiedDirectoryService
 from ..services.global_events import GlobalEventService
 
 logger = logging.getLogger(__name__)
 
 
-def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplified_dir: str) -> None:
+def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_path: str) -> None:
     """Inject runtime configuration into mount plan.
 
     Modifies mount_plan in-place to add runtime-specific configuration that
     cannot be known at profile compilation time:
-    - working_dir for tools (derived from amplified_dir)
-    - allowed_write_paths for tool-filesystem (derived from amplified_dir)
+    - working_dir for tools (derived from project_path)
+    - allowed_write_paths for tool-filesystem (derived from project_path)
     - session_log_template for hooks-logging (points to amplifierd session dir)
     - api_key for providers (from secrets.yaml)
 
     Args:
         mount_plan: Mount plan to modify (modified in-place)
         session_id: Session identifier for path templates
-        amplified_dir: Absolute path to amplified directory
+        project_path: Absolute path to project directory
     """
     # 1. Inject working_dir into tool configs
     # This ensures tools resolve relative paths against the session's working directory
@@ -59,7 +57,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
                 tool["config"] = {}
             # Only set if not explicitly configured in profile
             if "working_dir" not in tool["config"]:
-                tool["config"]["working_dir"] = amplified_dir
+                tool["config"]["working_dir"] = project_path
 
             # 1b. Inject allowed_write_paths for tool-filesystem if not explicitly set
             # tool-filesystem defaults to ["."] which resolves against daemon CWD, not working_dir
@@ -67,7 +65,7 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
             tool_module = tool.get("module", "") or tool.get("id", "")
             is_filesystem_tool = "tool-filesystem" in tool_module or "filesystem" in tool.get("source", "")
             if is_filesystem_tool and "allowed_write_paths" not in tool["config"]:
-                tool["config"]["allowed_write_paths"] = [amplified_dir]
+                tool["config"]["allowed_write_paths"] = [project_path]
 
     # 2. Inject session_log_template for hooks-logging
     # This ensures events.jsonl is written to amplifierd's session directory
@@ -79,8 +77,14 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, amplifie
         for hook in mount_plan["hooks"]:
             # Mount plans use "module" key, but some may use "id"
             hook_id = hook.get("module", "") or hook.get("id", "")
-            # Match hooks-logging by module/id or by checking the source
-            if hook_id == "hooks-logging" or "hooks-logging" in hook.get("source", ""):
+            # Match hooks-logging/hook-logging by module/id or by checking the source
+            # Note: Module name changed from hooks-logging (plural) to hook-logging (singular)
+            # in the Foundation bundle system, so we check for both
+            source = hook.get("source", "")
+            is_logging_hook = (
+                hook_id in ("hooks-logging", "hook-logging") or "hooks-logging" in source or "hook-logging" in source
+            )
+            if is_logging_hook:
                 if "config" not in hook:
                     hook["config"] = {}
                 # Always override to ensure logs go to amplifierd session dir
@@ -133,88 +137,96 @@ class SessionUpdateRequest(BaseModel):
 # --- Lifecycle Endpoints ---
 
 
-def _generate_bundle_context_messages(
-    bundle_name: str, compiled_bundle_dir: Path, amplified_dir: Path, data_dir: Path
-) -> list[ContextMessage]:
-    """Generate bundle context messages from bundle + behavior instructions.
+def _get_lakehouse_context() -> str:
+    """Load lakehouse-specific context from share directory.
 
-    Args:
-        bundle_name: Name of the bundle
-        compiled_bundle_dir: Directory containing compiled bundle
-        amplified_dir: Amplified directory path for mention resolution
-        data_dir: Data directory path for security validation
+    If the file doesn't exist in share dir, creates it from the default
+    template bundled with the daemon.
 
     Returns:
-        List of context messages from resolved at-mentions
+        Lakehouse context string, or empty string if unavailable
     """
+    try:
+        from amplifier_library.storage import get_share_dir
+
+        share_dir = get_share_dir()
+        lakehouse_context_file = share_dir / "lakehouse.md"
+
+        # If user's lakehouse.md doesn't exist, create from default
+        if not lakehouse_context_file.exists():
+            default_file = Path(__file__).parent.parent / "context" / "lakehouse_default.md"
+            if default_file.exists():
+                share_dir.mkdir(parents=True, exist_ok=True)
+                lakehouse_context_file.write_text(
+                    default_file.read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+                logger.info(f"Created lakehouse context from default: {lakehouse_context_file}")
+            else:
+                logger.warning("No default lakehouse context found")
+                return ""
+
+        return lakehouse_context_file.read_text(encoding="utf-8")
+    except Exception as e:
+        # In test environments, get_share_dir may return a Mock or other non-Path
+        # Log and continue without lakehouse context
+        logger.debug(f"Could not load lakehouse context: {e}")
+        return ""
+
+
+def _generate_bundle_context_messages(
+    instruction: str | None,
+    project_path: Path,
+    data_dir: Path,
+) -> list[ContextMessage]:
+    """Generate bundle context messages from instruction.
+
+    Automatically prepends lakehouse-specific context to ensure users
+    always have context about how Lakehouse works.
+
+    Args:
+        instruction: The composed bundle instruction (from markdown body)
+        project_path: Project directory for @mention resolution
+        data_dir: Data directory for security validation
+
+    Returns:
+        List of context messages with resolved @mentions
+    """
+    # Prepend lakehouse context to bundle instruction
+    lakehouse_context = _get_lakehouse_context()
+    full_instruction = lakehouse_context
+    if instruction:
+        full_instruction += "\n\n" + instruction
+
+    if not full_instruction.strip():
+        logger.debug("No context to resolve")
+        return []
+
     try:
         from amplifierd.services.mention_resolver import MentionResolver
 
-        # Load bundle YAML to get instructions and behaviors
-        bundle_yaml_path = compiled_bundle_dir / "bundle.yaml"
-        if not bundle_yaml_path.exists():
-            logger.debug(f"Bundle YAML not found at {bundle_yaml_path}")
-            return []
-
-        bundle_yaml = yaml.safe_load(bundle_yaml_path.read_text())
-
-        # Start with bundle instructions
-        all_instructions = []
-        bundle_instructions = bundle_yaml.get("instructions", "")
-        if bundle_instructions:
-            all_instructions.append(bundle_instructions)
-            logger.debug("Loaded bundle instructions")
-
-        # Load behavior instructions
-        behaviors_list = bundle_yaml.get("behaviors", [])
-        behavior_count = 0
-        for behavior_ref in behaviors_list:
-            behavior_id = behavior_ref.get("id") if isinstance(behavior_ref, dict) else behavior_ref
-            if not behavior_id:
-                continue
-
-            # Try loading behavior YAML from compiled bundle
-            behavior_dir = compiled_bundle_dir / "behaviors" / str(behavior_id)
-            behavior_yaml_path = behavior_dir / "behavior.yaml"
-
-            if not behavior_yaml_path.exists():
-                # Try alternative name
-                behavior_yaml_path = behavior_dir / f"{behavior_id}.yaml"
-
-            if behavior_yaml_path.exists():
-                behavior_yaml = yaml.safe_load(behavior_yaml_path.read_text())
-                behavior_instructions = behavior_yaml.get("instructions", "")
-                if behavior_instructions:
-                    all_instructions.append(behavior_instructions)
-                    behavior_count += 1
-                    logger.debug(f"Loaded instructions from behavior: {behavior_id}")
-            else:
-                logger.debug(f"Behavior YAML not found for: {behavior_id}")
-
-        logger.info(f"Loaded instructions from bundle + {behavior_count}/{len(behaviors_list)} behaviors")
-
-        # Resolve mentions if any instructions found
-        if all_instructions:
-            resolver = MentionResolver(
-                compiled_profile_dir=compiled_bundle_dir, amplified_dir=amplified_dir, data_dir=data_dir
-            )
-            combined_instructions = "\n\n".join(all_instructions)
-            bundle_context_messages = resolver.resolve_profile_instructions(combined_instructions)
-            logger.info(f"Resolved {len(bundle_context_messages)} context messages from bundle instructions")
-            return bundle_context_messages
-
-        return []
-
+        # Use project_path for @mention resolution - bundle instructions should
+        # resolve @mentions relative to the project, not the bundle directory
+        resolver = MentionResolver(
+            compiled_profile_dir=project_path,
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+        bundle_context_messages = resolver.resolve_profile_instructions(full_instruction)
+        logger.info(
+            f"Resolved {len(bundle_context_messages)} context messages "
+            f"(lakehouse: {len(lakehouse_context)} chars, bundle: {len(instruction or '')} chars)"
+        )
+        return bundle_context_messages
     except Exception as e:
-        # Log error but don't fail - bundle context is optional
-        logger.error(f"Failed to generate bundle context messages for {bundle_name}: {e}", exc_info=True)
+        logger.error(f"Failed to resolve bundle instructions: {e}", exc_info=True)
         return []
 
 
 @router.post("/", response_model=SessionMetadata, status_code=201)
 async def create_session(
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
-    amplified_dir: str = Body(".", embed=True),
+    project_path: str = Body(".", embed=True),
     bundle_name: str | None = Body(None, embed=True),
     parent_session_id: str | None = Body(None, embed=True),
     settings_overrides: dict | None = Body(None, embed=True),
@@ -229,7 +241,7 @@ async def create_session(
     required but remains for backwards compatibility.
 
     Args:
-        amplified_dir: Relative path to amplified directory (defaults to ".")
+        project_path: Relative path to project directory (defaults to ".")
         bundle_name: Bundle to use for session (if not provided, uses directory's default_bundle)
         parent_session_id: Optional parent session for sub-sessions
         settings_overrides: Optional settings to override bundle defaults
@@ -240,14 +252,14 @@ async def create_session(
 
     Raises:
         HTTPException:
-            - 400 if amplified_dir is not amplified or request is invalid
+            - 400 if project_path is not a project or request is invalid
             - 404 if bundle not found
             - 500 for other errors
 
     Example:
         ```json
         {
-            "amplified_dir": "projects/my-project",
+            "project_path": "projects/my-project",
             "bundle_name": "software-developer",
             "parent_session_id": "parent-session-123",
             "settings_overrides": {
@@ -265,35 +277,36 @@ async def create_session(
         config = load_config()
         data_path = Path(config.data_path)
 
-        # Validate amplified directory exists
-        amplified_service = AmplifiedDirectoryService(data_path)
+        # Validate project exists
+        from ..services.project_service import ProjectService
 
-        amplified_directory = amplified_service.get(amplified_dir)
-        if not amplified_directory:
+        project_service = ProjectService(data_path)
+
+        project = project_service.get(project_path)
+        if not project:
             raise HTTPException(
                 status_code=400,
-                detail=f"Directory '{amplified_dir}' is not amplified. "
-                "Create it first using POST /amplified-directories/",
+                detail=f"Directory '{project_path}' is not a project. Create it first using POST /api/v1/projects/",
             )
 
         # If no bundle specified, use directory's default_bundle (or legacy default_profile)
         if not bundle_name:
-            bundle_name = amplified_directory.metadata.get("default_bundle") or amplified_directory.metadata.get(
-                "default_profile"
-            )
+            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_profile")
             if not bundle_name:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"No bundle specified and directory '{amplified_dir}' has no default_bundle in metadata",
+                    detail=f"No bundle specified and directory '{project_path}' has no default_bundle in metadata",
                 )
 
         # Resolve absolute paths for session metadata
-        absolute_amplified_dir = str((Path(data_path) / amplified_dir).resolve())
+        absolute_project_path = str((Path(data_path) / project_path).resolve())
 
         # Generate mount plan using bundle manager
         from amplifier_library.bundles import LakehouseBundleManager
 
-        bundle_manager = LakehouseBundleManager()
+        from ..startup import get_registry_bundles
+
+        bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
 
         # Generate session ID early (needed for mount plan generation)
         import uuid
@@ -310,14 +323,15 @@ async def create_session(
         mount_plan = await bundle_manager.generate_mount_plan(
             bundle_ref=bundle_name,
             session_id=session_id,
-            amplified_dir=absolute_amplified_dir,
+            project_path=absolute_project_path,
             api_key=api_key,
         )
 
-        # Resolve bundle instruction mentions
-        bundle_dir = bundle_manager.bundles_dir / bundle_name
+        # Resolve bundle instruction mentions (from mount_plan instruction field)
         bundle_context_messages = _generate_bundle_context_messages(
-            bundle_name, bundle_dir, Path(absolute_amplified_dir), data_path
+            instruction=mount_plan.get("instruction"),
+            project_path=Path(absolute_project_path),
+            data_dir=data_path,
         )
 
         # Add session metadata to mount plan settings
@@ -326,11 +340,11 @@ async def create_session(
         if "settings" not in mount_plan["session"]:
             mount_plan["session"]["settings"] = {}
 
-        mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
+        mount_plan["session"]["settings"]["project_path"] = absolute_project_path
         mount_plan["session"]["settings"]["bundle_name"] = bundle_name
 
-        # Inject additional runtime configuration (API keys from secrets.yaml)
-        _inject_runtime_config(mount_plan, session_id, absolute_amplified_dir)
+        # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
+        # is already injected by bundle_manager.generate_mount_plan()
 
         # Create session with mount plan
         metadata = session_service.create_session(
@@ -338,12 +352,13 @@ async def create_session(
             bundle_name=bundle_name,
             mount_plan=mount_plan,
             parent_session_id=parent_session_id,
-            amplified_dir=amplified_dir,
+            project_path=project_path,
         )
 
         # Save bundle context messages to session directory
         if bundle_context_messages:
             session_dir = session_service.storage_dir / session_id
+            session_dir.mkdir(parents=True, exist_ok=True)
             context_file = session_dir / "bundle_context_messages.json"
             context_file.write_text(
                 json.dumps([msg.model_dump() for msg in bundle_context_messages], indent=2), encoding="utf-8"
@@ -357,13 +372,13 @@ async def create_session(
             SessionCreatedEvent(
                 session_id=metadata.session_id,
                 session_name=metadata.name,
-                project_id=metadata.amplified_dir,
+                project_id=metadata.project_path,
                 is_unread=metadata.is_unread,
                 created_by="user",
             )
         )
 
-        logger.info(f"Created session {metadata.session_id} in '{amplified_dir}' with bundle {bundle_name}")
+        logger.info(f"Created session {metadata.session_id} in '{project_path}' with bundle {bundle_name}")
         return metadata
 
     except HTTPException:
@@ -414,13 +429,16 @@ def _clone_single_session(
     source_name = source_session.name or "Session"
     new_name = f"{source_name} (copy)" if add_copy_suffix else source_name
 
-    # Get absolute amplified_dir path
+    # Get absolute project path (use data_path if no project)
     config = load_config()
     data_path = Path(config.data_path)
-    absolute_amplified_dir = str((data_path / source_session.amplified_dir).resolve())
+    if source_session.project_path:
+        absolute_project_path = str((data_path / source_session.project_path).resolve())
+    else:
+        absolute_project_path = str(data_path.resolve())
 
     # Inject runtime configuration for new session
-    _inject_runtime_config(source_mount_plan, new_session_id, absolute_amplified_dir)
+    _inject_runtime_config(source_mount_plan, new_session_id, absolute_project_path)
 
     # Create new session with cloned mount plan
     session_service.create_session(
@@ -428,7 +446,7 @@ def _clone_single_session(
         bundle_name=source_session.bundle_name,
         mount_plan=source_mount_plan,
         parent_session_id=new_parent_session_id,
-        amplified_dir=source_session.amplified_dir,
+        project_path=source_session.project_path,
     )
 
     new_session_dir = state_dir / "sessions" / new_session_id
@@ -507,7 +525,7 @@ async def _clone_session_recursive(
         SessionCreatedEvent(
             session_id=cloned_session.session_id,
             session_name=cloned_session.name,
-            project_id=cloned_session.amplified_dir,
+            project_id=cloned_session.project_path,
             is_unread=cloned_session.is_unread,
             created_by="user",
         )
@@ -537,7 +555,7 @@ async def clone_session(
 
     Creates a complete copy of an existing session including:
     - Same bundle_name and mount_plan configuration
-    - Same amplified_dir
+    - Same project_path
     - Full transcript (message history)
     - Full events log
     - Profile context messages
@@ -789,7 +807,8 @@ async def get_unread_counts(
         # Count unread sessions by project
         for session in all_sessions:
             if session.is_unread:
-                project_id = session.amplified_dir
+                # Use "_no_project" for sessions without a project
+                project_id = session.project_path or "_no_project"
                 counts[project_id] = counts.get(project_id, 0) + 1
 
         return counts
@@ -885,7 +904,7 @@ async def list_sessions(
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
     status: SessionStatus | None = None,
     bundle_name: str | None = None,
-    amplified_dir: str | None = None,
+    project_path: str | None = None,
     limit: int | None = None,
 ) -> list[SessionMetadata]:
     """List sessions with optional filters.
@@ -896,7 +915,7 @@ async def list_sessions(
     Args:
         status: Optional filter by session status
         bundle_name: Optional filter by bundle name
-        amplified_dir: Optional filter by amplified directory path
+        project_path: Optional filter by project path
         limit: Optional maximum number of results
         service: Session state service dependency
 
@@ -909,14 +928,14 @@ async def list_sessions(
 
     Example:
         ```
-        GET /api/v1/sessions?status=active&bundle_name=software-developer&amplified_dir=projects/my-project&limit=10
+        GET /api/v1/sessions?status=active&bundle_name=software-developer&project_path=projects/my-project&limit=10
         ```
     """
     try:
         return service.list_sessions(
             status=status,
             bundle_name=bundle_name,
-            amplified_dir=amplified_dir,
+            project_path=project_path,
             limit=limit,
         )
     except Exception as exc:
@@ -1092,7 +1111,7 @@ async def mark_session_read(
             # Emit global event
             await GlobalEventService.emit(
                 SessionUpdatedEvent(
-                    project_id=session.amplified_dir, session_id=session_id, fields_changed=["is_unread"]
+                    project_id=session.project_path, session_id=session_id, fields_changed=["is_unread"]
                 )
             )
 
@@ -1464,11 +1483,17 @@ async def change_session_bundle(
         from amplifier_library.bundles import LakehouseBundleManager
         from amplifier_library.config.loader import load_config
 
+        from ..startup import get_registry_bundles
+
         config = load_config()
         data_path = Path(config.data_path)
-        absolute_amplified_dir = (data_path / metadata.amplified_dir).resolve()
+        # Use data_path if no project
+        if metadata.project_path:
+            absolute_project_path = (data_path / metadata.project_path).resolve()
+        else:
+            absolute_project_path = data_path.resolve()
 
-        bundle_manager = LakehouseBundleManager()
+        bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
 
         # Load secrets for API key injection
         from ..config.loader import load_secrets
@@ -1480,7 +1505,7 @@ async def change_session_bundle(
             new_mount_plan = await bundle_manager.generate_mount_plan(
                 bundle_ref=bundle_name,
                 session_id=session_id,
-                amplified_dir=str(absolute_amplified_dir),
+                project_path=str(absolute_project_path),
                 api_key=api_key,
             )
         except ValueError as e:
@@ -1495,13 +1520,14 @@ async def change_session_bundle(
             new_mount_plan["session"]["settings"] = {}
         new_mount_plan["session"]["settings"]["bundle_name"] = bundle_name
 
-        # Inject additional runtime configuration (API keys from secrets.yaml)
-        _inject_runtime_config(new_mount_plan, session_id, str(absolute_amplified_dir))
+        # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
+        # is already injected by bundle_manager.generate_mount_plan()
 
-        # 3. Regenerate bundle context messages for new bundle
-        bundle_dir = bundle_manager.bundles_dir / bundle_name
+        # 3. Regenerate bundle context messages for new bundle (from mount_plan instruction)
         bundle_context_messages = _generate_bundle_context_messages(
-            bundle_name, bundle_dir, absolute_amplified_dir, data_path
+            instruction=new_mount_plan.get("instruction"),
+            project_path=absolute_project_path,
+            data_dir=data_path,
         )
 
         # Save to session directory (wrapped with mount plan persistence below for error handling)
