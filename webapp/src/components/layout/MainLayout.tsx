@@ -1,5 +1,5 @@
 import { SettingsDialog } from "@/components/SettingsDialog";
-import { DirectoryTreeSidebar } from "@/features/directories/components/DirectoryTreeSidebar";
+import { ProjectTreeSidebar } from "@/features/projects/components/ProjectTreeSidebar";
 import { cn } from "@/lib/utils";
 import { FolderOpen, Home, Package, X } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
@@ -102,7 +102,7 @@ function MainLayoutContent() {
             </li>
           </ul>
         </nav>
-        <DirectoryTreeSidebar onNavigate={close} />
+        <ProjectTreeSidebar onNavigate={close} />
       </aside>
 
       {/* Main content */}

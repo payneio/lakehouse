@@ -1,26 +1,26 @@
-import { useState, useEffect } from 'react';
-import { AlertCircle, Folder, ChevronUp, Plus, Loader2 } from 'lucide-react';
-import { listDirectoryContents, createDirectoryPath } from '@/api/directories';
-import type { DirectoryListResponse } from '@/types/api';
+import { createDirectoryPath, listDirectoryContents } from "@/api/directories";
+import type { DirectoryListResponse } from "@/types/api";
+import { AlertCircle, ChevronUp, Folder, Loader2, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
 
-interface DirectoryBrowserProps {
+interface ProjectBrowserProps {
   initialPath?: string;
   onSelect: (path: string) => void;
   allowCreate?: boolean;
 }
 
-export function DirectoryBrowser({
-  initialPath = '',
+export function ProjectBrowser({
+  initialPath = "",
   onSelect,
   allowCreate = false,
-}: DirectoryBrowserProps) {
+}: ProjectBrowserProps) {
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [directories, setDirectories] = useState<string[]>([]);
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
-  const [newDirName, setNewDirName] = useState('');
+  const [newDirName, setNewDirName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,7 +38,9 @@ export function DirectoryBrowser({
       setParentPath(response.parent_path);
       onSelect(response.current_path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load directories');
+      setError(
+        err instanceof Error ? err.message : "Failed to load directories",
+      );
     } finally {
       setLoading(false);
     }
@@ -57,21 +59,21 @@ export function DirectoryBrowser({
 
   const validateDirName = (name: string): string | null => {
     if (!name.trim()) {
-      return 'Directory name cannot be empty';
+      return "Directory name cannot be empty";
     }
-    if (name.includes('/')) {
-      return 'Directory name cannot contain /';
+    if (name.includes("/")) {
+      return "Directory name cannot contain /";
     }
-    if (name.startsWith('.')) {
-      return 'Directory name cannot start with .';
+    if (name.startsWith(".")) {
+      return "Directory name cannot start with .";
     }
-    if (name.includes('..')) {
-      return 'Directory name cannot contain ..';
+    if (name.includes("..")) {
+      return "Directory name cannot contain ..";
     }
     return null;
   };
 
-  const handleCreateDirectory = async () => {
+  const handleCreateProject = async () => {
     const validationError = validateDirName(newDirName);
     if (validationError) {
       setCreateError(validationError);
@@ -85,23 +87,25 @@ export function DirectoryBrowser({
       const newPath = currentPath ? `${currentPath}/${newDirName}` : newDirName;
       await createDirectoryPath({ relative_path: newPath });
 
-      setNewDirName('');
+      setNewDirName("");
       setCreatingNew(false);
 
       await loadDirectories(currentPath);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create directory');
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create directory",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleCreateDirectory();
-    } else if (e.key === 'Escape') {
+    if (e.key === "Enter") {
+      handleCreateProject();
+    } else if (e.key === "Escape") {
       setCreatingNew(false);
-      setNewDirName('');
+      setNewDirName("");
       setCreateError(null);
     }
   };
@@ -112,9 +116,7 @@ export function DirectoryBrowser({
       <div className="px-3 py-2 bg-gray-50 border-b">
         <div className="flex items-center gap-2 text-sm">
           <Folder className="h-4 w-4 text-gray-500" />
-          <span className="font-mono text-gray-700">
-            {currentPath || '/'}
-          </span>
+          <span className="font-mono text-gray-700">{currentPath || "/"}</span>
         </div>
       </div>
 
@@ -170,7 +172,9 @@ export function DirectoryBrowser({
                   aria-label={`Navigate to ${dir}`}
                 >
                   <Folder className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm text-gray-900">{dir.split('/').pop()}</span>
+                  <span className="text-sm text-gray-900">
+                    {dir.split("/").pop()}
+                  </span>
                 </button>
               ))
             )}
@@ -195,7 +199,7 @@ export function DirectoryBrowser({
                   />
                   <button
                     type="button"
-                    onClick={handleCreateDirectory}
+                    onClick={handleCreateProject}
                     disabled={loading}
                     className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
                   >
@@ -205,7 +209,7 @@ export function DirectoryBrowser({
                     type="button"
                     onClick={() => {
                       setCreatingNew(false);
-                      setNewDirName('');
+                      setNewDirName("");
                       setCreateError(null);
                     }}
                     disabled={loading}

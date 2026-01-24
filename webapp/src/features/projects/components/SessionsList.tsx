@@ -3,7 +3,7 @@ import type { Session } from "@/types/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useSessions } from "../hooks/useDirectories";
+import { useSessions } from "../hooks/useProjects";
 
 interface SessionsListProps {
   directoryPath: string;
@@ -24,7 +24,13 @@ interface SessionCardProps {
   isDeleting: boolean;
 }
 
-function SessionCard({ session, isSubsession, onNavigate, onDelete, isDeleting }: SessionCardProps) {
+function SessionCard({
+  session,
+  isSubsession,
+  onNavigate,
+  onDelete,
+  isDeleting,
+}: SessionCardProps) {
   return (
     <div
       className={`border rounded-lg p-4 hover:bg-accent transition-colors ${
@@ -38,7 +44,9 @@ function SessionCard({ session, isSubsession, onNavigate, onDelete, isDeleting }
               <div className="w-2 h-2 bg-primary rounded-full" title="Unread" />
             )}
             <SessionIcon isSubsession={isSubsession} />
-            <span className={`${session.isUnread ? "font-bold" : "font-medium"} ${isSubsession ? "text-muted-foreground" : ""}`}>
+            <span
+              className={`${session.isUnread ? "font-bold" : "font-medium"} ${isSubsession ? "text-muted-foreground" : ""}`}
+            >
               {session.name ||
                 `Session from ${new Date(session.createdAt).toLocaleDateString()}`}
             </span>
@@ -88,7 +96,8 @@ function organizeSessionHierarchy(sessions: Session[]): SessionWithChildren[] {
     if (!session.parentSessionId) {
       const children = childrenMap.get(session.sessionId) || [];
       children.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
       result.push({ ...session, children });
       processedIds.add(session.sessionId);
@@ -102,11 +111,11 @@ function organizeSessionHierarchy(sessions: Session[]): SessionWithChildren[] {
   result.sort((a, b) => {
     const aLatest = Math.max(
       new Date(a.createdAt).getTime(),
-      ...a.children.map((c) => new Date(c.createdAt).getTime())
+      ...a.children.map((c) => new Date(c.createdAt).getTime()),
     );
     const bLatest = Math.max(
       new Date(b.createdAt).getTime(),
-      ...b.children.map((c) => new Date(c.createdAt).getTime())
+      ...b.children.map((c) => new Date(c.createdAt).getTime()),
     );
     return bLatest - aLatest;
   });
@@ -179,7 +188,9 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                 <SessionCard
                   session={session}
                   isSubsession={isSubsession}
-                  onNavigate={() => navigate(`/projects/sessions/${session.sessionId}`)}
+                  onNavigate={() =>
+                    navigate(`/projects/sessions/${session.sessionId}`)
+                  }
                   onDelete={() => {
                     if (confirm("Delete this session?")) {
                       deleteSession.mutate(session.sessionId);
@@ -194,7 +205,9 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                         key={child.sessionId}
                         session={child}
                         isSubsession={true}
-                        onNavigate={() => navigate(`/projects/sessions/${child.sessionId}`)}
+                        onNavigate={() =>
+                          navigate(`/projects/sessions/${child.sessionId}`)
+                        }
                         onDelete={() => {
                           if (confirm("Delete this session?")) {
                             deleteSession.mutate(child.sessionId);

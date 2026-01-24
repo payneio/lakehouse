@@ -1,7 +1,7 @@
+import type { Session } from "@/types/api";
 import { Bot, FolderOpen, MessageSquare } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { Session } from "@/types/api";
-import { useAllSessions } from "../hooks/useDirectories";
+import { useAllSessions } from "../hooks/useProjects";
 
 function SessionIcon({ isSubsession }: { isSubsession: boolean }) {
   if (isSubsession) {
@@ -60,7 +60,8 @@ function organizeSessionHierarchy(sessions: Session[]): SessionWithChildren[] {
       // Root session - include with its children
       const children = childrenMap.get(session.sessionId) || [];
       children.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
       result.push({ ...session, children });
       processedIds.add(session.sessionId);
@@ -76,11 +77,11 @@ function organizeSessionHierarchy(sessions: Session[]): SessionWithChildren[] {
   result.sort((a, b) => {
     const aLatest = Math.max(
       new Date(a.createdAt).getTime(),
-      ...a.children.map((c) => new Date(c.createdAt).getTime())
+      ...a.children.map((c) => new Date(c.createdAt).getTime()),
     );
     const bLatest = Math.max(
       new Date(b.createdAt).getTime(),
-      ...b.children.map((c) => new Date(c.createdAt).getTime())
+      ...b.children.map((c) => new Date(c.createdAt).getTime()),
     );
     return bLatest - aLatest;
   });
@@ -146,7 +147,9 @@ export function RecentSessionsTable() {
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
         >
           <FolderOpen className="h-3 w-3" />
-          <span className="truncate">{getProjectName(session.projectPath)}</span>
+          <span className="truncate">
+            {getProjectName(session.projectPath)}
+          </span>
         </Link>
       )}
     </div>
@@ -204,7 +207,9 @@ export function RecentSessionsTable() {
               {renderSessionCard(session, isSubsession)}
               {session.children.length > 0 && (
                 <div className="mt-1 space-y-1">
-                  {session.children.map((child) => renderSessionCard(child, true))}
+                  {session.children.map((child) =>
+                    renderSessionCard(child, true),
+                  )}
                 </div>
               )}
             </div>
@@ -217,9 +222,15 @@ export function RecentSessionsTable() {
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-4 py-2 text-sm font-medium">Session</th>
-              <th className="text-left px-4 py-2 text-sm font-medium">Project</th>
-              <th className="text-right px-4 py-2 text-sm font-medium">Created</th>
+              <th className="text-left px-4 py-2 text-sm font-medium">
+                Session
+              </th>
+              <th className="text-left px-4 py-2 text-sm font-medium">
+                Project
+              </th>
+              <th className="text-right px-4 py-2 text-sm font-medium">
+                Created
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y">

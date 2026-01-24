@@ -3,7 +3,7 @@ import * as api from '@/api';
 import { listProjects } from '@/api/projects';
 import type { ProjectCreate } from '@/types/api';
 
-export function useDirectories() {
+export function useProjects() {
   const queryClient = useQueryClient();
 
   const directories = useQuery({
@@ -11,24 +11,24 @@ export function useDirectories() {
     queryFn: listProjects,
   });
 
-  const createDirectory = useMutation({
-    mutationFn: (data: ProjectCreate) => api.createDirectory(data),
+  const createProject = useMutation({
+    mutationFn: (data: ProjectCreate) => api.createProject(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directories'] });
     },
   });
 
-  const deleteDirectory = useMutation({
+  const deleteProject = useMutation({
     mutationFn: ({ relativePath, removeMarker }: { relativePath: string; removeMarker?: boolean }) =>
-      api.deleteDirectory(relativePath, removeMarker),
+      api.deleteProject(relativePath, removeMarker),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directories'] });
     },
   });
 
-  const updateDirectory = useMutation({
+  const updateProject = useMutation({
     mutationFn: ({ relativePath, data }: { relativePath: string; data: Partial<ProjectCreate> }) =>
-      api.updateDirectory(relativePath, data),
+      api.updateProject(relativePath, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directories'] });
     },
@@ -38,9 +38,9 @@ export function useDirectories() {
     directories: directories.data?.projects ?? [],
     isLoading: directories.isLoading,
     error: directories.error,
-    createDirectory,
-    deleteDirectory,
-    updateDirectory,
+    createProject,
+    deleteProject,
+    updateProject,
   };
 }
 

@@ -11,19 +11,27 @@ import {
 } from "@/components/ui/dialog";
 import type { Project, ProjectCreate } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Clock, FileText, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Activity,
+  Clock,
+  FileText,
+  FolderOpen,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useDirectories } from "../hooks/useDirectories";
+import { useProjects } from "../hooks/useProjects";
 import { AgentInstructionsDialog } from "./AgentInstructionsDialog";
 import { AutomationsSection } from "./AutomationsSection";
-import { CreateDirectoryDialog } from "./CreateDirectoryDialog";
-import { EditDirectoryDialog } from "./EditDirectoryDialog";
+import { CreateProjectDialog } from "./CreateProjectDialog";
+import { EditProjectDialog } from "./EditProjectDialog";
 import { RecentSessionsTable } from "./RecentSessionsTable";
 import { SessionsList } from "./SessionsList";
 import { WorkSection } from "./WorkSection";
 
-export function DirectoriesPage() {
+export function ProjectsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedPath = searchParams.get("path") || undefined;
 
@@ -34,14 +42,14 @@ export function DirectoriesPage() {
   const [showAutomations, setShowAutomations] = useState(false);
   const [showWork, setShowWork] = useState(false);
   const [showFileBrowser, setShowFileBrowser] = useState(false);
-  const [selectedDirectory, setSelectedDirectory] =
-    useState<Project | null>(null);
+  const [selectedDirectory, setSelectedDirectory] = useState<Project | null>(
+    null,
+  );
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
-  const { updateDirectory, deleteDirectory, createDirectory } =
-    useDirectories();
+  const { updateProject, deleteProject, createProject } = useProjects();
 
   // Fetch enabled automations count for badge
   const { data: automationsData } = useQuery({
@@ -115,7 +123,7 @@ export function DirectoriesPage() {
       }
 
       // Update directory - mutation returns updated directory
-      const updated = await updateDirectory.mutateAsync({
+      const updated = await updateProject.mutateAsync({
         relativePath: selectedPath,
         data: { metadata },
       });
@@ -125,7 +133,7 @@ export function DirectoriesPage() {
       setShowEditDialog(false);
     } catch (err) {
       setUpdateError(
-        err instanceof Error ? err.message : "Failed to update directory"
+        err instanceof Error ? err.message : "Failed to update directory",
       );
     }
   };
@@ -138,7 +146,7 @@ export function DirectoriesPage() {
     if (!selectedPath) return;
 
     try {
-      await deleteDirectory.mutateAsync({
+      await deleteProject.mutateAsync({
         relativePath: selectedPath,
         removeMarker: true,
       });
@@ -150,14 +158,14 @@ export function DirectoriesPage() {
     }
   };
 
-  const handleCreateDirectory = async (data: ProjectCreate) => {
+  const handleCreateProject = async (data: ProjectCreate) => {
     setCreateError(null);
     try {
-      await createDirectory.mutateAsync(data);
+      await createProject.mutateAsync(data);
       setShowCreateDialog(false);
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : "Failed to create directory"
+        err instanceof Error ? err.message : "Failed to create directory",
       );
     }
   };
@@ -203,7 +211,9 @@ export function DirectoriesPage() {
               {/* Project name and description */}
               <div>
                 <h1 className="text-2xl font-bold">
-                  {(selectedDirectory.metadata?.name as string) || selectedPath?.split("/").pop() || "Untitled Project"}
+                  {(selectedDirectory.metadata?.name as string) ||
+                    selectedPath?.split("/").pop() ||
+                    "Untitled Project"}
                 </h1>
                 {selectedDirectory.metadata?.description && (
                   <p className="text-muted-foreground mt-1">
@@ -293,18 +303,18 @@ export function DirectoriesPage() {
         </div>
       )}
 
-      <CreateDirectoryDialog
+      <CreateProjectDialog
         open={showCreateDialog}
         onClose={() => {
           setShowCreateDialog(false);
           setCreateError(null);
         }}
-        onSubmit={handleCreateDirectory}
-        isLoading={createDirectory.isPending}
+        onSubmit={handleCreateProject}
+        isLoading={createProject.isPending}
         error={createError || undefined}
       />
 
-      <EditDirectoryDialog
+      <EditProjectDialog
         open={showEditDialog}
         directory={selectedDirectory}
         onClose={() => {
@@ -312,7 +322,7 @@ export function DirectoriesPage() {
           setUpdateError(null);
         }}
         onSubmit={handleEditSubmit}
-        isLoading={updateDirectory.isPending}
+        isLoading={updateProject.isPending}
         error={updateError || undefined}
       />
 
@@ -332,16 +342,16 @@ export function DirectoriesPage() {
             <button
               onClick={() => setShowDeleteConfirm(false)}
               className="px-4 py-2 border rounded-md hover:bg-accent"
-              disabled={deleteDirectory.isPending}
+              disabled={deleteProject.isPending}
             >
               Cancel
             </button>
             <button
               onClick={handleDeleteConfirm}
               className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 disabled:opacity-50"
-              disabled={deleteDirectory.isPending}
+              disabled={deleteProject.isPending}
             >
-              {deleteDirectory.isPending ? "Deleting..." : "Delete"}
+              {deleteProject.isPending ? "Deleting..." : "Delete"}
             </button>
           </DialogFooter>
         </DialogContent>

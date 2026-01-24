@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { HomePage } from '@/pages/Home'
 import { BundlesPage } from '@/pages/Bundles'
-import { DirectoriesPage } from '@/pages/Directories'
+import { ProjectsPage } from '@/pages/Projects'
 import { SessionView } from '@/features/session'
 import { useGlobalEvents } from '@/hooks/useGlobalEvents'
 
@@ -17,7 +17,7 @@ function App() {
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<HomePage />} />
           <Route path="bundles" element={<BundlesPage />} />
-          <Route path="projects" element={<DirectoriesPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/sessions/:sessionId" element={<SessionView />} />
           {/* Backward compatibility redirects */}
           <Route path="directories" element={<Navigate to="/projects" replace />} />

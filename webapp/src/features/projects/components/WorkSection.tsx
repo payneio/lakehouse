@@ -259,7 +259,7 @@ function createMockTasks(): WorkTask[] {
 
 export function WorkSection({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  directoryPath, // Reserved for backend integration
+  directoryPath: _directoryPath, // Reserved for backend integration
 }: WorkSectionProps) {
   const [tasks, setTasks] = useState<WorkTask[]>(createMockTasks());
   const [openLogTaskId, setOpenLogTaskId] = useState<string | null>(null);

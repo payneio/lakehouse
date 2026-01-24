@@ -2,7 +2,7 @@ import { BASE_URL } from "@/api/client";
 import { listBundles } from "@/api/bundles";
 import { cancelExecution, changeBundle, cloneSession, deleteLastMessage } from "@/api/sessions";
 import { FileBrowserPanel } from "@/components/FileBrowserPanel";
-import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
+import { SessionNameEdit } from "@/features/projects/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";

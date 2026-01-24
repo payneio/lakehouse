@@ -1,28 +1,28 @@
-import type { ProjectCreate } from '@/types/api';
-import { Plus } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
-import { useDirectories } from '../hooks/useDirectories';
-import { CreateDirectoryDialog } from './CreateDirectoryDialog';
-import { TreeNode } from './TreeNode';
-import { buildDirectoryTree } from '../utils/treeUtils';
-import type { TreeNode as TreeNodeType } from '../utils/treeUtils';
+import type { ProjectCreate } from "@/types/api";
+import { Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useProjects } from "../hooks/useProjects";
+import type { TreeNode as TreeNodeType } from "../utils/treeUtils";
+import { buildDirectoryTree } from "../utils/treeUtils";
+import { CreateProjectDialog } from "./CreateProjectDialog";
+import { TreeNode } from "./TreeNode";
 
-const STORAGE_KEY = 'amplifier_expanded_directories';
+const STORAGE_KEY = "amplifier_expanded_directories";
 
-interface DirectoriesListProps {
+interface ProjectsListProps {
   onSelectDirectory: (path: string) => void;
   selectedPath?: string;
   compact?: boolean;
   unreadCounts?: Record<string, number>;
 }
 
-export function DirectoriesList({
+export function ProjectsList({
   onSelectDirectory,
   selectedPath,
   compact = false,
-  unreadCounts = {}
-}: DirectoriesListProps) {
-  const { directories, isLoading, createDirectory } = useDirectories();
+  unreadCounts = {},
+}: ProjectsListProps) {
+  const { directories, isLoading, createProject } = useProjects();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ export function DirectoriesList({
         return new Set(pathsArray);
       }
     } catch (err) {
-      console.error('Failed to load expanded paths from sessionStorage:', err);
+      console.error("Failed to load expanded paths from sessionStorage:", err);
     }
     return new Set();
   });
@@ -46,7 +46,7 @@ export function DirectoriesList({
       const pathsArray = Array.from(expandedPaths);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(pathsArray));
     } catch (err) {
-      console.error('Failed to save expanded paths to sessionStorage:', err);
+      console.error("Failed to save expanded paths to sessionStorage:", err);
     }
   }, [expandedPaths]);
 
@@ -79,13 +79,15 @@ export function DirectoriesList({
     onSelectDirectory(path);
   };
 
-  const handleCreateDirectory = async (data: ProjectCreate) => {
+  const handleCreateProject = async (data: ProjectCreate) => {
     setCreateError(null);
     try {
-      await createDirectory.mutateAsync(data);
+      await createProject.mutateAsync(data);
       setShowCreateDialog(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create directory');
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create directory",
+      );
     }
   };
 
@@ -152,14 +154,14 @@ export function DirectoriesList({
         </div>
       )}
 
-      <CreateDirectoryDialog
+      <CreateProjectDialog
         open={showCreateDialog}
         onClose={() => {
           setShowCreateDialog(false);
           setCreateError(null);
         }}
-        onSubmit={handleCreateDirectory}
-        isLoading={createDirectory.isPending}
+        onSubmit={handleCreateProject}
+        isLoading={createProject.isPending}
         error={createError || undefined}
       />
     </div>

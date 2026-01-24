@@ -14,7 +14,7 @@ interface EditDirectoryDialogProps {
   error?: string;
 }
 
-export function EditDirectoryDialog({
+export function EditProjectDialog({
   open,
   directory,
   onClose,

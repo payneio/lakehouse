@@ -1,12 +1,18 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { AlertCircle } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { listBundles } from '@/api/bundles';
-import { DirectoryBrowser } from './DirectoryBrowser';
-import type { ProjectCreate } from '@/types/api';
+import { listBundles } from "@/api/bundles";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import type { ProjectCreate } from "@/types/api";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { ProjectBrowser } from "./ProjectBrowser";
 
-interface CreateDirectoryDialogProps {
+interface CreateProjectDialogProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: ProjectCreate) => void;
@@ -14,34 +20,34 @@ interface CreateDirectoryDialogProps {
   error?: string;
 }
 
-export function CreateDirectoryDialog({
+export function CreateProjectDialog({
   open,
   onClose,
   onSubmit,
   isLoading = false,
   error,
-}: CreateDirectoryDialogProps) {
+}: CreateProjectDialogProps) {
   const { data: bundles = [] } = useQuery({
-    queryKey: ['bundles'],
+    queryKey: ["bundles"],
     queryFn: listBundles,
   });
   const [formData, setFormData] = useState({
-    relative_path: '',
-    default_bundle: '',
-    name: '',
-    description: '',
+    relative_path: "",
+    default_bundle: "",
+    name: "",
+    description: "",
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const validatePath = (path: string): string | null => {
     if (!path.trim()) {
-      return 'Please enter a directory path';
+      return "Please enter a directory path";
     }
-    if (path.startsWith('/')) {
-      return 'Path must be relative (don\'t start with /)';
+    if (path.startsWith("/")) {
+      return "Path must be relative (don't start with /)";
     }
-    if (path.includes('..')) {
-      return 'Path cannot contain ..';
+    if (path.includes("..")) {
+      return "Path cannot contain ..";
     }
     return null;
   };
@@ -83,10 +89,10 @@ export function CreateDirectoryDialog({
   const handleClose = () => {
     if (!isLoading) {
       setFormData({
-        relative_path: '',
-        default_bundle: '',
-        name: '',
-        description: '',
+        relative_path: "",
+        default_bundle: "",
+        name: "",
+        description: "",
       });
       setValidationError(null);
       onClose();
@@ -100,13 +106,17 @@ export function CreateDirectoryDialog({
           <DialogTitle>Create Project</DialogTitle>
         </DialogHeader>
 
-        <form id="create-directory-form" onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 pr-2">
+        <form
+          id="create-directory-form"
+          onSubmit={handleSubmit}
+          className="space-y-4 overflow-y-auto flex-1 pr-2"
+        >
           {/* Path Field */}
           <div>
             <label className="block text-sm font-medium mb-1">
               Directory Path <span className="text-destructive">*</span>
             </label>
-            <DirectoryBrowser
+            <ProjectBrowser
               initialPath=""
               onSelect={(path) => {
                 setFormData({ ...formData, relative_path: path });
@@ -121,14 +131,19 @@ export function CreateDirectoryDialog({
 
           {/* Default Bundle Field */}
           <div>
-            <label htmlFor="default_bundle" className="block text-sm font-medium mb-1">
+            <label
+              htmlFor="default_bundle"
+              className="block text-sm font-medium mb-1"
+            >
               Default Bundle
             </label>
             {bundles.length > 0 ? (
               <select
                 id="default_bundle"
                 value={formData.default_bundle}
-                onChange={(e) => setFormData({ ...formData, default_bundle: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, default_bundle: e.target.value })
+                }
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
@@ -144,7 +159,9 @@ export function CreateDirectoryDialog({
                 id="default_bundle"
                 type="text"
                 value={formData.default_bundle}
-                onChange={(e) => setFormData({ ...formData, default_bundle: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, default_bundle: e.target.value })
+                }
                 className="w-full px-3 py-2 border rounded-md"
                 placeholder="bundle-name"
                 disabled={isLoading}
@@ -164,7 +181,9 @@ export function CreateDirectoryDialog({
               id="name"
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               className="w-full px-3 py-2 border rounded-md"
               placeholder="My Application"
               disabled={isLoading}
@@ -176,13 +195,18 @@ export function CreateDirectoryDialog({
 
           {/* Description Field */}
           <div>
-            <label htmlFor="description" className="block text-sm font-medium mb-1">
+            <label
+              htmlFor="description"
+              className="block text-sm font-medium mb-1"
+            >
               Description
             </label>
             <textarea
               id="description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               className="w-full px-3 py-2 border rounded-md min-h-[80px]"
               placeholder="Describe this directory..."
               disabled={isLoading}
@@ -196,7 +220,6 @@ export function CreateDirectoryDialog({
               <div className="text-destructive">{validationError || error}</div>
             </div>
           )}
-
         </form>
 
         {/* Footer - outside form for sticky behavior, but still submits via form */}
@@ -215,7 +238,7 @@ export function CreateDirectoryDialog({
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
             disabled={isLoading}
           >
-            {isLoading ? 'Creating...' : 'Create Directory'}
+            {isLoading ? "Creating..." : "Create Directory"}
           </button>
         </DialogFooter>
       </DialogContent>
