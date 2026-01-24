@@ -16,25 +16,81 @@ import psutil
 from amplifier_library.storage.paths import get_log_dir
 
 
-def find_webapp_dir() -> Path:
-    """Find the webapp directory relative to amplifierd package location.
+def find_amplifierd_source_dir() -> Path | None:
+    """Find the amplifierd source directory for running daemon from source.
+
+    Checks in order:
+    1. AMPLIFIERD_SOURCE_DIR environment variable
+    2. Common locations
 
     Returns:
-        Path to webapp directory
-
-    Raises:
-        FileNotFoundError: If webapp directory cannot be found
+        Path to amplifierd source directory, or None if not found
     """
-    # Get amplifierd package directory
-    amplifierd_dir = Path(__file__).parent.parent.parent
+    import os
 
-    # Webapp should be sibling to amplifierd
-    webapp_dir = amplifierd_dir / "webapp"
+    # 1. Check environment variable
+    env_source_dir = os.environ.get("AMPLIFIERD_SOURCE_DIR")
+    if env_source_dir:
+        source_path = Path(env_source_dir).expanduser()
+        if source_path.exists() and (source_path / "pyproject.toml").exists():
+            return source_path
 
-    if not webapp_dir.exists():
-        raise FileNotFoundError(f"Webapp directory not found at {webapp_dir}")
+    # 2. Check common locations
+    common_locations = [
+        Path("/data/repos/lakehouse/amplifierd"),
+        Path.home() / "repos" / "lakehouse" / "amplifierd",
+        Path.home() / "amplifier" / "amplifierd",
+        Path.home() / "projects" / "lakehouse" / "amplifierd",
+    ]
 
-    return webapp_dir
+    for location in common_locations:
+        if location.exists() and (location / "pyproject.toml").exists():
+            return location
+
+    return None
+
+
+def find_webapp_dir() -> Path | None:
+    """Find the webapp directory.
+
+    Checks in order:
+    1. AMPLIFIERD_WEBAPP_DIR environment variable
+    2. Sibling to source amplifierd directory (development)
+    3. Common locations
+
+    Returns:
+        Path to webapp directory, or None if not found
+    """
+    import os
+
+    # 1. Check environment variable
+    env_webapp_dir = os.environ.get("AMPLIFIERD_WEBAPP_DIR")
+    if env_webapp_dir:
+        webapp_path = Path(env_webapp_dir).expanduser()
+        if webapp_path.exists() and (webapp_path / "package.json").exists():
+            return webapp_path
+
+    # 2. Check relative to source (development mode)
+    # In development, cli.py is at /repo/amplifierd/amplifierd/cli.py
+    # and webapp is at /repo/webapp
+    source_dir = Path(__file__).parent.parent.parent
+    source_webapp = source_dir / "webapp"
+    if source_webapp.exists() and (source_webapp / "package.json").exists():
+        return source_webapp
+
+    # 3. Check common locations
+    common_locations = [
+        Path("/data/repos/lakehouse/webapp"),
+        Path.home() / "repos" / "lakehouse" / "webapp",
+        Path.home() / "amplifier" / "webapp",
+        Path.home() / "projects" / "lakehouse" / "webapp",
+    ]
+
+    for location in common_locations:
+        if location.exists() and (location / "package.json").exists():
+            return location
+
+    return None
 
 
 def find_process_by_name(name: str) -> list[psutil.Process]:
@@ -196,14 +252,25 @@ def start(daemon_only: bool, webapp_only: bool):
             if daemon_running:
                 click.echo(f"Daemon already running (PID {daemon_pid})")
             else:
-                # Start daemon in background
+                # Start daemon from source directory (not from installed tool)
                 import subprocess
 
+                source_dir = find_amplifierd_source_dir()
+                if source_dir is None:
+                    click.echo(
+                        "Error: Cannot find amplifierd source directory. "
+                        "Set AMPLIFIERD_SOURCE_DIR or ensure source is at /data/repos/lakehouse/amplifierd",
+                        err=True,
+                    )
+                    sys.exit(1)
+
                 click.echo("Starting daemon...")
-                daemon_cmd = [sys.executable, "-m", "amplifierd"]
+                # Use uv run from source directory to ensure we run from source, not installed tool
+                daemon_cmd = ["uv", "run", "python", "-m", "amplifierd"]
                 with builtins.open(str(daemon_log), "a") as log_file:
                     subprocess.Popen(
                         daemon_cmd,
+                        cwd=str(source_dir),
                         stdin=subprocess.DEVNULL,
                         stdout=log_file,
                         stderr=log_file,
@@ -226,30 +293,33 @@ def start(daemon_only: bool, webapp_only: bool):
             else:
                 # Start webapp dev server in background
                 webapp_dir = find_webapp_dir()
-                click.echo("Starting webapp...")
-
-                import subprocess
-
-                webapp_cmd = ["pnpm", "run", "dev", "--host"]
-                with builtins.open(str(webapp_log), "a") as log_file:
-                    subprocess.Popen(
-                        webapp_cmd,
-                        cwd=str(webapp_dir),
-                        stdin=subprocess.DEVNULL,
-                        stdout=log_file,
-                        stderr=log_file,
-                        start_new_session=True,
-                    )
-
-                # Wait for webapp to start
-                for _ in range(10):
-                    time.sleep(0.5)
-                    webapp_running, webapp_pid = get_webapp_status()
-                    if webapp_running:
-                        click.echo(f"Webapp started (PID {webapp_pid}, logs: {webapp_log})")
-                        break
+                if webapp_dir is None:
+                    click.echo("Webapp not found - skipping (set AMPLIFIERD_WEBAPP_DIR or run from source)")
                 else:
-                    click.echo("Warning: Webapp may not have started successfully", err=True)
+                    click.echo("Starting webapp...")
+
+                    import subprocess
+
+                    webapp_cmd = ["pnpm", "run", "dev", "--host"]
+                    with builtins.open(str(webapp_log), "a") as log_file:
+                        subprocess.Popen(
+                            webapp_cmd,
+                            cwd=str(webapp_dir),
+                            stdin=subprocess.DEVNULL,
+                            stdout=log_file,
+                            stderr=log_file,
+                            start_new_session=True,
+                        )
+
+                    # Wait for webapp to start
+                    for _ in range(10):
+                        time.sleep(0.5)
+                        webapp_running, webapp_pid = get_webapp_status()
+                        if webapp_running:
+                            click.echo(f"Webapp started (PID {webapp_pid}, logs: {webapp_log})")
+                            break
+                    else:
+                        click.echo("Warning: Webapp may not have started successfully", err=True)
 
         if not daemon_only and not webapp_only:
             click.echo("\nBoth services running in background")
