@@ -2,42 +2,40 @@
   "folders": [
     {
       "name": "root",
-      "path": "."
+      "path": ".",
     },
     {
-      "name": "amplifier-library",
-      "path": "amplifier_library"
+      "name": "lakehouse-library",
+      "path": "lakehouse_library",
     },
     {
       "name": "daemon",
-      "path": "amplifierd"
+      "path": "lakehoused",
     },
     {
       "name": "webapp",
-      "path": "webapp"
+      "path": "webapp",
     },
     {
       "name": "guides",
-      "path": "guides"
+      "path": "guides",
     },
     {
       "name": "notebooks",
-      "path": "notebooks"
-    }
+      "path": "notebooks",
+    },
   ],
   "settings": {
     // === UNIVERSAL EDITOR SETTINGS ===
     // These apply to all folders in the workspace
-    "editor.rulers": [
-      120
-    ],
+    "editor.rulers": [120],
     "editor.bracketPairColorization.enabled": true,
     "editor.guides.bracketPairs": "active",
     "editor.formatOnSave": true,
     "editor.formatOnPaste": true,
     "editor.codeActionsOnSave": {
       "source.organizeImports": "explicit",
-      "source.fixAll": "explicit"
+      "source.fixAll": "explicit",
     },
     // === UNIVERSAL FILE SETTINGS ===
     "files.eol": "\n",
@@ -54,7 +52,7 @@
       "**/.next": true,
       "**/dist": true,
       "**/.venv": true,
-      "**/.uv": true
+      "**/.uv": true,
     },
     // === WORKSPACE-WIDE SEARCH EXCLUSIONS ===
     "search.exclude": {
@@ -68,11 +66,11 @@
       "**/uv.lock": true,
       "**/pnpm-lock.yaml": true,
       "**/.venv": true,
-      "**/.uv": true
+      "**/.uv": true,
     },
     // === GIT CONFIGURATION ===
     "git.detectSubmodulesLimit": 50,
-    "githubPullRequests.defaultMergeMethod": "squash"
+    "githubPullRequests.defaultMergeMethod": "squash",
   },
   "extensions": {
     "recommendations": [
@@ -81,18 +79,15 @@
       "charliermarsh.ruff",
       "esbenp.prettier-vscode",
       "dbaeumer.vscode-eslint",
-      "bradlc.vscode-tailwindcss"
-    ]
+      "bradlc.vscode-tailwindcss",
+    ],
   },
   "launch": {
     "compounds": [
       {
         "name": "Daemon + Webapp",
-        "configurations": [
-          "Amplifierd: Run Daemon",
-          "Webapp"
-        ]
-      }
-    ]
-  }
+        "configurations": ["lakehoused: Run Daemon", "Webapp"],
+      },
+    ],
+  },
 }

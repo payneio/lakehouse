@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
 
         # Ensure root is a project
         if not project_service.is_project("."):
-            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
             logger.info(f"Auto-creating root project with profile: {default_bundle}")
 
             project_service.create(

@@ -115,8 +115,8 @@ workers: 4
         config_path.write_text("host: 127.0.0.1\nport: 8420\n")
 
         # Override with environment (use non-standard port to avoid conflicts)
-        monkeypatch.setenv("AMPLIFIERD_HOST", "0.0.0.0")
-        monkeypatch.setenv("AMPLIFIERD_PORT", "9999")
+        monkeypatch.setenv("LAKEHOUSED_HOST", "0.0.0.0")
+        monkeypatch.setenv("LAKEHOUSED_PORT", "9999")
 
         # Reload module to pick up env vars
         from importlib import reload
@@ -235,7 +235,7 @@ class TestDaemonSettingsPathExpansion:
 
     def test_data_path_env_override_with_tilde(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Environment variable with tilde should expand."""
-        monkeypatch.setenv("AMPLIFIERD_DATA_PATH", "~/custom")
+        monkeypatch.setenv("LAKEHOUSED_DATA_PATH", "~/custom")
         settings = DaemonSettings()
         expected = str(Path.home() / "custom")
         assert settings.data_path == expected

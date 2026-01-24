@@ -1,4 +1,4 @@
-"""Settings models for amplifierd daemon.
+"""Settings models for lakehoused daemon.
 
 This module defines the configuration structure for the daemon itself,
 separate from amplifier-core configuration.
@@ -18,7 +18,7 @@ from pydantic_settings import SettingsConfigDict
 
 
 class DaemonSettings(BaseSettings):
-    """Configuration for amplifierd daemon.
+    """Configuration for lakehoused daemon.
 
     This configures the daemon transport layer (HTTP/SSE), not amplifier-core.
     amplifier-core has its own configuration system.
@@ -37,7 +37,7 @@ class DaemonSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="AMPLIFIERD_",
+        env_prefix="LAKEHOUSED_",
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
@@ -75,7 +75,7 @@ class DaemonSettings(BaseSettings):
             )
         return v
 
-    @field_validator('data_path')
+    @field_validator("data_path")
     @classmethod
     def expand_and_resolve_path(cls, v: str) -> str:
         """Expand ~ and resolve to absolute path, creating if needed.

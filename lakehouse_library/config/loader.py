@@ -31,7 +31,7 @@ workers: 1
 
 # Data directory root
 # Default: "~/amplifier" (defined in DaemonSettings class)
-# Can be overridden with AMPLIFIERD_DATA_PATH environment variable
+# Can be overridden with LAKEHOUSED_DATA_PATH environment variable
 # Supports: absolute paths (/data), ~ for home directory (~), relative paths (./data)
 # data_path: "~/amplifier"
 """
@@ -71,7 +71,7 @@ def load_config(config_path: Path | None = None) -> DaemonSettings:
     """Load daemon configuration from YAML and environment.
 
     Environment variables take precedence over YAML settings.
-    Variables should be prefixed with AMPLIFIERD_ (e.g., AMPLIFIERD_PORT).
+    Variables should be prefixed with LAKEHOUSED_ (e.g., LAKEHOUSED_PORT).
 
     Args:
         config_path: Optional config file path (default: daemon.yaml in config dir)
@@ -128,7 +128,7 @@ def load_config(config_path: Path | None = None) -> DaemonSettings:
     # Only pass values that don't have corresponding env vars
     filtered_yaml = {}
     for key, value in daemon_settings.items():
-        env_key = f"AMPLIFIERD_{key.upper()}"
+        env_key = f"LAKEHOUSED_{key.upper()}"
         if env_key not in os.environ:
             filtered_yaml[key] = value
 

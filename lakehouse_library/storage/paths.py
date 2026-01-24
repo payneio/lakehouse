@@ -1,10 +1,10 @@
-"""Path resolution for amplifierd storage locations.
+"""Path resolution for lakehoused storage locations.
 
-This module provides path resolution based on AMPLIFIERD_HOME environment variable,
+This module provides path resolution based on LAKEHOUSED_HOME environment variable,
 following XDG-like directory structure within that root.
 
 Contract:
-- Inputs: Environment variables (AMPLIFIERD_HOME)
+- Inputs: Environment variables (LAKEHOUSED_HOME)
 - Outputs: Resolved Path objects
 - Side Effects: Creates directories if they don't exist
 """
@@ -14,12 +14,12 @@ from pathlib import Path
 
 
 def get_home_dir() -> Path:
-    """Get AMPLIFIERD_HOME from environment.
+    """Get LAKEHOUSED_HOME from environment.
 
     Returns:
         Path to root directory (default: .lakehoused)
     """
-    env_home = os.environ.get("AMPLIFIERD_HOME")
+    env_home = os.environ.get("LAKEHOUSED_HOME")
     if env_home:
         return Path(env_home).resolve()
     return Path.home() / ".lakehoused"
@@ -29,11 +29,11 @@ def get_config_dir() -> Path:
     """Get configuration directory.
 
     Returns:
-        Path to config directory ($AMPLIFIERD_HOME/config)
+        Path to config directory ($LAKEHOUSED_HOME/config)
     """
     config_dir: Path = get_home_dir() / "config"
 
-    env_override: str | None = os.environ.get("AMPLIFIERD_CONFIG_DIR")
+    env_override: str | None = os.environ.get("LAKEHOUSED_CONFIG_DIR")
     if env_override is not None:
         config_dir = Path(env_override).resolve()
 
@@ -45,19 +45,19 @@ def get_share_dir() -> Path:
     """Get persistent data directory.
 
     Returns:
-        Path to share directory ($AMPLIFIERD_HOME/share)
+        Path to share directory ($LAKEHOUSED_HOME/share)
 
     Environment Variables:
-        AMPLIFIERD_SHARE_DIR: Override share directory location
-        (falls back to $AMPLIFIERD_HOME/share if not set)
+        LAKEHOUSED_SHARE_DIR: Override share directory location
+        (falls back to $LAKEHOUSED_HOME/share if not set)
 
     Example:
         >>> share_dir = get_share_dir()
-        >>> assert share_dir.name == "share" or "AMPLIFIERD_SHARE_DIR" in os.environ
+        >>> assert share_dir.name == "share" or "LAKEHOUSED_SHARE_DIR" in os.environ
     """
     share_dir: Path = get_home_dir() / "share"
 
-    env_override: str | None = os.environ.get("AMPLIFIERD_SHARE_DIR")
+    env_override: str | None = os.environ.get("LAKEHOUSED_SHARE_DIR")
     if env_override is not None:
         share_dir = Path(env_override).resolve()
 
@@ -69,11 +69,11 @@ def get_state_dir() -> Path:
     """Get state/cache directory.
 
     Returns:
-        Path to state directory ($AMPLIFIERD_HOME/state)
+        Path to state directory ($LAKEHOUSED_HOME/state)
     """
     state_dir: Path = get_home_dir() / "state"
 
-    env_override: str | None = os.environ.get("AMPLIFIERD_STATE_DIR")
+    env_override: str | None = os.environ.get("LAKEHOUSED_STATE_DIR")
     if env_override is not None:
         state_dir = Path(env_override).resolve()
 
@@ -85,19 +85,19 @@ def get_log_dir() -> Path:
     """Get log directory.
 
     Returns:
-        Path to log directory ($AMPLIFIERD_HOME/logs/amplifierd)
+        Path to log directory ($LAKEHOUSED_HOME/logs/lakehoused)
 
     Environment Variables:
-        AMPLIFIERD_LOG_DIR: Override log directory location
-        (falls back to $AMPLIFIERD_HOME/logs/amplifierd if not set)
+        LAKEHOUSED_LOG_DIR: Override log directory location
+        (falls back to $LAKEHOUSED_HOME/logs/lakehoused if not set)
 
     Example:
         >>> log_dir = get_log_dir()
-        >>> assert log_dir.name == "amplifierd" or "AMPLIFIERD_LOG_DIR" in os.environ
+        >>> assert log_dir.name == "lakehoused" or "LAKEHOUSED_LOG_DIR" in os.environ
     """
-    log_dir: Path = get_state_dir() / "logs" / "amplifierd"
+    log_dir: Path = get_state_dir() / "logs" / "lakehoused"
 
-    env_override: str | None = os.environ.get("AMPLIFIERD_LOG_DIR")
+    env_override: str | None = os.environ.get("LAKEHOUSED_LOG_DIR")
     if env_override is not None:
         log_dir = Path(env_override).resolve()
 
@@ -109,11 +109,11 @@ def get_cache_dir() -> Path:
     """Get cache directory.
 
     Returns:
-        Path to cache directory ($AMPLIFIERD_HOME/cache/)
+        Path to cache directory ($LAKEHOUSED_HOME/cache/)
     """
     cache_dir: Path = get_home_dir() / "cache"
 
-    env_override: str | None = os.environ.get("AMPLIFIERD_CACHE_DIR")
+    env_override: str | None = os.environ.get("LAKEHOUSED_CACHE_DIR")
     if env_override is not None:
         cache_dir = Path(env_override).resolve()
 
@@ -125,7 +125,7 @@ def get_git_cache_dir() -> Path:
     """Get git checkout cache directory.
 
     Returns:
-        Path to git cache ($AMPLIFIERD_HOME/cache/git)
+        Path to git cache ($LAKEHOUSED_HOME/cache/git)
     """
     git_cache_dir = get_cache_dir() / "git"
     git_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -136,7 +136,7 @@ def get_bundles_dir() -> Path:
     """Get system/shared bundles directory.
 
     Returns:
-        Path to shared bundles ($AMPLIFIERD_HOME/share/bundles)
+        Path to shared bundles ($LAKEHOUSED_HOME/share/bundles)
     """
     bundles_dir = get_share_dir() / "bundles"
     bundles_dir.mkdir(parents=True, exist_ok=True)
@@ -147,7 +147,7 @@ def get_user_bundles_dir() -> Path:
     """Get user bundles directory.
 
     Returns:
-        Path to user bundles ($AMPLIFIERD_HOME/bundles)
+        Path to user bundles ($LAKEHOUSED_HOME/bundles)
     """
     bundles_dir = get_home_dir() / "bundles"
     bundles_dir.mkdir(parents=True, exist_ok=True)

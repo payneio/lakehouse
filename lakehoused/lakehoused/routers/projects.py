@@ -95,7 +95,7 @@ async def get_root_project(
 async def list_projects(
     service: ProjectService = Depends(get_service),
 ) -> ProjectList:
-    """List all projects within AMPLIFIERD_DATA_PATH.
+    """List all projects within LAKEHOUSED_DATA_PATH.
 
     Discovers projects by walking filesystem to find .amplified markers.
 
@@ -121,7 +121,7 @@ async def get_project(
     """Get specific project by relative path.
 
     Args:
-        relative_path: Path relative to AMPLIFIERD_DATA_PATH
+        relative_path: Path relative to LAKEHOUSED_DATA_PATH
         service: Injected service instance
 
     Returns:
@@ -156,7 +156,7 @@ async def update_project(
     Merges provided metadata with existing metadata.
 
     Args:
-        relative_path: Path relative to AMPLIFIERD_DATA_PATH
+        relative_path: Path relative to LAKEHOUSED_DATA_PATH
         update_req: Update request with metadata changes
         service: Injected service instance
 
@@ -241,7 +241,7 @@ async def update_agents_content(
     """Update AGENTS.md file for a project.
 
     Args:
-        relative_path: Path relative to AMPLIFIERD_DATA_PATH
+        relative_path: Path relative to LAKEHOUSED_DATA_PATH
         update_req: New content for AGENTS.md
         service: Injected service instance
 
@@ -291,7 +291,7 @@ async def delete_project(
     """Unregister/delete project.
 
     Args:
-        relative_path: Path relative to AMPLIFIERD_DATA_PATH
+        relative_path: Path relative to LAKEHOUSED_DATA_PATH
         remove_marker: If True, also delete .amplified directory from filesystem
         service: Injected service instance
 

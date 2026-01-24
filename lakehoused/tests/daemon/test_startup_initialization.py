@@ -29,7 +29,7 @@ class TestStartupInitialization:
         """Test that root directory is auto-amplified on daemon startup."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
@@ -59,12 +59,12 @@ class TestStartupInitialization:
         assert marker_path.exists()
         assert marker_path.is_dir()
 
-    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_BUNDLE": "custom/profile"})
+    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_BUNDLE": "custom/profile"})
     def test_root_uses_env_var_bundle(self, service: ProjectService) -> None:
-        """Test that root uses AMPLIFIERD_DEFAULT_BUNDLE environment variable."""
+        """Test that root uses LAKEHOUSED_DEFAULT_BUNDLE environment variable."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
@@ -183,12 +183,12 @@ class TestStartupInitialization:
     @patch.dict(os.environ, {}, clear=True)
     def test_startup_default_bundle_fallback(self, service: ProjectService) -> None:
         """Test that startup uses fallback bundle when env var not set."""
-        # Ensure AMPLIFIERD_DEFAULT_BUNDLE is not set
-        assert "AMPLIFIERD_DEFAULT_BUNDLE" not in os.environ
+        # Ensure LAKEHOUSED_DEFAULT_BUNDLE is not set
+        assert "LAKEHOUSED_DEFAULT_BUNDLE" not in os.environ
 
         # Simulate startup
         if not service.is_project("."):
-            default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
 
             service.create(
                 ProjectCreate(

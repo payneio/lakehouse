@@ -29,7 +29,7 @@ class ProjectService:
         """Initialize with root working directory.
 
         Args:
-            data_path: Root directory (AMPLIFIERD_DATA_PATH)
+            data_path: Root directory (LAKEHOUSED_DATA_PATH)
             cache_ttl: Cache time-to-live in seconds (default: 30)
             max_scan_depth: Maximum directory depth to scan (default: 10)
         """
@@ -49,7 +49,7 @@ class ProjectService:
         1. If provided_profile given → use it
         2. Else → find parent project and use its default_bundle
         3. If no parent → use root's default_bundle
-        4. Root uses AMPLIFIERD_DEFAULT_BUNDLE env var (default: foundation/foundation)
+        4. Root uses LAKEHOUSED_DEFAULT_BUNDLE env var (default: foundation/foundation)
         """
         if provided_profile:
             logger.debug(f"Using provided profile: {provided_profile}")
@@ -64,7 +64,7 @@ class ProjectService:
                 logger.debug(f"Inheriting profile from parent {parent_path}: {inherited_profile}")
                 return inherited_profile
 
-        default_bundle = os.getenv("AMPLIFIERD_DEFAULT_BUNDLE", "foundation/foundation")
+        default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
         logger.debug(f"Using default profile from environment: {default_bundle}")
         return default_bundle
 

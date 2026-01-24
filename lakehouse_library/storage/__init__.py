@@ -8,7 +8,7 @@ Public Interface:
     - list_stored: List stored items
     - delete_stored: Delete stored item
     - exists: Check if item exists
-    - get_root_dir: Get AMPLIFIERD_HOME
+    - get_root_dir: Get LAKEHOUSED_HOME
     - get_config_dir: Get config directory
     - get_share_dir: Get data directory
     - get_state_dir: Get state/cache directory

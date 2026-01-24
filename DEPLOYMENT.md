@@ -420,7 +420,7 @@ services:
       - ./.lakehoused:/app/.lakehoused
     restart: unless-stopped
     environment:
-      - AMPLIFIERD_DATA_DIR=/data
+      - LAKEHOUSED_DATA_DIR=/data
 
   webapp:
     build:

@@ -20,7 +20,7 @@ def find_amplifierd_source_dir() -> Path | None:
     """Find the amplifierd source directory for running daemon from source.
 
     Checks in order:
-    1. AMPLIFIERD_SOURCE_DIR environment variable
+    1. LAKEHOUSED_SOURCE_DIR environment variable
     2. Common locations
 
     Returns:
@@ -29,7 +29,7 @@ def find_amplifierd_source_dir() -> Path | None:
     import os
 
     # 1. Check environment variable
-    env_source_dir = os.environ.get("AMPLIFIERD_SOURCE_DIR")
+    env_source_dir = os.environ.get("LAKEHOUSED_SOURCE_DIR")
     if env_source_dir:
         source_path = Path(env_source_dir).expanduser()
         if source_path.exists() and (source_path / "pyproject.toml").exists():
@@ -54,7 +54,7 @@ def find_webapp_dir() -> Path | None:
     """Find the webapp directory.
 
     Checks in order:
-    1. AMPLIFIERD_WEBAPP_DIR environment variable
+    1. LAKEHOUSED_WEBAPP_DIR environment variable
     2. Sibling to source amplifierd directory (development)
     3. Common locations
 
@@ -64,7 +64,7 @@ def find_webapp_dir() -> Path | None:
     import os
 
     # 1. Check environment variable
-    env_webapp_dir = os.environ.get("AMPLIFIERD_WEBAPP_DIR")
+    env_webapp_dir = os.environ.get("LAKEHOUSED_WEBAPP_DIR")
     if env_webapp_dir:
         webapp_path = Path(env_webapp_dir).expanduser()
         if webapp_path.exists() and (webapp_path / "package.json").exists():
@@ -259,7 +259,7 @@ def start(daemon_only: bool, webapp_only: bool):
                 if source_dir is None:
                     click.echo(
                         "Error: Cannot find amplifierd source directory. "
-                        "Set AMPLIFIERD_SOURCE_DIR or ensure source is at /data/repos/lakehouse/amplifierd",
+                        "Set LAKEHOUSED_SOURCE_DIR or ensure source is at /data/repos/lakehouse/amplifierd",
                         err=True,
                     )
                     sys.exit(1)
@@ -294,7 +294,7 @@ def start(daemon_only: bool, webapp_only: bool):
                 # Start webapp dev server in background
                 webapp_dir = find_webapp_dir()
                 if webapp_dir is None:
-                    click.echo("Webapp not found - skipping (set AMPLIFIERD_WEBAPP_DIR or run from source)")
+                    click.echo("Webapp not found - skipping (set LAKEHOUSED_WEBAPP_DIR or run from source)")
                 else:
                     click.echo("Starting webapp...")
 

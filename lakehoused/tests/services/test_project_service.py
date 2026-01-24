@@ -344,7 +344,7 @@ class TestProjectService:
 
         assert child.metadata["default_bundle"] == "root/profile"
 
-    @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_BUNDLE": "env/profile"})
+    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_BUNDLE": "env/profile"})
     def test_root_uses_env_var_default(self, service: ProjectService) -> None:
         """Test that root uses environment variable for default profile."""
         create_req = ProjectCreate(relative_path="project")

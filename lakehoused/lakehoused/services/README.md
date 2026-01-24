@@ -4,7 +4,7 @@
 
 This directory contains simplified service layer implementations for the lakehoused daemon API endpoints.
 
-The services implement a **Unix-style flattened resource layout** with a package management model. Resources from multiple collections are extracted into a unified filesystem hierarchy under `{AMPLIFIERD_HOME}/local/share/`, enabling standalone deployment and clear resource organization.
+The services implement a **Unix-style flattened resource layout** with a package management model. Resources from multiple collections are extracted into a unified filesystem hierarchy under `{LAKEHOUSED_HOME}/local/share/`, enabling standalone deployment and clear resource organization.
 
 ## Architecture Philosophy
 
@@ -27,7 +27,7 @@ collections/
 
 **After:**
 ```
-{AMPLIFIERD_HOME}/local/share/
+{LAKEHOUSED_HOME}/local/share/
   collections.yaml          # Registry of installed collections
   modules/
     my-collection/providers/anthropic/
@@ -74,7 +74,7 @@ Discovers modules from flattened modules directory via collection-organized hier
 
 **Flattened Directory Structure:**
 ```
-{AMPLIFIERD_HOME}/local/share/modules/
+{LAKEHOUSED_HOME}/local/share/modules/
   my-collection/
     providers/
       anthropic/
@@ -176,7 +176,7 @@ Manages profile configurations and activation from flattened profiles directory.
 Profiles are stored in `{share_dir}/profiles/`:
 
 ```
-{AMPLIFIERD_HOME}/local/share/profiles/
+{LAKEHOUSED_HOME}/local/share/profiles/
   my-collection/
     dev.yaml               # Collection-scoped profile
     prod.yaml
@@ -249,7 +249,7 @@ context:
 Resources follow Unix Filesystem Hierarchy Standard principles:
 
 ```
-{AMPLIFIERD_HOME}/local/share/
+{LAKEHOUSED_HOME}/local/share/
   ├── collections.yaml          # Registry (like /etc/packages)
   ├── modules/                  # Executable code (like /usr/bin)
   ├── profiles/                 # User configurations (like /etc/conf.d)
@@ -543,7 +543,7 @@ collections/
 
 New Structure:
 ```
-{AMPLIFIERD_HOME}/local/share/
+{LAKEHOUSED_HOME}/local/share/
   collections.yaml
   modules/my-collection/providers/
   profiles/my-collection/dev.yaml

@@ -2,25 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Amplifierd: Run Daemon",
+      "name": "lakehoused: Run Daemon",
       "type": "debugpy",
       "request": "launch",
-      "module": "amplifierd",
+      "module": "lakehoused",
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "AMPLIFIERD_LOG_LEVEL": "debug",
-        "AMPLIFIERD_PORT": "8420"
+        "LAKEHOUSED_LOG_LEVEL": "debug",
+        "LAKEHOUSED_PORT": "8420"
       },
       "cwd": "${workspaceFolder}"
     },
     {
-      "name": "Amplifierd: Run Daemon (Production Mode)",
+      "name": "lakehoused: Run Daemon (Production Mode)",
       "type": "debugpy",
       "request": "launch",
       "module": "uvicorn",
       "args": [
-        "amplifierd.main:app",
+        "lakehoused.main:app",
         "--host",
         "0.0.0.0",
         "--port",
@@ -30,7 +30,7 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "env": {
-        "AMPLIFIERD_LOG_LEVEL": "info"
+        "LAKEHOUSED_LOG_LEVEL": "info"
       },
       "cwd": "${workspaceFolder}"
     },
@@ -60,8 +60,8 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "--cov=amplifier_library",
-        "--cov=amplifierd",
+        "--cov=lakehouse_library",
+        "--cov=lakehoused",
         "--cov-report=term-missing",
         "--cov-report=html",
         "-v"

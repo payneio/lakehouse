@@ -279,7 +279,7 @@ export function SettingsDialog() {
                 {settings.dataPath}
               </div>
               <p className="text-xs text-muted-foreground">
-                Set via AMPLIFIERD_DATA_PATH environment variable.
+                Set via LAKEHOUSED_DATA_PATH environment variable.
               </p>
             </div>
 

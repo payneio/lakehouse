@@ -106,7 +106,7 @@ def load_config(config_path: Path | None = None) -> Config:
     """Load daemon configuration.
 
     Loads configuration with the following precedence (highest to lowest):
-    1. Environment variables (AMPLIFIERD_*)
+    1. Environment variables (LAKEHOUSED_*)
     2. Configuration file (if exists)
     3. Default values
 
@@ -145,10 +145,10 @@ def load_config(config_path: Path | None = None) -> Config:
 def _apply_env_overrides(config: Config) -> Config:
     """Apply environment variable overrides to configuration.
 
-    Environment variables follow the pattern: AMPLIFIERD_SECTION_KEY
+    Environment variables follow the pattern: LAKEHOUSED_SECTION_KEY
     Examples:
-        AMPLIFIERD_STARTUP_AUTO_DISCOVER_PROFILES=false
-        AMPLIFIERD_DAEMON_LOG_LEVEL=DEBUG
+        LAKEHOUSED_STARTUP_AUTO_DISCOVER_PROFILES=false
+        LAKEHOUSED_DAEMON_LOG_LEVEL=DEBUG
 
     Args:
         config: Configuration to override
@@ -169,7 +169,7 @@ def _apply_env_overrides(config: Config) -> Config:
         "parallel_compilation",
         "max_parallel_workers",
     ]:
-        env_var = f"AMPLIFIERD_STARTUP_{key.upper()}"
+        env_var = f"LAKEHOUSED_STARTUP_{key.upper()}"
         if env_var in os.environ:
             value = os.environ[env_var]
             # Parse value based on type
@@ -196,7 +196,7 @@ def _apply_env_overrides(config: Config) -> Config:
         "cache_ttl_hours",
         "enable_metrics",
     ]:
-        env_var = f"AMPLIFIERD_DAEMON_{key.upper()}"
+        env_var = f"LAKEHOUSED_DAEMON_{key.upper()}"
         if env_var in os.environ:
             value = os.environ[env_var]
             # Parse value based on type
@@ -249,7 +249,7 @@ def save_example_config(path: Path | None = None) -> Path:
 # Copy this to daemon.yaml and customize as needed.
 #
 # Configuration precedence (highest to lowest):
-# 1. Environment variables (AMPLIFIERD_SECTION_KEY)
+# 1. Environment variables (LAKEHOUSED_SECTION_KEY)
 # 2. This configuration file
 # 3. Built-in defaults
 

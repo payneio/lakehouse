@@ -16,15 +16,15 @@ From the repo root, run `make daemon-dev` to start the daemon in development mod
 
 By default, when you run lakehoused the first time, it will create a "home directory" at `~/.lakehoused` to store configuration and data.
 
-You can override the home directory by setting the `AMPLIFIERD_HOME` environment variable to a different path before starting the daemon.
+You can override the home directory by setting the `LAKEHOUSED_HOME` environment variable to a different path before starting the daemon.
 
 By default the config, share, state, log, cache directories are created inside the home directory. You can override each of these paths individually by setting the corresponding environment variable:
 
-- `AMPLIFIERD_CONFIG_DIR`
-- `AMPLIFIERD_SHARE_DIR`
-- `AMPLIFIERD_STATE_DIR`
-- `AMPLIFIERD_LOG_DIR`
-- `AMPLIFIERD_CACHE_DIR`
+- `LAKEHOUSED_CONFIG_DIR`
+- `LAKEHOUSED_SHARE_DIR`
+- `LAKEHOUSED_STATE_DIR`
+- `LAKEHOUSED_LOG_DIR`
+- `LAKEHOUSED_CACHE_DIR`
 
 Configuration is loaded from `<lakehoused-config-dir>/daemon.yaml`:
 
@@ -59,17 +59,17 @@ daemon:
 
 **For LAN access:** See [../LAN.md](../LAN.md) for complete setup including CORS configuration.
 
-Environment variables override YAML settings (prefixed with `AMPLIFIERD_`):
+Environment variables override YAML settings (prefixed with `LAKEHOUSED_`):
 
 ```bash
 # Override server port
-AMPLIFIERD_PORT=8421 python -m lakehoused
+LAKEHOUSED_PORT=8421 python -m lakehoused
 
 # Use home directory for data (default)
-AMPLIFIERD_DATA_PATH="~" python -m lakehoused
+LAKEHOUSED_DATA_PATH="~" python -m lakehoused
 
 # Use custom directory
-AMPLIFIERD_DATA_PATH="/path/to/custom/data" python -m lakehoused
+LAKEHOUSED_DATA_PATH="/path/to/custom/data" python -m lakehoused
 ```
 
 **Path Expansion:**

@@ -8,10 +8,10 @@ from pydantic import field_validator
 
 class Project(BaseModel):
     """
-    Represents a directory within AMPLIFIERD_DATA_PATH containing .amplified marker.
+    Represents a directory within LAKEHOUSED_DATA_PATH containing .amplified marker.
 
     Contract:
-    - relative_path: Path relative to AMPLIFIERD_DATA_PATH
+    - relative_path: Path relative to LAKEHOUSED_DATA_PATH
     - default_bundle: Default bundle for new sessions (extracted from metadata)
     - metadata: User-defined metadata
     - created_at: Directory registration timestamp
@@ -28,7 +28,7 @@ class Project(BaseModel):
     }
     """
 
-    relative_path: str = Field(..., description="Path relative to AMPLIFIERD_DATA_PATH")
+    relative_path: str = Field(..., description="Path relative to LAKEHOUSED_DATA_PATH")
     default_bundle: str | None = Field(None, description="Default bundle for new sessions")
     metadata: dict = Field(..., description="User metadata")
     agents_content: str | None = None
