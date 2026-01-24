@@ -48,7 +48,7 @@ help:
 dev:
 	@echo "Starting daemon and webapp in development mode..."
 	@echo "Starting daemon in background..."
-	@uv run python -m amplifierd &
+	@uv run python -m lakehoused &
 	@DAEMON_PID=$$!; \
 	trap "echo 'Stopping daemon...'; kill $$DAEMON_PID 2>/dev/null || true" EXIT INT TERM; \
 	echo "Starting webapp (daemon PID: $$DAEMON_PID)..."; \
@@ -81,34 +81,34 @@ install: daemon-install webapp-install notebooks-install
 
 daemon-dev:
 	@echo "Starting daemon..."
-	cd amplifierd && uv run python -m amplifierd
+	cd lakehoused && uv run python -m lakehoused
 
 daemon-test:
 	@echo "Running daemon tests..."
-	cd amplifierd && uv run pytest
+	cd lakehoused && uv run pytest
 
 daemon-lint:
 	@echo "Linting daemon code..."
-	cd amplifierd && uv run ruff check --fix amplifierd
+	cd lakehoused && uv run ruff check --fix lakehoused
 	@echo "Formatting daemon code..."
-	cd amplifierd && uv run ruff format amplifierd
+	cd lakehoused && uv run ruff format lakehoused
 
 daemon-typecheck:
 	@echo "Type checking daemon code..."
-	cd amplifierd && uv run pyright amplifierd
+	cd lakehoused && uv run pyright lakehoused
 
 daemon-check: daemon-lint daemon-typecheck daemon-test
 	@echo "Daemon validation complete"
 
 daemon-install:
 	@echo "Installing daemon dependencies..."
-	cd amplifierd && uv sync
+	cd lakehoused && uv sync
 
 daemon-clean:
 	@echo "Cleaning daemon build artifacts..."
-	cd amplifierd && rm -rf __pycache__ .pytest_cache .ruff_cache .pyright_cache
-	cd amplifierd && find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	cd amplifierd && find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	cd lakehoused && rm -rf __pycache__ .pytest_cache .ruff_cache .pyright_cache
+	cd lakehoused && find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	cd lakehoused && find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 
 #
 # Webapp-specific targets

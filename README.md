@@ -2,9 +2,9 @@
 
 ## Intelligent computation platform
 
-Lakehouse is a [daemon](./amplifierd/README.md) and [webapp](./webapp/README.md) that provide an intelligent agent experience on top of your personal data.
+Lakehouse is a [daemon](./lakehoused/README.md) and [webapp](./webapp/README.md) that provide an intelligent agent experience on top of your personal data.
 
-Read more about the vision and design  in [The Intelligent Computation Platform](./amplifierd/docs/the-amplifier-computation-platform.md).
+Read more about the vision and design  in [The Intelligent Computation Platform](./lakehoused/docs/the-amplifier-computation-platform.md).
 
 ## Amplifier
 
@@ -14,7 +14,7 @@ There are some resources for learning more about Amplifier here:
 
 - [`guides`](./guides/README.md): Docs about Amplifier.
 - [`notebooks/amplifier-core`](./notebooks/amplifier-core/README.md): Notebooks demonstrating how to use amplifier-core.
-- [`notebooks/amplifierd`](./notebooks/amplifierd/README.md): Notebooks demonstrating how to use the amplifierd server.
+- [`notebooks/lakehoused`](./notebooks/lakehoused/README.md): Notebooks demonstrating how to use the lakehoused server.
 
 To get a better handle on amplifier, feel free to explore the guides and notebooks, or run the daemon and webapp locally to poke around.
 
@@ -39,11 +39,11 @@ cd lakehouse
 make install
 
 # 3. Install the lakehouse CLI
-cd amplifierd
+cd lakehoused
 uv tool install -e .
 ```
 
-**Why editable mode (`-e`)?** The lakehouse CLI needs access to the full repository structure (both `amplifierd/` and `webapp/` directories). Editable mode ensures your (and Lakehouse) code changes take effect immediately without reinstalling.
+**Why editable mode (`-e`)?** The lakehouse CLI needs access to the full repository structure (both `lakehoused/` and `webapp/` directories). Editable mode ensures your (and Lakehouse) code changes take effect immediately without reinstalling.
 
 ### Usage
 
@@ -71,7 +71,7 @@ lakehouse stop
 lakehouse open
 ```
 
-**Note:** Services run in the background and logs are written to `.amplifierd/logs/` (in your daemon's state directory).
+**Note:** Services run in the background and logs are written to `.lakehoused/logs/` (in your daemon's state directory).
 
 **Keep it running after disconnect:**
 
@@ -137,10 +137,10 @@ To access lakehouse from other devices on your local network (iPad, another lapt
 
 ### Configuration
 
-A `.amplifierd` directory is created when you first run the daemon. Configure it by editing:
+A `.lakehoused` directory is created when you first run the daemon. Configure it by editing:
 
 ```
-.amplifierd/config/daemon.yaml
+.lakehoused/config/daemon.yaml
 ```
 
 **Configuration structure:**
@@ -196,8 +196,8 @@ lakehouse stop --daemon-only    # Stop only daemon
 
 **Log files location:**
 ```
-.amplifierd/logs/amplifierd/daemon.log
-.amplifierd/logs/webapp/webapp.log
+.lakehoused/logs/lakehoused/daemon.log
+.lakehoused/logs/webapp/webapp.log
 ```
 (Located in your daemon's state directory)
 
@@ -205,8 +205,8 @@ lakehouse stop --daemon-only    # Stop only daemon
 
 **Daemon won't start:**
 - Check if port 8420 is already in use: `lsof -i :8420`
-- Check `.amplifierd/config/daemon.yaml` for configuration errors
-- Try running directly: `cd amplifierd && uv run python -m amplifierd`
+- Check `.lakehoused/config/daemon.yaml` for configuration errors
+- Try running directly: `cd lakehoused && uv run python -m lakehoused`
 
 **Webapp won't start:**
 - Check if port 5173 is already in use: `lsof -i :5173`
@@ -214,6 +214,6 @@ lakehouse stop --daemon-only    # Stop only daemon
 - Check for errors: `cd webapp && pnpm run dev`
 
 **CLI commands not found:**
-- Ensure you ran `uv tool install -e .` from the `amplifierd` directory
+- Ensure you ran `uv tool install -e .` from the `lakehoused` directory
 - Check if uv tools are in PATH: `uv tool list`
-- Reinstall if needed: `cd amplifierd && uv tool install --force -e .`
+- Reinstall if needed: `cd lakehoused && uv tool install --force -e .`

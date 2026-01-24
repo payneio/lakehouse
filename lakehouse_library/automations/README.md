@@ -18,7 +18,7 @@ from lakehouse_library.automations import AutomationManager
 from lakehouse_library.models.automations import ScheduleConfig
 
 # Initialize manager
-manager = AutomationManager(storage_dir=Path(".amplifierd/state"))
+manager = AutomationManager(storage_dir=Path(".lakehoused/state"))
 
 # Create automation with cron schedule
 schedule = ScheduleConfig(type="cron", value="0 9 * * *")  # Daily at 9 AM
@@ -86,7 +86,7 @@ ScheduleConfig(type="once", value="2024-12-15T09:00:00+00:00")
 ## Storage Structure
 
 ```
-.amplifierd/state/automations/
+.lakehoused/state/automations/
 ├── index.json                     # Fast lookup index
 ├── {automation_id}.json           # Individual automation files
 └── executions/

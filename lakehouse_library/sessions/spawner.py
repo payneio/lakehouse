@@ -13,7 +13,7 @@ Example:
     >>> from lakehouse_library.sessions import SessionManager
     >>> from lakehouse_library.sessions.spawner import spawn_agent
     >>>
-    >>> manager = SessionManager(Path(".amplifierd/state"))
+    >>> manager = SessionManager(Path(".lakehoused/state"))
     >>> parent_session = ... # existing session
     >>> agent_configs = {"bug-hunter": {"session": {"tools": ["debug"]}}}
     >>>

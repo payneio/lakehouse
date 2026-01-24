@@ -17,12 +17,12 @@ def get_home_dir() -> Path:
     """Get AMPLIFIERD_HOME from environment.
 
     Returns:
-        Path to root directory (default: .amplifierd)
+        Path to root directory (default: .lakehoused)
     """
     env_home = os.environ.get("AMPLIFIERD_HOME")
     if env_home:
         return Path(env_home).resolve()
-    return Path.home() / ".amplifierd"
+    return Path.home() / ".lakehoused"
 
 
 def get_config_dir() -> Path:

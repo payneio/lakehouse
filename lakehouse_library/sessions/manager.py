@@ -30,7 +30,7 @@ class SessionManager:
 
         Args:
             storage_dir: Path to parent directory - will create sessions/ subdirectory
-                        (e.g., .amplifierd/state for daemon, .amplifier for CLI)
+                        (e.g., .lakehoused/state for daemon, .amplifier for CLI)
         """
         self.storage_dir = Path(storage_dir) / "sessions"
         self.storage_dir.mkdir(parents=True, exist_ok=True)

@@ -98,7 +98,7 @@ sudo ufw status
 ```bash
 # System Settings → Network → Firewall
 # Allow incoming connections for:
-# - "amplifierd" (or Python)
+# - "lakehoused" (or Python)
 # - "node" (for Vite dev server)
 ```
 
@@ -115,7 +115,7 @@ New-NetFirewallRule -DisplayName "Amplifier Webapp" -Direction Inbound -LocalPor
 
 ### Step 1: Configure Daemon
 
-Edit `.amplifierd/config/daemon.yaml`:
+Edit `.lakehoused/config/daemon.yaml`:
 
 ```yaml
 daemon:
@@ -188,7 +188,7 @@ http://your-machine.local:7777
 
 ### Daemon Configuration
 
-**File:** `.amplifierd/config/daemon.yaml`
+**File:** `.lakehoused/config/daemon.yaml`
 
 The configuration is organized into two main sections: `startup` and `daemon`.
 
@@ -367,7 +367,7 @@ curl http://your-machine.local:8420/health
 cat webapp/.env.local
 
 # 2. Check CORS config
-cat .amplifierd/config/daemon.yaml | grep -A 10 cors
+cat .lakehoused/config/daemon.yaml | grep -A 10 cors
 
 # 3. Test API directly
 curl http://your-machine.local:8420/health
@@ -783,12 +783,12 @@ Container must bind to `0.0.0.0` inside Docker as well.
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Production deployment guide
 
 ### Component Documentation
-- [Amplifier Daemon README](./amplifierd/README.md) - Daemon architecture
+- [Amplifier Daemon README](./lakehoused/README.md) - Daemon architecture
 - [Webapp README](./webapp/README.md) - Frontend development guide
 - [Amplifier Library README](./lakehouse_library/README.md) - Core library docs
 
 ### Configuration
-- `.amplifierd/config/daemon.yaml` - Daemon configuration reference
+- `.lakehoused/config/daemon.yaml` - Daemon configuration reference
 - `webapp/.env.local` - Webapp environment variables (create this file)
 
 ### Security & Networking
@@ -803,7 +803,7 @@ Container must bind to `0.0.0.0` inside Docker as well.
 
 ```bash
 # 1. Configure daemon
-cat > .amplifierd/config/daemon.yaml << EOF
+cat > .lakehoused/config/daemon.yaml << EOF
 daemon:
   host: 0.0.0.0
   port: 8420
@@ -864,7 +864,7 @@ curl http://your-machine.local:8420/health
 netstat -tuln | grep -E "8420|5173"
 
 # Check CORS config
-grep -A 5 cors_origins .amplifierd/config/daemon.yaml
+grep -A 5 cors_origins .lakehoused/config/daemon.yaml
 ```
 
 ### Reverting to Localhost Only

@@ -1,7 +1,7 @@
 """Lakehouse bundle manager - integrates Foundation bundles with Lakehouse sessions.
 
 Wraps Foundation's BundleRegistry to provide:
-- Well-known bundle paths at ~/.amplifierd/bundles/
+- Well-known bundle paths at ~/.lakehoused/bundles/
 - Runtime config injection for sessions
 - Simplified API for session creation
 - Bundle source detection (user vs system)
@@ -38,7 +38,7 @@ class LakehouseBundleManager:
     """Manages bundle loading and mount plan generation for Lakehouse.
 
     Wraps Foundation's BundleRegistry to:
-    1. Use ~/.amplifierd/bundles/ as well-known bundle location
+    1. Use ~/.lakehoused/bundles/ as well-known bundle location
     2. Convert bundles to mount plans with runtime config injection
     3. Provide simplified API for session creation
     4. Track bundle source (user vs system) for UI
@@ -60,7 +60,7 @@ class LakehouseBundleManager:
         """Initialize bundle manager.
 
         Args:
-            home_dir: Base directory for Lakehouse data. Defaults to ~/.amplifierd.
+            home_dir: Base directory for Lakehouse data. Defaults to ~/.lakehoused.
                       Bundles are loaded from {home_dir}/bundles/.
             registry_bundles: Bundle name->URI mappings from BUNDLES.txt.
                               These are git+ URIs that Foundation will resolve
@@ -118,8 +118,8 @@ class LakehouseBundleManager:
         """Discover and register bundles in well-known bundle directories.
 
         Scans multiple locations for bundles:
-        - ~/.amplifierd/bundles/ (user bundles)
-        - ~/.amplifierd/share/bundles/ (system/shared bundles)
+        - ~/.lakehoused/bundles/ (user bundles)
+        - ~/.lakehoused/share/bundles/ (system/shared bundles)
 
         Supports multiple bundle formats:
         - Single .md files (e.g., basic.md) - name derived from filename
@@ -129,8 +129,8 @@ class LakehouseBundleManager:
         """
         # Directories to scan for bundles (in priority order - user bundles first)
         bundle_dirs = [
-            (self._bundles_dir, "user"),  # ~/.amplifierd/bundles/
-            (self._share_bundles_dir, "system"),  # ~/.amplifierd/share/bundles/
+            (self._bundles_dir, "user"),  # ~/.lakehoused/bundles/
+            (self._share_bundles_dir, "system"),  # ~/.lakehoused/share/bundles/
         ]
 
         discovered: dict[str, str] = {}

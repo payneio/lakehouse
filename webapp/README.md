@@ -1,6 +1,6 @@
 # Amplifier Web Application
 
-React + TypeScript web UI for the Amplifier system, backed by the [Amplifier Daemon](../amplifierd/amplifierd/README.md).
+React + TypeScript web UI for the Amplifier system, backed by the [Amplifier Daemon](../lakehoused/lakehoused/README.md).
 
 ## Tech Stack
 

@@ -17,7 +17,7 @@ Both systems use Server-Sent Events (SSE) for real-time streaming to the fronten
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              BACKEND (amplifierd)                           │
+│                              BACKEND (lakehoused)                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────────┐    ┌─────────────────────────────────────────────┐   │
@@ -40,7 +40,7 @@ Both systems use Server-Sent Events (SSE) for real-time streaming to the fronten
 │  └──────────────────┘                                                       │
 │                                                                             │
 │  Session Files (per session):                                              │
-│  ~/.amplifierd/state/sessions/{session_id}/                                │
+│  ~/.lakehoused/state/sessions/{session_id}/                                │
 │    ├── events.jsonl           # Full amplifier_core event log              │
 │    ├── transcript.jsonl       # User/assistant messages only               │
 │    └── execution_trace.jsonl  # Turn-by-turn trace for UI                  │
@@ -80,7 +80,7 @@ Both systems use Server-Sent Events (SSE) for real-time streaming to the fronten
 
 ### 1. StreamingHookRegistry
 
-**File**: `amplifierd/amplifierd/hooks/__init__.py`
+**File**: `lakehoused/lakehoused/hooks/__init__.py`
 
 A decorator pattern that wraps the amplifier_core `HookRegistry` to add SSE streaming capability. When hooks fire, events are emitted both to the original registry and to an `EventQueueEmitter` for SSE delivery.
 
@@ -108,7 +108,7 @@ DEFAULT_STREAMING_HOOKS = {
 
 ### 2. ExecutionTraceHook
 
-**File**: `amplifierd/amplifierd/hooks/execution_trace.py`
+**File**: `lakehoused/lakehoused/hooks/execution_trace.py`
 
 Persists execution traces to JSONL for historical analysis. Tracks complete turn cycles including tool calls, thinking blocks, and timing.
 
@@ -148,7 +148,7 @@ class TraceTurn(BaseModel):
 
 ### 3. EventQueueEmitter
 
-**File**: `amplifierd/amplifierd/streaming.py`
+**File**: `lakehoused/lakehoused/streaming.py`
 
 Multi-subscriber async queue system for SSE event distribution.
 
@@ -175,7 +175,7 @@ class EventQueueEmitter:
 
 ### 4. SessionStreamManager
 
-**File**: `amplifierd/amplifierd/services/session_stream_manager.py`
+**File**: `lakehoused/lakehoused/services/session_stream_manager.py`
 
 Coordinates all streaming infrastructure for a single session.
 
@@ -193,7 +193,7 @@ def mount_hooks(self, coordinator: ModuleCoordinator):
 
 ### 5. SessionStreamRegistry
 
-**File**: `amplifierd/amplifierd/services/session_stream_registry.py`
+**File**: `lakehoused/lakehoused/services/session_stream_registry.py`
 
 Global singleton registry mapping session IDs to their StreamManagers.
 
@@ -208,7 +208,7 @@ class SessionStreamRegistry:
 
 ### 6. GlobalEventService
 
-**File**: `amplifierd/amplifierd/services/global_events.py`
+**File**: `lakehoused/lakehoused/services/global_events.py`
 
 Singleton service for application-wide events (session lifecycle).
 
@@ -227,7 +227,7 @@ class GlobalEventService:
 ### Session SSE Stream
 
 **Endpoint**: `GET /api/v1/sessions/{session_id}/stream`
-**File**: `amplifierd/amplifierd/routers/stream.py`
+**File**: `lakehoused/lakehoused/routers/stream.py`
 
 Creates persistent SSE connection for real-time session events.
 
@@ -254,7 +254,7 @@ data: {}
 ### Global Events Stream
 
 **Endpoint**: `GET /api/v1/events`
-**File**: `amplifierd/amplifierd/routers/events.py`
+**File**: `lakehoused/lakehoused/routers/events.py`
 
 Global SSE stream for session lifecycle events.
 
@@ -265,7 +265,7 @@ Global SSE stream for session lifecycle events.
 ### Execution Trace
 
 **Endpoint**: `GET /api/v1/sessions/{session_id}/execution-trace`
-**File**: `amplifierd/amplifierd/routers/sessions.py`
+**File**: `lakehoused/lakehoused/routers/sessions.py`
 
 Returns historical execution trace for a session.
 
@@ -289,7 +289,7 @@ Returns historical execution trace for a session.
 ### Send Message
 
 **Endpoint**: `POST /api/v1/sessions/{session_id}/messages/send-message`
-**File**: `amplifierd/amplifierd/routers/messages.py`
+**File**: `lakehoused/lakehoused/routers/messages.py`
 
 Sends user message and triggers execution. This is where hooks get mounted and events start flowing.
 
@@ -306,7 +306,7 @@ Sends user message and triggers execution. This is where hooks get mounted and e
 
 ## Session Files
 
-Each session stores data in: `~/.amplifierd/state/sessions/{session_id}/`
+Each session stores data in: `~/.lakehoused/state/sessions/{session_id}/`
 
 ### events.jsonl
 
@@ -565,7 +565,7 @@ Renders tool calls within a turn.
 
 1. **Check execution_trace.jsonl exists**:
    ```bash
-   cat ~/.amplifierd/state/sessions/{session_id}/execution_trace.jsonl
+   cat ~/.lakehoused/state/sessions/{session_id}/execution_trace.jsonl
    ```
 
 2. **Check API returns data**:
@@ -595,7 +595,7 @@ Renders tool calls within a turn.
 
 ### Daemon Configuration
 
-**File**: `~/.amplifierd/config/daemon.yaml`
+**File**: `~/.lakehoused/config/daemon.yaml`
 
 ```yaml
 # SSE keepalive interval
@@ -611,7 +611,7 @@ streaming_hooks:
 
 ### CORS (for LAN access)
 
-**File**: `amplifierd/amplifierd/__main__.py`
+**File**: `lakehoused/lakehoused/__main__.py`
 
 ```python
 app.add_middleware(
@@ -634,7 +634,7 @@ We have two files storing overlapping data:
 | File | Written By | Contains |
 |------|------------|----------|
 | `events.jsonl` | hooks-logging (amplifier_core) | All events including tool:pre, tool:post, thinking:delta |
-| `execution_trace.jsonl` | ExecutionTraceHook (amplifierd) | Aggregated turns with tools/thinking |
+| `execution_trace.jsonl` | ExecutionTraceHook (lakehoused) | Aggregated turns with tools/thinking |
 
 This creates:
 - Duplicate storage
@@ -649,13 +649,13 @@ This creates:
 #### 1. Remove ExecutionTraceHook
 
 **Delete**:
-- `amplifierd/amplifierd/hooks/execution_trace.py`
-- References in `amplifierd/amplifierd/hooks/__init__.py`
-- Registration in `amplifierd/amplifierd/services/session_stream_manager.py`
+- `lakehoused/lakehoused/hooks/execution_trace.py`
+- References in `lakehoused/lakehoused/hooks/__init__.py`
+- Registration in `lakehoused/lakehoused/services/session_stream_manager.py`
 
 #### 2. Update `/execution-trace` Endpoint
 
-**File**: `amplifierd/amplifierd/routers/sessions.py`
+**File**: `lakehoused/lakehoused/routers/sessions.py`
 
 Change from reading `execution_trace.jsonl` to aggregating from `events.jsonl`:
 

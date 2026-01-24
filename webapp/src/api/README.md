@@ -1,10 +1,10 @@
 # API Client Module
 
-HTTP client for amplifierd REST API.
+HTTP client for lakehoused REST API.
 
 ## Purpose
 
-Provides typed access to all amplifierd API endpoints with proper error handling.
+Provides typed access to all lakehoused API endpoints with proper error handling.
 
 ## Contract
 
@@ -95,7 +95,7 @@ All API responses are fully typed. See `src/types/api.ts` for type definitions.
 
 The API client is a self-contained module with clear contracts. To test:
 
-1. Start amplifierd backend: `cd amplifierd && uv run uvicorn amplifierd.main:app`
+1. Start lakehoused backend: `cd lakehoused && uv run uvicorn lakehoused.main:app`
 2. Import and call functions from your components
 3. All network errors will be properly typed and caught
 

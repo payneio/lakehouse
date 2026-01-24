@@ -35,7 +35,7 @@ class AutomationManager:
         """Initialize with storage directory.
 
         Args:
-            storage_dir: Path to state directory (e.g., .amplifierd/state)
+            storage_dir: Path to state directory (e.g., .lakehoused/state)
         """
         self.storage_dir = Path(storage_dir) / "automations"
         self.storage_dir.mkdir(parents=True, exist_ok=True)

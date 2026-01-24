@@ -146,9 +146,9 @@ export function BundlesPage() {
       {/* Description */}
       <p className="text-muted-foreground">
         Bundles configure agent behavior and capabilities. They are loaded from{' '}
-        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.amplifierd/bundles/</code>{' '}
+        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.lakehoused/bundles/</code>{' '}
         (user) and{' '}
-        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.amplifierd/share/bundles/</code>{' '}
+        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.lakehoused/share/bundles/</code>{' '}
         (system).
       </p>
 
@@ -187,7 +187,7 @@ export function BundlesPage() {
           <div className="text-center py-12 text-muted-foreground">
             {searchQuery || sourceFilter !== 'all'
               ? 'No bundles match your search'
-              : 'No bundles found. Add bundles to ~/.amplifierd/bundles/'}
+              : 'No bundles found. Add bundles to ~/.lakehoused/bundles/'}
           </div>
         ) : (
           filteredBundles.map((bundle) => (

@@ -108,7 +108,7 @@ export function CopyBundleDialog({
 
           <p className="text-sm text-muted-foreground">
             The new bundle will be created in your user bundles folder
-            (<code className="bg-gray-100 px-1 rounded">~/.amplifierd/bundles/</code>) and can be
+            (<code className="bg-gray-100 px-1 rounded">~/.lakehoused/bundles/</code>) and can be
             freely edited.
           </p>
 
