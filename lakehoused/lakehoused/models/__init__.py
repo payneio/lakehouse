@@ -39,7 +39,6 @@ from .projects import Project
 from .projects import ProjectCreate
 from .projects import ProjectList
 from .projects import ProjectUpdate
-from .requests import CreateSessionRequest
 from .requests import SendMessageRequest
 from .requests import UpdateContextRequest
 from .responses import MessageResponse
@@ -67,7 +66,6 @@ __all__ = [
     "AgentsContentUpdate",
     "AgentsContentResponse",
     # Session requests
-    "CreateSessionRequest",
     "SendMessageRequest",
     "UpdateContextRequest",
     # Errors

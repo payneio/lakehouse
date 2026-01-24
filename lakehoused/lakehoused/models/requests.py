@@ -10,18 +10,6 @@ from pydantic import Field
 from lakehoused.models.base import CamelCaseModel
 
 
-class CreateSessionRequest(CamelCaseModel):
-    """Request to create a new session.
-
-    Attributes:
-        profile: Profile name for this session
-        context: Optional session-specific context data
-    """
-
-    profile: str = Field(..., description="Profile name for this session")
-    context: dict[str, Any] | None = Field(default=None, description="Optional session-specific context data")
-
-
 class SendMessageRequest(CamelCaseModel):
     """Request to send a message to a session.
 
