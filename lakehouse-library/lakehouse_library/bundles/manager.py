@@ -199,7 +199,9 @@ class LakehouseBundleManager:
                         logger.debug(f"Discovered bundle dir: {bundle_name} -> {bundle_uri} ({source_type})")
                 else:
                     # Recurse into subdirectory (e.g., foundation/)
-                    self._discover_bundles_in_dir(item, discovered, prefix=prefix + item.name + "/", source_type=source_type)
+                    self._discover_bundles_in_dir(
+                        item, discovered, prefix=prefix + item.name + "/", source_type=source_type
+                    )
 
     async def load_bundle(self, bundle_ref: str) -> Bundle:
         """Load a bundle by name or URI.
@@ -327,24 +329,33 @@ class LakehouseBundleManager:
                     hook["config"] = {}
 
                 # Set session_log_template for logging hooks
+                # Always override with lakehouse-specific path (bundles may have different paths)
                 hook_module = hook.get("module", "") or hook.get("id", "")
                 hook_source = hook.get("source", "")
                 is_logging_hook = "logging" in hook_module or "logging" in hook_source
 
-                if is_logging_hook and "session_log_template" not in hook["config"]:
+                if is_logging_hook:
                     # Use {session_id} placeholder - Foundation replaces at runtime
                     hook["config"]["session_log_template"] = str(
                         self._home_dir / "state" / "sessions" / "{session_id}" / "events.jsonl"
                     )
 
-        # Inject API key into providers
-        if api_key and "providers" in mount_plan:
+        # Inject config into providers
+        if "providers" in mount_plan:
             for provider in mount_plan["providers"]:
                 if "config" not in provider:
                     provider["config"] = {}
 
-                if "api_key" not in provider["config"]:
+                # Inject API key if provided
+                if api_key and "api_key" not in provider["config"]:
                     provider["config"]["api_key"] = api_key
+
+                # Enable debug logging for raw request/response events
+                # This allows hooks-logging to capture llm:request:raw and llm:response:raw
+                if "debug" not in provider["config"]:
+                    provider["config"]["debug"] = True
+                if "raw_debug" not in provider["config"]:
+                    provider["config"]["raw_debug"] = True
 
         return mount_plan
 
@@ -420,11 +431,13 @@ class LakehouseBundleManager:
         # Build agents list as module refs
         agents_list = []
         for agent_name, agent_config in (bundle.agents or {}).items():
-            agents_list.append({
-                "module": agent_name,
-                "source": agent_config.get("source"),
-                "config": agent_config.get("config"),
-            })
+            agents_list.append(
+                {
+                    "module": agent_name,
+                    "source": agent_config.get("source"),
+                    "config": agent_config.get("config"),
+                }
+            )
 
         return {
             "name": bundle.name,
@@ -468,18 +481,19 @@ class LakehouseBundleManager:
         # Build includes chain by loading bundles in order
         includes_chain = await self._build_includes_chain(name)
 
-        # Load all bundles in the chain to track contributions
+        # Load all bundles in the chain WITHOUT auto-include to track direct declarations
+        # This allows us to see which bundle actually declared each component
         bundles_by_name: dict[str, Bundle] = {}
         for bundle_name in includes_chain:
             try:
-                bundles_by_name[bundle_name] = await self.load_bundle(bundle_name)
+                # Load with auto_include=False to get ONLY direct declarations
+                bundles_by_name[bundle_name] = await self._registry._load_single(
+                    bundle_name,
+                    auto_register=False,
+                    auto_include=False,
+                )
             except Exception as e:
                 logger.warning(f"Failed to load bundle {bundle_name} in chain: {e}")
-
-        # The final resolved bundle
-        final_bundle = bundles_by_name.get(name)
-        if not final_bundle:
-            raise ValueError(f"Failed to load bundle: {name}")
 
         # Track contributions: module_id -> (bundle_name, config)
         def track_modules(module_list: list[dict], bundle_name: str, contributions: dict) -> None:
@@ -502,7 +516,7 @@ class LakehouseBundleManager:
                                 "config": new_config,
                             }
 
-        # Process each bundle in chain order
+        # Process each bundle in chain order to track where components are defined
         provider_contributions: dict[str, Any] = {}
         tool_contributions: dict[str, Any] = {}
         hook_contributions: dict[str, Any] = {}
@@ -535,36 +549,43 @@ class LakehouseBundleManager:
                             "config": agent_config,
                         }
 
+        # Now load the final composed bundle (WITH includes resolved) to get all components
+        final_bundle = await self.load_bundle(name)
+
         # Build resolved module lists with source tracking
         def build_resolved_modules(module_list: list[dict], contributions: dict) -> list[dict]:
             result = []
             for mod in module_list:
                 mod_id = mod.get("module") or mod.get("id", "")
                 contrib = contributions.get(mod_id, {})
-                result.append({
-                    "module": mod_id,
-                    "source": mod.get("source"),
-                    "config": mod.get("config"),
-                    "defined_in": contrib.get("defined_in", name),
-                    "overridden": contrib.get("overridden", False),
-                    "override_in": contrib.get("override_in"),
-                    "original_config": contrib.get("original_config"),
-                })
+                result.append(
+                    {
+                        "module": mod_id,
+                        "source": mod.get("source"),
+                        "config": mod.get("config"),
+                        "defined_in": contrib.get("defined_in", name),
+                        "overridden": contrib.get("overridden", False),
+                        "override_in": contrib.get("override_in"),
+                        "original_config": contrib.get("original_config"),
+                    }
+                )
             return result
 
         # Build resolved agents list
         resolved_agents = []
         for agent_name, contrib in agent_contributions.items():
             agent_config = contrib.get("config", {})
-            resolved_agents.append({
-                "module": agent_name,
-                "source": agent_config.get("source") if isinstance(agent_config, dict) else None,
-                "config": agent_config.get("config") if isinstance(agent_config, dict) else None,
-                "defined_in": contrib.get("defined_in", name),
-                "overridden": contrib.get("overridden", False),
-                "override_in": contrib.get("override_in"),
-                "original_config": contrib.get("original_config"),
-            })
+            resolved_agents.append(
+                {
+                    "module": agent_name,
+                    "source": agent_config.get("source") if isinstance(agent_config, dict) else None,
+                    "config": agent_config.get("config") if isinstance(agent_config, dict) else None,
+                    "defined_in": contrib.get("defined_in", name),
+                    "overridden": contrib.get("overridden", False),
+                    "override_in": contrib.get("override_in"),
+                    "original_config": contrib.get("original_config"),
+                }
+            )
 
         # Build session config with source tracking
         session_config = None
@@ -578,14 +599,18 @@ class LakehouseBundleManager:
                     "config": orch.get("config") if orch else None,
                     "defined_in": name,  # Session is always from final bundle
                     "overridden": False,
-                } if orch else None,
+                }
+                if orch
+                else None,
                 "context": {
                     "module": ctx.get("module") if ctx else None,
                     "source": ctx.get("source") if ctx else None,
                     "config": ctx.get("config") if ctx else None,
                     "defined_in": name,
                     "overridden": False,
-                } if ctx else None,
+                }
+                if ctx
+                else None,
             }
 
         return {
@@ -619,7 +644,12 @@ class LakehouseBundleManager:
         seen.add(name)
 
         try:
-            bundle = await self.load_bundle(name)
+            # Load WITHOUT auto_include to see the raw includes list
+            bundle = await self._registry._load_single(
+                name,
+                auto_register=False,
+                auto_include=False,
+            )
         except Exception:
             return [name]  # Can't load, just return the name
 
@@ -725,12 +755,8 @@ class LakehouseBundleManager:
         # Update bundle name in content
         # Simple replacement of name in YAML frontmatter
         import re
-        content = re.sub(
-            r'(name:\s*)' + re.escape(source_name),
-            r'\g<1>' + new_name,
-            content,
-            count=1
-        )
+
+        content = re.sub(r"(name:\s*)" + re.escape(source_name), r"\g<1>" + new_name, content, count=1)
 
         # Write new bundle
         new_path.write_text(content)
