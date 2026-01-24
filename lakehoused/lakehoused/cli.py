@@ -16,15 +16,15 @@ import psutil
 from lakehouse_library.storage.paths import get_log_dir
 
 
-def find_amplifierd_source_dir() -> Path | None:
-    """Find the amplifierd source directory for running daemon from source.
+def find_lakehoused_source_dir() -> Path | None:
+    """Find the lakehoused source directory for running daemon from source.
 
     Checks in order:
     1. LAKEHOUSED_SOURCE_DIR environment variable
     2. Common locations
 
     Returns:
-        Path to amplifierd source directory, or None if not found
+        Path to lakehoused source directory, or None if not found
     """
     import os
 
@@ -37,10 +37,10 @@ def find_amplifierd_source_dir() -> Path | None:
 
     # 2. Check common locations
     common_locations = [
-        Path("/data/repos/lakehouse/amplifierd"),
-        Path.home() / "repos" / "lakehouse" / "amplifierd",
-        Path.home() / "amplifier" / "amplifierd",
-        Path.home() / "projects" / "lakehouse" / "amplifierd",
+        Path("/data/repos/lakehouse/lakehoused"),
+        Path.home() / "repos" / "lakehouse" / "lakehoused",
+        Path.home() / "amplifier" / "lakehoused",
+        Path.home() / "projects" / "lakehouse" / "lakehoused",
     ]
 
     for location in common_locations:
@@ -55,7 +55,7 @@ def find_webapp_dir() -> Path | None:
 
     Checks in order:
     1. LAKEHOUSED_WEBAPP_DIR environment variable
-    2. Sibling to source amplifierd directory (development)
+    2. Sibling to source lakehoused directory (development)
     3. Common locations
 
     Returns:
@@ -71,7 +71,7 @@ def find_webapp_dir() -> Path | None:
             return webapp_path
 
     # 2. Check relative to source (development mode)
-    # In development, cli.py is at /repo/amplifierd/amplifierd/cli.py
+    # In development, cli.py is at /repo/lakehoused/lakehoused/cli.py
     # and webapp is at /repo/webapp
     source_dir = Path(__file__).parent.parent.parent
     source_webapp = source_dir / "webapp"
@@ -116,7 +116,7 @@ def find_process_by_name(name: str) -> list[psutil.Process]:
 def find_daemon_processes() -> list[psutil.Process]:
     """Find all running daemon processes.
 
-    Looks for processes matching 'python -m amplifierd' pattern.
+    Looks for processes matching 'python -m lakehoused' pattern.
     Excludes the lakehouse CLI itself and verifies processes are alive.
 
     Returns:
@@ -139,18 +139,18 @@ def find_daemon_processes() -> list[psutil.Process]:
             if not cmdline or len(cmdline) < 2:
                 continue
 
-            # Match pattern: python -m amplifierd
-            # Check if it's a python interpreter running the amplifierd module
+            # Match pattern: python -m lakehoused
+            # Check if it's a python interpreter running the lakehoused module
             is_python = "python" in cmdline[0].lower()
             has_module_flag = "-m" in cmdline
-            has_amplifierd = "amplifierd" in cmdline
+            has_lakehoused = "lakehoused" in cmdline
 
-            if is_python and has_module_flag and has_amplifierd:
+            if is_python and has_module_flag and has_lakehoused:
                 # Verify it's the actual module, not just in a path
                 module_index = cmdline.index("-m") + 1
                 if (
                     module_index < len(cmdline)
-                    and cmdline[module_index] == "amplifierd"
+                    and cmdline[module_index] == "lakehoused"
                     and proc.is_running()
                     and proc.status() != psutil.STATUS_ZOMBIE
                 ):
@@ -239,7 +239,7 @@ def start(daemon_only: bool, webapp_only: bool):
         daemon_log_dir = get_log_dir()
         daemon_log = daemon_log_dir / "daemon.log"
 
-        # Webapp logs go in logs/webapp (sibling to logs/amplifierd)
+        # Webapp logs go in logs/webapp (sibling to logs/lakehoused)
         webapp_log_dir = daemon_log_dir.parent / "webapp"
         webapp_log_dir.mkdir(parents=True, exist_ok=True)
         webapp_log = webapp_log_dir / "webapp.log"
@@ -255,18 +255,18 @@ def start(daemon_only: bool, webapp_only: bool):
                 # Start daemon from source directory (not from installed tool)
                 import subprocess
 
-                source_dir = find_amplifierd_source_dir()
+                source_dir = find_lakehoused_source_dir()
                 if source_dir is None:
                     click.echo(
-                        "Error: Cannot find amplifierd source directory. "
-                        "Set LAKEHOUSED_SOURCE_DIR or ensure source is at /data/repos/lakehouse/amplifierd",
+                        "Error: Cannot find lakehoused source directory. "
+                        "Set LAKEHOUSED_SOURCE_DIR or ensure source is at /data/repos/lakehouse/lakehoused",
                         err=True,
                     )
                     sys.exit(1)
 
                 click.echo("Starting daemon...")
                 # Use uv run from source directory to ensure we run from source, not installed tool
-                daemon_cmd = ["uv", "run", "python", "-m", "amplifierd"]
+                daemon_cmd = ["uv", "run", "python", "-m", "lakehoused"]
                 with builtins.open(str(daemon_log), "a") as log_file:
                     subprocess.Popen(
                         daemon_cmd,
