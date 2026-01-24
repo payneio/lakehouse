@@ -1,42 +1,48 @@
 """Basic validation tests for spawner module.
 
 These tests verify the core functionality without requiring
-amplifier-core or full integration setup.
+amplifier-core or full integration setup. Uses Foundation's
+deep_merge and generate_sub_session_id functions.
 """
 
-
 import pytest
+from amplifier_foundation import deep_merge
+from amplifier_foundation import generate_sub_session_id
 
-from lakehouse_library.sessions.spawner import _generate_child_session_id
-from lakehouse_library.sessions.spawner import _merge_configs
 
-
-def test_generate_child_session_id():
-    """Test child session ID generation with trace context."""
-    parent_id = "abc123"
+def test_generate_sub_session_id():
+    """Test sub-session ID generation with trace context."""
+    parent_id = "0000000000000000-abc123def456abcd_parent"
     agent_name = "bug-hunter"
 
-    child_id = _generate_child_session_id(parent_id, agent_name)
+    child_id = generate_sub_session_id(
+        agent_name=agent_name,
+        parent_session_id=parent_id,
+    )
 
-    # Should have format: {parent}-{uuid}_agent-name
-    assert child_id.startswith(parent_id + "-")
+    # Should have format: {parent-span}-{child-span}_{agent-name}
+    # Foundation extracts the child span from parent (abc123def456abcd) as our parent span
     assert child_id.endswith(f"_{agent_name}")
 
-    # UUID part should be 16 hex chars
-    parts = child_id.split("-")
-    assert len(parts) >= 2
-    uuid_part = parts[1].split("_")[0]
-    assert len(uuid_part) == 16
+    # Should have two 16-char hex spans separated by -
+    parts = child_id.split("_")
+    assert len(parts) == 2
+    spans = parts[0].split("-")
+    assert len(spans) == 2
+    # Each span should be 16 hex chars
+    assert len(spans[0]) == 16
+    assert len(spans[1]) == 16
     # Should be valid hex
-    int(uuid_part, 16)
+    int(spans[0], 16)
+    int(spans[1], 16)
 
 
-def test_merge_configs_simple():
+def testdeep_merge_simple():
     """Test simple config merging."""
     parent = {"session": {"orchestrator": "default", "timeout": 30}}
     agent = {"session": {"tools": ["debug"]}}
 
-    merged = _merge_configs(parent, agent)
+    merged = deep_merge(parent, agent)
 
     # Parent values preserved
     assert merged["session"]["orchestrator"] == "default"
@@ -46,18 +52,18 @@ def test_merge_configs_simple():
     assert merged["session"]["tools"] == ["debug"]
 
 
-def test_merge_configs_override():
+def testdeep_merge_override():
     """Test config value override."""
     parent = {"session": {"timeout": 30}}
     agent = {"session": {"timeout": 60}}
 
-    merged = _merge_configs(parent, agent)
+    merged = deep_merge(parent, agent)
 
     # Agent value overrides parent
     assert merged["session"]["timeout"] == 60
 
 
-def test_merge_configs_nested():
+def testdeep_merge_nested():
     """Test deeply nested config merging."""
     parent = {
         "session": {"orchestrator": "default", "config": {"max_turns": 10, "verbose": True}},
@@ -69,7 +75,7 @@ def test_merge_configs_nested():
         "providers": {"anthropic": {"model": "claude-3"}},
     }
 
-    merged = _merge_configs(parent, agent)
+    merged = deep_merge(parent, agent)
 
     # Session orchestrator preserved
     assert merged["session"]["orchestrator"] == "default"
@@ -86,12 +92,12 @@ def test_merge_configs_nested():
     assert merged["providers"]["anthropic"]["model"] == "claude-3"
 
 
-def test_merge_configs_list_replace():
+def testdeep_merge_list_replace():
     """Test that lists are replaced, not concatenated."""
     parent = {"session": {"tools": ["tool1", "tool2"]}}
     agent = {"session": {"tools": ["tool3"]}}
 
-    merged = _merge_configs(parent, agent)
+    merged = deep_merge(parent, agent)
 
     # Agent list replaces parent list completely
     assert merged["session"]["tools"] == ["tool3"]

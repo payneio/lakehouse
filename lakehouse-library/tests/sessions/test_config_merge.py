@@ -1,11 +1,11 @@
-"""Unit tests for configuration merging in spawner module.
+"""Unit tests for configuration merging.
 
-Tests the _merge_configs function which handles deep merging of
-parent session configs with agent-specific overlay configs.
+Tests the deep_merge function from amplifier_foundation which handles
+deep merging of parent session configs with agent-specific overlay configs.
+This is used by the spawner module for configuration inheritance.
 """
 
-
-from lakehouse_library.sessions.spawner import _merge_configs
+from amplifier_foundation import deep_merge
 
 
 class TestConfigMerging:
@@ -16,7 +16,7 @@ class TestConfigMerging:
         When merging
         Then should return empty dict
         """
-        result = _merge_configs({}, {})
+        result = deep_merge({}, {})
         assert result == {}
 
     def test_merge_empty_parent(self):
@@ -25,7 +25,7 @@ class TestConfigMerging:
         Then should return overlay config unchanged
         """
         overlay = {"session": {"tools": ["debug"]}}
-        result = _merge_configs({}, overlay)
+        result = deep_merge({}, overlay)
         assert result == overlay
         assert result is not overlay  # Should be a copy
 
@@ -35,7 +35,7 @@ class TestConfigMerging:
         Then should return parent config unchanged
         """
         parent = {"session": {"orchestrator": "default"}}
-        result = _merge_configs(parent, {})
+        result = deep_merge(parent, {})
         assert result == parent
         assert result is not parent  # Should be a copy
 
@@ -47,7 +47,7 @@ class TestConfigMerging:
         parent = {"session": {"orchestrator": "default"}}
         overlay = {"session": {"tools": ["debug"]}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result == {
             "session": {
@@ -64,7 +64,7 @@ class TestConfigMerging:
         parent = {"session": {"timeout": 30}}
         overlay = {"session": {"timeout": 60}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["timeout"] == 60
 
@@ -76,7 +76,7 @@ class TestConfigMerging:
         parent = {"session": {"tools": ["read", "write"]}}
         overlay = {"session": {"tools": ["debug"]}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["tools"] == ["debug"]
         assert "read" not in result["session"]["tools"]
@@ -104,7 +104,7 @@ class TestConfigMerging:
             }
         }
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result == {
             "session": {
@@ -142,7 +142,7 @@ class TestConfigMerging:
             }
         }
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["level1"]["level2"]["level3"]["value"] == "overlay"
         assert result["level1"]["level2"]["level3"]["keep"] == "this"
@@ -155,7 +155,7 @@ class TestConfigMerging:
         parent = {"session": {"llm": "default"}}
         overlay = {"session": {"llm": {"model": "claude", "temperature": 0.7}}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["llm"] == {"model": "claude", "temperature": 0.7}
 
@@ -167,7 +167,7 @@ class TestConfigMerging:
         parent = {"session": {"llm": {"model": "claude", "temperature": 0.7}}}
         overlay = {"session": {"llm": "override"}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["llm"] == "override"
 
@@ -179,7 +179,7 @@ class TestConfigMerging:
         parent = {"session": {"value": "something"}}
         overlay = {"session": {"value": None}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["value"] is None
 
@@ -216,7 +216,7 @@ class TestConfigMerging:
             }
         }
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         # Verify structure
         assert result["session"]["orchestrator"] == "default"  # Inherited
@@ -240,7 +240,7 @@ class TestConfigMerging:
         parent_copy = parent.copy()
         overlay_copy = overlay.copy()
 
-        _merge_configs(parent, overlay)
+        deep_merge(parent, overlay)
 
         assert parent == parent_copy
         assert overlay == overlay_copy
@@ -253,7 +253,7 @@ class TestConfigMerging:
         parent = {"session": {"enabled": True, "debug": False}}
         overlay = {"session": {"enabled": False}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["enabled"] is False
         assert result["session"]["debug"] is False
@@ -266,7 +266,7 @@ class TestConfigMerging:
         parent = {"session": {"int_val": 42, "float_val": 3.14}}
         overlay = {"session": {"int_val": 100, "float_val": 2.71}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["int_val"] == 100
         assert result["session"]["float_val"] == 2.71
@@ -281,7 +281,7 @@ class TestConfigMerging:
         parent = {"session": {"nested": {}}}
         overlay = {"session": {"nested": {"key": "value"}}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert result["session"]["nested"] == {"key": "value"}
 
@@ -300,7 +300,7 @@ class TestConfigMerging:
         }
         overlay = {"session": {"providers": [{"name": "new_provider", "config": {}}]}}
 
-        result = _merge_configs(parent, overlay)
+        result = deep_merge(parent, overlay)
 
         assert len(result["session"]["providers"]) == 1
         assert result["session"]["providers"][0]["name"] == "new_provider"

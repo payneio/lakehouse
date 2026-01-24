@@ -29,8 +29,10 @@ Example:
 """
 
 import logging
-import uuid
 from typing import Any
+
+from amplifier_foundation import deep_merge
+from amplifier_foundation import generate_sub_session_id
 
 from lakehouse_library.models.sessions import SessionStatus
 
@@ -53,63 +55,6 @@ class SessionNotFoundError(RuntimeError):
     """Raised when attempting to resume non-existent session."""
 
     pass
-
-
-def _generate_child_session_id(parent_id: str, agent_name: str) -> str:
-    """Generate W3C trace context style child session ID.
-
-    Creates hierarchical IDs like: {parent-span}-{child-span}_{agent-name}
-
-    Args:
-        parent_id: Parent session ID
-        agent_name: Name of agent being spawned
-
-    Returns:
-        Child session ID with trace hierarchy
-
-    Example:
-        >>> _generate_child_session_id("abc123", "bug-hunter")
-        'abc123-f4e5d6c7b8a9_{bug-hunter}'
-    """
-    child_span = uuid.uuid4().hex[:16]
-    return f"{parent_id}-{child_span}_{agent_name}"
-
-
-def _merge_configs(parent_config: dict[str, Any], agent_config: dict[str, Any]) -> dict[str, Any]:
-    """Merge parent config with agent-specific overlay.
-
-    Uses simple deep merge strategy:
-    - Nested dicts are merged recursively
-    - Lists from agent_config replace parent lists (no concatenation)
-    - Agent values override parent values at leaf nodes
-
-    Args:
-        parent_config: Parent session configuration
-        agent_config: Agent-specific overlay configuration
-
-    Returns:
-        Merged configuration dictionary
-
-    Example:
-        >>> parent = {"session": {"orchestrator": "default", "timeout": 30}}
-        >>> agent = {"session": {"tools": ["debug"]}}
-        >>> merged = _merge_configs(parent, agent)
-        >>> merged["session"]["orchestrator"]  # Inherited
-        'default'
-        >>> merged["session"]["tools"]  # From agent
-        ['debug']
-    """
-    merged = parent_config.copy()
-
-    for key, value in agent_config.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            # Recursively merge nested dicts
-            merged[key] = _merge_configs(merged[key], value)
-        else:
-            # Override or add value
-            merged[key] = value
-
-    return merged
 
 
 async def spawn_agent(
@@ -180,13 +125,16 @@ async def spawn_agent(
     if not parent_config:
         raise ValueError("Parent session has no config")
 
-    # Merge parent config with agent overlay
+    # Merge parent config with agent overlay (using Foundation's deep_merge)
     agent_config = agent_configs[agent_name]
-    merged_config = _merge_configs(parent_config, agent_config)
+    merged_config = deep_merge(parent_config, agent_config)
 
-    # Generate child session ID if not provided
-    parent_id = getattr(parent_session, "session_id", str(uuid.uuid4()))
-    child_id = sub_session_id or _generate_child_session_id(parent_id, agent_name)
+    # Generate child session ID if not provided (using Foundation's generate_sub_session_id)
+    parent_id = getattr(parent_session, "session_id", None)
+    child_id = sub_session_id or generate_sub_session_id(
+        agent_name=agent_name,
+        parent_session_id=parent_id,
+    )
     trace_id = child_id  # Child ID serves as trace ID
 
     # Get parent's project path from session metadata (not the AmplifierSession object)
@@ -389,25 +337,14 @@ async def resume_spawned_agent(
             "amplifier-core is required for agent resumption. Install it with: pip install amplifier-core"
         ) from e
 
-    # Get resolver from parent session's coordinator
-    # The parent AmplifierSession already has a BundleModuleResolver mounted
-    try:
-        parent_resolver = parent_session.coordinator.get_capability("module-source-resolver")
-        if not parent_resolver:
-            raise ExecutionError("Parent session has no module-source-resolver mounted")
-    except Exception as e:
-        raise ExecutionError(f"Could not get resolver from parent session: {e}") from e
-
     # Create and initialize AmplifierSession
+    # Note: Resumed sessions initialize from their saved mount_plan config
     child_session = None
     try:
-        # Create session
+        # Create session from saved config
         child_session = AmplifierSession(merged_config, session_id=session_id)
 
-        # Mount the same resolver from parent (BundleModuleResolver is stateless)
-        await child_session.coordinator.mount("module-source-resolver", parent_resolver)
-
-        # Initialize
+        # Initialize (will use resolver info from saved config if needed)
         await child_session.initialize()
         logger.info(f"Initialized resumed session {session_id}")
 

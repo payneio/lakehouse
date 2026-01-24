@@ -443,7 +443,14 @@ class TestSessionHierarchy:
             metadata = session_manager.get_session(child_id)
 
             assert metadata.parent_session_id == "parent-session-123"
-            assert child_id.startswith("parent-session-123-")
+            # W3C trace context format: {parent-span}-{child-span}_{agent-name}
+            assert child_id.endswith("_bug-hunter")
+            parts = child_id.split("_")
+            assert len(parts) == 2
+            spans = parts[0].split("-")
+            assert len(spans) == 2
+            assert len(spans[0]) == 16  # parent span
+            assert len(spans[1]) == 16  # child span
 
     @pytest.mark.asyncio
     async def test_multiple_children_from_same_parent(self, session_manager, parent_session, agent_configs):

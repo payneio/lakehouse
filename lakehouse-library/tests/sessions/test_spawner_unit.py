@@ -21,67 +21,76 @@ sys.modules["lakehoused"] = MagicMock()
 sys.modules["lakehoused.module_resolver"] = MagicMock()
 sys.modules["amplifier_core"] = MagicMock()
 
+from amplifier_foundation import generate_sub_session_id
 from lakehouse_library.models.sessions import SessionMessage
 from lakehouse_library.models.sessions import SessionMetadata
 from lakehouse_library.models.sessions import SessionStatus
 from lakehouse_library.sessions.spawner import AgentNotFoundError
 from lakehouse_library.sessions.spawner import SessionNotFoundError
-from lakehouse_library.sessions.spawner import _generate_child_session_id
 from lakehouse_library.sessions.spawner import resume_spawned_agent
 from lakehouse_library.sessions.spawner import spawn_agent
 
 
-class TestGenerateChildSessionId:
-    """Test W3C trace context style session ID generation."""
+class TestGenerateSubSessionId:
+    """Test W3C trace context style session ID generation (using Foundation)."""
 
     def test_generates_hierarchical_id(self):
         """Given parent ID and agent name
         When generating child ID
-        Then should create hierarchical format: parent-span_agent
+        Then should create hierarchical format: parent-span-child-span_agent
         """
-        parent_id = "abc123"
+        # Parent ID must be in W3C format for span extraction
+        parent_id = "0000000000000000-abc123def456abcd_parent-agent"
         agent_name = "bug-hunter"
 
-        child_id = _generate_child_session_id(parent_id, agent_name)
+        child_id = generate_sub_session_id(
+            agent_name=agent_name,
+            parent_session_id=parent_id,
+        )
 
-        # Verify format: parent-{16-hex-chars}_{agent-name}
-        assert child_id.startswith(f"{parent_id}-")
+        # Verify format: {parent-span}-{child-span}_{agent-name}
         assert child_id.endswith(f"_{agent_name}")
 
-        # Extract and verify span portion (split by _ to handle agent names with hyphens)
+        # Extract and verify spans
         parts = child_id.split("_")
-        assert len(parts) == 2  # span_agent
-        parent_and_span = parts[0]
-        span = parent_and_span.split("-")[-1]  # Get last part after all hyphens
-        assert len(span) == 16  # 16 hex chars
-        assert all(c in "0123456789abcdef" for c in span)
+        assert len(parts) == 2  # spans_agent
+        spans = parts[0].split("-")
+        assert len(spans) == 2  # parent-span and child-span
+        # Each span should be 16 hex chars
+        for span in spans:
+            assert len(span) == 16
+            assert all(c in "0123456789abcdef" for c in span)
 
     def test_unique_ids_for_same_parent(self):
         """Given same parent and agent
         When generating multiple child IDs
         Then each should be unique (different spans)
         """
-        parent_id = "abc123"
+        parent_id = "0000000000000000-abc123def456abcd_parent"
         agent_name = "bug-hunter"
 
-        id1 = _generate_child_session_id(parent_id, agent_name)
-        id2 = _generate_child_session_id(parent_id, agent_name)
+        id1 = generate_sub_session_id(agent_name=agent_name, parent_session_id=parent_id)
+        id2 = generate_sub_session_id(agent_name=agent_name, parent_session_id=parent_id)
 
         assert id1 != id2
-        assert id1.split("-")[0] == id2.split("-")[0]  # Same parent
-        assert id1.split("_")[1] == id2.split("_")[1]  # Same agent
+        # Same parent span (extracted from parent session ID)
+        assert id1.split("-")[0] == id2.split("-")[0]
+        # Same agent name
+        assert id1.split("_")[1] == id2.split("_")[1]
 
-    def test_handles_special_characters_in_agent_name(self):
+    def test_sanitizes_agent_name(self):
         """Given agent name with special characters
         When generating child ID
-        Then should include agent name as-is
+        Then should sanitize to filesystem-safe format
         """
-        parent_id = "parent123"
-        agent_name = "my-special_agent.v2"
+        parent_id = None  # No parent
+        agent_name = "My Special_Agent.v2!"
 
-        child_id = _generate_child_session_id(parent_id, agent_name)
+        child_id = generate_sub_session_id(agent_name=agent_name, parent_session_id=parent_id)
 
-        assert child_id.endswith(f"_{agent_name}")
+        # Foundation sanitizes: lowercase, replaces non-alphanumeric with hyphens
+        # "My Special_Agent.v2!" becomes "my-special-agent-v2"
+        assert child_id.endswith("_my-special-agent-v2")
 
 
 class TestSpawnAgentValidation:
@@ -287,10 +296,17 @@ class TestSpawnAgentSessionCreation:
                 session_manager=session_manager,
             )
 
-            # Verify format
+            # Verify format: W3C trace context style
+            # Format: {parent-span}-{child-span}_{agent-name}
             session_id = result["session_id"]
-            assert session_id.startswith("parent123-")
             assert session_id.endswith("_bug-hunter")
+            # Should have two 16-char hex spans
+            parts = session_id.split("_")
+            assert len(parts) == 2
+            spans = parts[0].split("-")
+            assert len(spans) == 2
+            assert len(spans[0]) == 16  # parent span
+            assert len(spans[1]) == 16  # child span
 
 
 class TestSpawnAgentExecution:
