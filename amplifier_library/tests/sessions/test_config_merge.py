@@ -4,7 +4,6 @@ Tests the _merge_configs function which handles deep merging of
 parent session configs with agent-specific overlay configs.
 """
 
-import pytest
 
 from amplifier_library.sessions.spawner import _merge_configs
 

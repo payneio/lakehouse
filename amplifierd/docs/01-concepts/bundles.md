@@ -65,7 +65,7 @@ manager = LakehouseBundleManager()
 mount_plan = await manager.generate_mount_plan(
     bundle_ref="foundation/base",
     session_id="sess_123",
-    amplified_dir="/path/to/project",
+    project_path="/path/to/project",
 )
 ```
 
@@ -74,18 +74,18 @@ mount_plan = await manager.generate_mount_plan(
 ```bash
 curl -X POST http://localhost:8420/api/v1/sessions \
   -H "Content-Type: application/json" \
-  -d '{"bundle_name": "foundation/base", "amplified_dir": "."}'
+  -d '{"bundle_name": "foundation/base", "project_path": "."}'
 ```
 
 ## Migration from Profiles
 
 The bundle system replaces the previous profile system. Key changes:
 
-| Old (Profiles) | New (Bundles) |
-|----------------|---------------|
-| `profile_name` | `bundle_name` |
-| `MountPlanService` | `LakehouseBundleManager` |
-| 8-stage compilation | Direct loading |
+| Old (Profiles)            | New (Bundles)            |
+| ------------------------- | ------------------------ |
+| `profile_name`            | `bundle_name`            |
+| `MountPlanService`        | `LakehouseBundleManager` |
+| 8-stage compilation       | Direct loading           |
 | `~/.amplifierd/profiles/` | `~/.amplifierd/bundles/` |
 
 ## LakehouseBundleManager
@@ -101,21 +101,21 @@ manager = LakehouseBundleManager()
 mount_plan = await manager.generate_mount_plan(
     bundle_ref="foundation/base",
     session_id="preview_123",
-    amplified_dir="/data/projects/my-project",
+    project_path="/data/projects/my-project",
     api_key="sk-...",  # Optional API key injection
 )
 ```
 
 ### Key Methods
 
-- `generate_mount_plan(bundle_ref, session_id, amplified_dir, api_key)` - Load bundle and generate mount plan with runtime configuration injected
+- `generate_mount_plan(bundle_ref, session_id, project_path, api_key)` - Load bundle and generate mount plan with runtime configuration injected
 
 ## Runtime Configuration Injection
 
 When generating a mount plan, the following runtime configuration is automatically injected:
 
-- **working_dir**: Set to the amplified directory for relative path resolution
-- **allowed_write_paths**: Restricts file writes to the amplified directory
+- **working_dir**: Set to the project directory for relative path resolution
+- **allowed_write_paths**: Restricts file writes to the project directory
 - **session_log_template**: Configures logging paths
 - **api_key**: Injected into provider configurations
 

@@ -214,7 +214,7 @@ class TestAutomationExecution:
 
         # Mock dependencies (using correct import paths from _execute_automation)
         with (
-            patch("amplifierd.services.amplified_directory_service.AmplifiedDirectoryService") as mock_amplified_service,
+            patch("amplifierd.services.project_service.ProjectService") as mock_project_service,
             patch("amplifier_library.bundles.LakehouseBundleManager") as mock_bundle_manager,
             patch("amplifier_library.config.loader.load_config") as mock_config,
             patch("amplifierd.services.session_stream_registry.get_stream_registry") as mock_registry,
@@ -225,13 +225,13 @@ class TestAutomationExecution:
             mock_config.return_value.data_path = str(tmp_path)
             mock_secrets.return_value.api_keys = {}
 
-            mock_amplified = MagicMock()
-            mock_amplified.metadata = {"default_bundle": "foundation/foundation"}
+            mock_project = MagicMock()
+            mock_project.metadata = {"default_bundle": "foundation/foundation"}
 
-            # Mock the AmplifiedDirectoryService instance and its get method
+            # Mock the ProjectService instance and its get method
             mock_service_instance = MagicMock()
-            mock_service_instance.get.return_value = mock_amplified
-            mock_amplified_service.return_value = mock_service_instance
+            mock_service_instance.get.return_value = mock_project
+            mock_project_service.return_value = mock_service_instance
 
             # Mock the bundle manager
             mock_bundle_instance = MagicMock()

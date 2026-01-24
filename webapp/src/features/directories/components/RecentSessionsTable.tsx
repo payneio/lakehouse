@@ -25,10 +25,10 @@ function formatRelativeTime(dateString: string): string {
   return date.toLocaleDateString();
 }
 
-function getProjectName(amplifiedDir?: string): string {
-  if (!amplifiedDir) return "No project";
-  const parts = amplifiedDir.split("/");
-  return parts[parts.length - 1] || amplifiedDir;
+function getProjectName(projectPath?: string): string {
+  if (!projectPath) return "No project";
+  const parts = projectPath.split("/");
+  return parts[parts.length - 1] || projectPath;
 }
 
 interface SessionWithChildren extends Session {
@@ -124,7 +124,7 @@ export function RecentSessionsTable() {
     >
       <div className="flex items-start justify-between gap-2">
         <Link
-          to={`/directories/sessions/${session.sessionId}`}
+          to={`/projects/sessions/${session.sessionId}`}
           className={`flex items-center gap-2 hover:text-primary min-w-0 flex-1 ${isSubsession ? "text-muted-foreground" : ""}`}
         >
           {session.isUnread && (
@@ -140,13 +140,13 @@ export function RecentSessionsTable() {
           {formatRelativeTime(session.createdAt)}
         </span>
       </div>
-      {session.amplifiedDir && (
+      {session.projectPath && (
         <Link
-          to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+          to={`/projects?path=${encodeURIComponent(session.projectPath)}`}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
         >
           <FolderOpen className="h-3 w-3" />
-          <span className="truncate">{getProjectName(session.amplifiedDir)}</span>
+          <span className="truncate">{getProjectName(session.projectPath)}</span>
         </Link>
       )}
     </div>
@@ -159,7 +159,7 @@ export function RecentSessionsTable() {
     >
       <td className="px-4 py-3">
         <Link
-          to={`/directories/sessions/${session.sessionId}`}
+          to={`/projects/sessions/${session.sessionId}`}
           className={`flex items-center gap-2 hover:text-primary ${isSubsession ? "text-muted-foreground pl-6" : ""}`}
         >
           {session.isUnread && (
@@ -173,14 +173,14 @@ export function RecentSessionsTable() {
         </Link>
       </td>
       <td className="px-4 py-3">
-        {session.amplifiedDir ? (
+        {session.projectPath ? (
           <Link
-            to={`/directories?path=${encodeURIComponent(session.amplifiedDir)}`}
+            to={`/projects?path=${encodeURIComponent(session.projectPath)}`}
             className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
           >
             <FolderOpen className="h-4 w-4" />
             <span className="truncate max-w-[200px]">
-              {getProjectName(session.amplifiedDir)}
+              {getProjectName(session.projectPath)}
             </span>
           </Link>
         ) : (

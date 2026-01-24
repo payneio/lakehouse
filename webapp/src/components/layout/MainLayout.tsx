@@ -85,7 +85,7 @@ function MainLayoutContent() {
             </li>
             <li>
               <NavLink
-                to="/directories"
+                to="/projects"
                 onClick={close}
                 className={({ isActive }) =>
                   cn(

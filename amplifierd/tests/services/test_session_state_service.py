@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from amplifier_library.config.loader import load_config
 from amplifier_library.models.sessions import SessionMessage
 from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionStatus
@@ -649,7 +648,7 @@ class TestSessionStateService:
     # --- CWD (Current Working Directory) Tests ---
 
     # CWD tests removed - working_dir field no longer exists
-    # Tools receive working_dir in their config, derived from amplified_dir
+    # Tools receive working_dir in their config, derived from project_path
 
 
 class TestSessionStateServiceIntegration:

@@ -120,7 +120,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   const navigate = useNavigate();
 
   const createSession = useMutation({
-    mutationFn: (data: { bundle_name?: string; amplified_dir?: string }) =>
+    mutationFn: (data: { bundle_name?: string; project_path?: string }) =>
       api.createSession(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
@@ -138,9 +138,9 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   const handleCreateSession = async () => {
     try {
       const newSession = await createSession.mutateAsync({
-        amplified_dir: directoryPath,
+        project_path: directoryPath,
       });
-      navigate(`/directories/sessions/${newSession.sessionId}`);
+      navigate(`/projects/sessions/${newSession.sessionId}`);
     } catch (error) {
       console.error("Failed to create session:", error);
     }
@@ -179,7 +179,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                 <SessionCard
                   session={session}
                   isSubsession={isSubsession}
-                  onNavigate={() => navigate(`/directories/sessions/${session.sessionId}`)}
+                  onNavigate={() => navigate(`/projects/sessions/${session.sessionId}`)}
                   onDelete={() => {
                     if (confirm("Delete this session?")) {
                       deleteSession.mutate(session.sessionId);
@@ -194,7 +194,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                         key={child.sessionId}
                         session={child}
                         isSubsession={true}
-                        onNavigate={() => navigate(`/directories/sessions/${child.sessionId}`)}
+                        onNavigate={() => navigate(`/projects/sessions/${child.sessionId}`)}
                         onDelete={() => {
                           if (confirm("Delete this session?")) {
                             deleteSession.mutate(child.sessionId);

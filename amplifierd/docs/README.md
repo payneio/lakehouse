@@ -11,6 +11,7 @@ Amplifierd is a daemon that manages **bundles** - reusable session configuration
 Instead of configuring each session manually, you define a bundle once and reuse it across sessions.
 
 **Example use cases:**
+
 - "coding" bundle: Code-focused agents, development tools, code review workflows
 - "research" bundle: Research agents, web search, knowledge synthesis tools
 - "writing" bundle: Writing assistants, style guides, grammar tools
@@ -20,6 +21,7 @@ Instead of configuring each session manually, you define a bundle once and reuse
 ## Quick Start
 
 **1. Understand the system** (5 min):
+
 ```
 Bundle (what you want)
     ↓ (transformation)
@@ -29,6 +31,7 @@ Session (running instance)
 ```
 
 **2. See a real example**:
+
 ```yaml
 # bundles/foundation/base/bundle.yaml
 bundle:
@@ -48,6 +51,7 @@ modules:
 ```
 
 **3. Use a bundle**:
+
 ```bash
 # Start daemon
 amplifierd start
@@ -69,6 +73,7 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 ### Learn the Concepts (Start Here)
 
 **15-minute introduction:**
+
 1. [Overview](01-concepts/overview.md) - The big picture
 2. [Bundles](01-concepts/bundles.md) - Bundle structure and usage
 3. [Mount Plans](01-concepts/mount-plans.md) - Runtime format
@@ -83,16 +88,19 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 ## Core Concepts at a Glance
 
 **Bundle**: User-facing configuration template
+
 - Directory with bundle.yaml and module references
 - Named as `collection/bundle` (e.g., `foundation/base`)
 - Loaded via `LakehouseBundleManager`
 
 **Mount Plan**: Runtime configuration dict
+
 - Generated from bundles
 - Contains all module configurations and content
 - What amplifier-core uses to initialize sessions
 
 **Module**: Executable component
+
 - orchestrator: Controls execution loop
 - context_manager: Manages conversation context
 - providers: LLM providers (Anthropic, OpenAI, etc.)
@@ -121,6 +129,7 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 ## Real Example: foundation/base
 
 **Bundle location:**
+
 ```
 ~/.amplifierd/bundles/foundation/base/
 ├── bundle.yaml
@@ -131,6 +140,7 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 ```
 
 **Mount plan generated:**
+
 ```json
 {
   "format_version": "1.0",
@@ -152,6 +162,7 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 ```
 
 **Session created:**
+
 ```python
 from amplifier_library.bundles import LakehouseBundleManager
 
@@ -159,7 +170,7 @@ manager = LakehouseBundleManager()
 mount_plan = await manager.generate_mount_plan(
     bundle_ref="foundation/base",
     session_id="sess_123",
-    amplified_dir="/path/to/project",
+    project_path="/path/to/project",
 )
 # Session initialized with mount_plan
 ```
@@ -169,11 +180,13 @@ mount_plan = await manager.generate_mount_plan(
 ## Getting Help
 
 **Common questions:**
+
 - "What's a bundle?" → [bundles.md](01-concepts/bundles.md)
 - "How do mount plans work?" → [mount-plans.md](01-concepts/mount-plans.md)
 - "How do I migrate from profiles?" → See migration section in [bundles.md](01-concepts/bundles.md)
 
 **Troubleshooting:**
+
 - Bundle not found → Check: `~/.amplifierd/bundles/`
 - Module not loading → Check bundle.yaml syntax
 - Session fails → Verify mount plan structure
@@ -183,6 +196,7 @@ mount_plan = await manager.generate_mount_plan(
 ## Philosophy
 
 This documentation follows amplifierd's implementation philosophy:
+
 - **Ruthless simplicity**: Explain only what's essential
 - **Show, don't tell**: Real examples > abstract descriptions
 - **Progressive disclosure**: Start simple, add depth as needed

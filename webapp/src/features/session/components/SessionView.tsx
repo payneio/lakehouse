@@ -431,15 +431,15 @@ export function SessionView() {
                 <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
               )}
 
-              {/* Amplified directory - hidden on mobile */}
-              {session.amplifiedDir && (
+              {/* Project path - hidden on mobile */}
+              {session.projectPath && (
                 <span className="hidden md:inline-flex items-center gap-1">
                   <span
-                    aria-label={`Amplified directory: ${session.amplifiedDir}`}
-                    title={session.amplifiedDir}
+                    aria-label={`Project: ${session.projectPath}`}
+                    title={session.projectPath}
                     className="truncate"
                   >
-                    dir: /{session.amplifiedDir}
+                    dir: /{session.projectPath}
                   </span>
                   <button
                     onClick={() => setFileBrowserOpen(true)}
@@ -521,7 +521,7 @@ export function SessionView() {
         disabled={needsStart || isSending}
         isSending={isSending}
         onCancel={handleCancel}
-        amplifiedDir={session?.amplifiedDir}
+        projectPath={session?.projectPath}
       />
 
       {/* Approval dialog */}
@@ -542,10 +542,10 @@ export function SessionView() {
       />
 
       {/* File Browser Panel */}
-      {session?.amplifiedDir && (
+      {session?.projectPath && (
         <FileBrowserPanel
-          key={session.amplifiedDir}
-          basePath={session.amplifiedDir}
+          key={session.projectPath}
+          basePath={session.projectPath}
           isOpen={fileBrowserOpen}
           onClose={() => setFileBrowserOpen(false)}
         />

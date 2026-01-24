@@ -46,14 +46,14 @@ Bundle listing endpoints.
 
 - `listBundles()` - Get all available bundles
 
-### `directories.ts`
-Amplified directory management endpoints.
+### `projects.ts`
+Project management endpoints.
 
-- `listDirectories()` - Get all amplified directories
-- `getDirectory(relativePath)` - Get directory by path
-- `createDirectory(data)` - Create new amplified directory
-- `updateDirectory(relativePath, data)` - Update directory
-- `deleteDirectory(relativePath, removeMarker)` - Delete directory
+- `listProjects()` - Get all projects
+- `getProject(relativePath)` - Get project by path
+- `createProject(data)` - Create new project
+- `updateProject(relativePath, data)` - Update project
+- `deleteProject(relativePath, removeMarker)` - Delete project
 
 ### `sessions.ts`
 Session management endpoints.

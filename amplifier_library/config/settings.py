@@ -99,7 +99,6 @@ class DaemonSettings(BaseSettings):
             PermissionError: If directory cannot be created
         """
         import logging
-        from pathlib import Path
 
         logger = logging.getLogger(__name__)
         path = Path(v).expanduser().resolve()
@@ -114,7 +113,7 @@ class DaemonSettings(BaseSettings):
         try:
             path.mkdir(mode=0o700, parents=False, exist_ok=True)
             logger.info(f"Created data directory: {path} (permissions: 700)")
-            logger.info(f"Amplified directories within this path will become available projects")
+            logger.info("Amplified directories within this path will become available projects")
         except FileNotFoundError:
             # Parent directory doesn't exist - don't create it
             raise ValueError(f"Parent directory does not exist for data path: {path}")

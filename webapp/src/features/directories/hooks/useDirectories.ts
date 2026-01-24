@@ -1,17 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/api';
-import type { AmplifiedDirectoryCreate } from '@/types/api';
+import { listProjects } from '@/api/projects';
+import type { ProjectCreate } from '@/types/api';
 
 export function useDirectories() {
   const queryClient = useQueryClient();
 
   const directories = useQuery({
     queryKey: ['directories'],
-    queryFn: api.listDirectories,
+    queryFn: listProjects,
   });
 
   const createDirectory = useMutation({
-    mutationFn: (data: AmplifiedDirectoryCreate) => api.createDirectory(data),
+    mutationFn: (data: ProjectCreate) => api.createDirectory(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directories'] });
     },
@@ -26,7 +27,7 @@ export function useDirectories() {
   });
 
   const updateDirectory = useMutation({
-    mutationFn: ({ relativePath, data }: { relativePath: string; data: Partial<AmplifiedDirectoryCreate> }) =>
+    mutationFn: ({ relativePath, data }: { relativePath: string; data: Partial<ProjectCreate> }) =>
       api.updateDirectory(relativePath, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['directories'] });
@@ -34,7 +35,7 @@ export function useDirectories() {
   });
 
   return {
-    directories: directories.data?.directories ?? [],
+    directories: directories.data?.projects ?? [],
     isLoading: directories.isLoading,
     error: directories.error,
     createDirectory,
@@ -46,7 +47,7 @@ export function useDirectories() {
 export function useSessions(directoryPath?: string) {
   const sessions = useQuery({
     queryKey: ['sessions', directoryPath],
-    queryFn: () => api.listSessions({ amplified_dir: directoryPath }),
+    queryFn: () => api.listSessions({ project_path: directoryPath }),
     enabled: !!directoryPath,
   });
 

@@ -10,15 +10,15 @@ export function DirectoryTreeSidebar({ onNavigate }: DirectoryTreeSidebarProps) 
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const isOnDirectoriesRoute = location.pathname.startsWith('/directories');
+  const isOnProjectsRoute = location.pathname.startsWith('/projects');
 
   // Fetch unread counts for badges
   const { data: unreadCounts } = useUnreadCounts();
 
-  const selectedPath = isOnDirectoriesRoute ? searchParams.get('path') || undefined : undefined;
+  const selectedPath = isOnProjectsRoute ? searchParams.get('path') || undefined : undefined;
 
   const handleSelectDirectory = (path: string) => {
-    navigate(`/directories?path=${encodeURIComponent(path)}`);
+    navigate(`/projects?path=${encodeURIComponent(path)}`);
     onNavigate?.();
   };
 

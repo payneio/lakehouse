@@ -1,4 +1,4 @@
-import type { AmplifiedDirectoryCreate } from '@/types/api';
+import type { ProjectCreate } from '@/types/api';
 import { Plus } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useDirectories } from '../hooks/useDirectories';
@@ -79,7 +79,7 @@ export function DirectoriesList({
     onSelectDirectory(path);
   };
 
-  const handleCreateDirectory = async (data: AmplifiedDirectoryCreate) => {
+  const handleCreateDirectory = async (data: ProjectCreate) => {
     setCreateError(null);
     try {
       await createDirectory.mutateAsync(data);

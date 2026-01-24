@@ -111,18 +111,18 @@ class ExecutionRunner:
                 "amplifier-core is required for execution. Install it with: pip install amplifier-core"
             ) from e
 
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-
         from amplifier_library.storage.paths import get_share_dir
+        from amplifierd.module_resolver import DaemonModuleSourceResolver
 
         # Create session
         self._session = AmplifierSession(self.config, session_id=self._session_id)
 
-        # Mount resolver
+        # Mount resolver with bundle_name as default profile
         share_dir = get_share_dir()
-        resolver = DaemonModuleSourceResolver(share_dir)
+        bundle_name = self.config.get("session", {}).get("settings", {}).get("bundle_name")
+        resolver = DaemonModuleSourceResolver(share_dir, default_profile=bundle_name)
         await self._session.coordinator.mount("module-source-resolver", resolver)
-        logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}")
+        logger.info(f"Mounted DaemonModuleSourceResolver with share_dir={share_dir}, bundle_name={bundle_name}")
 
         # Initialize
         await self._session.initialize()

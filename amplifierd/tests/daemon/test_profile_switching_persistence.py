@@ -69,6 +69,7 @@ def mock_session_metadata(mock_state_dir: Path) -> SessionMetadata:
         status=SessionStatus.ACTIVE,
         bundle_name="foundation/base",
         mount_plan_path="mount_plan.json",
+        project_path="test-project",
         created_at=datetime.now(UTC),
     )
 

@@ -145,10 +145,10 @@ async def send_message_for_execution(
         data_dir = Path(config.data_path)
         state_dir = get_state_dir()
 
-        # Get amplified_dir from session metadata
-        amplified_dir = Path(metadata.amplified_dir) if metadata.amplified_dir else Path(".")
-        if not amplified_dir.is_absolute():
-            amplified_dir = data_dir / amplified_dir
+        # Get project_path from session metadata
+        project_path = Path(metadata.project_path) if metadata.project_path else Path(".")
+        if not project_path.is_absolute():
+            project_path = data_dir / project_path
 
         # Load mount plan from session directory (created during session creation)
         mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
@@ -160,13 +160,13 @@ async def send_message_for_execution(
         # Get bundle directory for mention resolution
         bundle_name = metadata.bundle_name
         bundle_manager = LakehouseBundleManager()
-        # Use bundle dir if available, otherwise fallback to amplified_dir for mention resolution
-        bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else amplified_dir
+        # Use bundle dir if available, otherwise fallback to project_path for mention resolution
+        bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else project_path
 
         # Resolve runtime mentions (AGENTS.md + user message)
         resolver = MentionResolver(
             compiled_profile_dir=bundle_dir,
-            amplified_dir=amplified_dir,
+            project_path=project_path,
             data_dir=data_dir,
         )
         runtime_context_messages = resolver.resolve_runtime_mentions(request.content)
@@ -254,7 +254,7 @@ async def send_message_for_execution(
 
                             await GlobalEventService.emit(
                                 SessionUpdatedEvent(
-                                    project_id=current_session.amplified_dir,
+                                    project_id=current_session.project_path,
                                     session_id=session_id,
                                     fields_changed=["is_unread"],
                                 )

@@ -6,7 +6,7 @@ from pydantic import Field
 from pydantic import field_validator
 
 
-class AmplifiedDirectory(BaseModel):
+class Project(BaseModel):
     """
     Represents a directory within AMPLIFIERD_DATA_PATH containing .amplified marker.
 
@@ -17,7 +17,7 @@ class AmplifiedDirectory(BaseModel):
     - created_at: Directory registration timestamp
     - last_used_at: Last session creation timestamp
     - path: Absolute path to directory
-    - is_amplified: Always True for this model
+    - is_project: Always True for this model
 
     Metadata schema:
     {
@@ -35,7 +35,7 @@ class AmplifiedDirectory(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_used_at: datetime | None = None
     path: str = Field("", description="Absolute path to directory")
-    is_amplified: bool = Field(True, description="Always true for amplified directories")
+    is_project: bool = Field(True, description="Always true for projects")
 
     @field_validator("relative_path")
     @classmethod
@@ -49,8 +49,8 @@ class AmplifiedDirectory(BaseModel):
         return v
 
 
-class AmplifiedDirectoryCreate(BaseModel):
-    """Request to create/register a new amplified directory"""
+class ProjectCreate(BaseModel):
+    """Request to create/register a new project"""
 
     relative_path: str
     default_profile: str | None = None
@@ -58,17 +58,17 @@ class AmplifiedDirectoryCreate(BaseModel):
     create_marker: bool = Field(default=True, description="Create .amplified if missing")
 
 
-class AmplifiedDirectoryUpdate(BaseModel):
-    """Request to update amplified directory metadata"""
+class ProjectUpdate(BaseModel):
+    """Request to update project metadata"""
 
     default_profile: str | None = None
     metadata: dict | None = None
 
 
-class AmplifiedDirectoryList(BaseModel):
-    """Response containing list of amplified directories"""
+class ProjectList(BaseModel):
+    """Response containing list of projects"""
 
-    directories: list[AmplifiedDirectory]
+    projects: list[Project]
     total: int
 
 

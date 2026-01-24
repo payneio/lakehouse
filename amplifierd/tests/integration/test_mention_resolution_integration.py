@@ -24,23 +24,23 @@ def test_data_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     """Create test data directory structure.
 
     Returns:
-        Tuple of (data_path, amplified_dir, compiled_profile_dir)
+        Tuple of (data_path, project_path, compiled_profile_dir)
     """
     # Create data root
     data_path = tmp_path / "data"
     data_path.mkdir()
 
-    # Create amplified directory with AGENTS.md
-    amplified_dir = data_path / "test-project"
-    amplified_dir.mkdir()
+    # Create project directory with AGENTS.md
+    project_path = data_path / "test-project"
+    project_path.mkdir()
 
-    agents_md = amplified_dir / "AGENTS.md"
+    agents_md = project_path / "AGENTS.md"
     agents_md.write_text("Project documentation: @README.md")
 
-    readme = amplified_dir / "README.md"
+    readme = project_path / "README.md"
     readme.write_text("# Test Project\n\nProject overview content.")
 
-    feature_doc = amplified_dir / "FEATURE.md"
+    feature_doc = project_path / "FEATURE.md"
     feature_doc.write_text("# Feature X\n\nFeature details.")
 
     # Create compiled profile directory with context
@@ -56,7 +56,7 @@ def test_data_structure(tmp_path: Path) -> tuple[Path, Path, Path]:
     context_file = context_dir / "guidelines.md"
     context_file.write_text("# Context Guidelines\n\nImportant context information.")
 
-    return data_path, amplified_dir, compiled_profile_dir
+    return data_path, project_path, compiled_profile_dir
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ def mock_session_metadata(tmp_path: Path) -> SessionMetadata:
         status=SessionStatus.ACTIVE,
         bundle_name="test-profile",
         mount_plan_path="mount_plan.json",
-        amplified_dir="test-project",
+        project_path="test-project",
         created_at=datetime.now(UTC),
     )
 
@@ -80,18 +80,18 @@ def mock_session_metadata(tmp_path: Path) -> SessionMetadata:
 
 def test_mention_resolver_initialization(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test MentionResolver initializes correctly."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     assert resolver.compiled_profile_dir == compiled_profile_dir.resolve()
-    assert resolver.amplified_dir == amplified_dir.resolve()
+    assert resolver.project_path == project_path.resolve()
     assert resolver.loader is not None
 
 
 def test_resolve_profile_instructions_with_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test resolving profile instruction mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     instructions = "Follow @test-context:guidelines.md for guidance."
     messages = resolver.resolve_profile_instructions(instructions)
@@ -104,8 +104,8 @@ def test_resolve_profile_instructions_with_mentions(test_data_structure: tuple[P
 
 def test_resolve_profile_instructions_no_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test resolving instructions without mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     instructions = "Plain instructions without mentions."
     messages = resolver.resolve_profile_instructions(instructions)
@@ -115,8 +115,8 @@ def test_resolve_profile_instructions_no_mentions(test_data_structure: tuple[Pat
 
 def test_resolve_agents_md(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test resolving AGENTS.md mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     messages = resolver.resolve_agents_md()
 
@@ -128,13 +128,13 @@ def test_resolve_agents_md(test_data_structure: tuple[Path, Path, Path]) -> None
 
 def test_resolve_agents_md_missing_file(tmp_path: Path) -> None:
     """Test graceful handling of missing AGENTS.md."""
-    amplified_dir = tmp_path / "no-agents-project"
-    amplified_dir.mkdir()
+    project_path = tmp_path / "no-agents-project"
+    project_path.mkdir()
 
     compiled_profile_dir = tmp_path / "profile"
     compiled_profile_dir.mkdir()
 
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir, project_path)
     messages = resolver.resolve_agents_md()
 
     assert messages == []
@@ -142,8 +142,8 @@ def test_resolve_agents_md_missing_file(tmp_path: Path) -> None:
 
 def test_resolve_runtime_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test resolving runtime mentions from user message."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "Check @FEATURE.md please."
     messages = resolver.resolve_runtime_mentions(user_message)
@@ -160,8 +160,8 @@ def test_resolve_runtime_mentions(test_data_structure: tuple[Path, Path, Path]) 
 
 def test_resolve_runtime_mentions_no_user_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test runtime resolution with no user mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "Just a regular message."
     messages = resolver.resolve_runtime_mentions(user_message)
@@ -173,8 +173,8 @@ def test_resolve_runtime_mentions_no_user_mentions(test_data_structure: tuple[Pa
 
 def test_resolve_runtime_mentions_order(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test that AGENTS.md mentions come before user mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
-    resolver = MentionResolver(compiled_profile_dir, amplified_dir)
+    _, project_path, compiled_profile_dir = test_data_structure
+    resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "See @FEATURE.md"
     messages = resolver.resolve_runtime_mentions(user_message)
@@ -193,7 +193,7 @@ async def test_session_creation_resolves_and_caches_profile_mentions(
     test_data_structure: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
     """Test session creation resolves profile mentions and caches them."""
-    data_path, amplified_dir, compiled_profile_dir = test_data_structure
+    data_path, project_path, compiled_profile_dir = test_data_structure
 
     # Create session storage directory
     session_storage = tmp_path / "state" / "sessions"
@@ -205,7 +205,7 @@ async def test_session_creation_resolves_and_caches_profile_mentions(
     # Mock mount plan with agent instructions containing mentions
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
+        "session": {"settings": {"project_path": str(project_path), "bundle_name": "test-profile"}},
         "agents": {
             "test-agent": {
                 "module_id": "test-agent",
@@ -226,7 +226,7 @@ async def test_session_creation_resolves_and_caches_profile_mentions(
     # Resolve mentions
     resolver = MentionResolver(
         compiled_profile_dir=compiled_profile_dir,
-        amplified_dir=amplified_dir,
+        project_path=project_path,
     )
     combined_instructions = "\n\n".join(all_instructions)
     profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
@@ -252,7 +252,7 @@ async def test_session_creation_with_no_mentions_no_cache(
     test_data_structure: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
     """Test session creation without mentions doesn't create cache file."""
-    data_path, amplified_dir, compiled_profile_dir = test_data_structure
+    data_path, project_path, compiled_profile_dir = test_data_structure
 
     session_storage = tmp_path / "state" / "sessions"
     session_storage.mkdir(parents=True)
@@ -263,7 +263,7 @@ async def test_session_creation_with_no_mentions_no_cache(
     # Mount plan with no mentions
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
+        "session": {"settings": {"project_path": str(project_path), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Plain instructions without mentions."}},
     }
 
@@ -275,7 +275,7 @@ async def test_session_creation_with_no_mentions_no_cache(
         if isinstance(agent_data, dict) and "content" in agent_data:
             all_instructions.append(agent_data["content"])
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     combined_instructions = "\n\n".join(all_instructions)
     profile_context_messages = resolver.resolve_profile_instructions(combined_instructions)
 
@@ -292,7 +292,7 @@ async def test_session_creation_missing_mention_files_graceful(
     test_data_structure: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:
     """Test session creation with missing mention files handles gracefully."""
-    data_path, amplified_dir, compiled_profile_dir = test_data_structure
+    data_path, project_path, compiled_profile_dir = test_data_structure
 
     session_storage = tmp_path / "state" / "sessions"
     session_storage.mkdir(parents=True)
@@ -303,7 +303,7 @@ async def test_session_creation_missing_mention_files_graceful(
     # Mount plan with mention to non-existent file
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
+        "session": {"settings": {"project_path": str(project_path), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Follow @test-context:nonexistent.md"}},
     }
 
@@ -315,7 +315,7 @@ async def test_session_creation_missing_mention_files_graceful(
         if isinstance(agent_data, dict) and "content" in agent_data:
             all_instructions.append(agent_data["content"])
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     combined_instructions = "\n\n".join(all_instructions)
 
     # Should not raise, returns empty list
@@ -329,14 +329,14 @@ async def test_session_creation_missing_mention_files_graceful(
 @pytest.mark.asyncio
 async def test_message_handling_resolves_runtime_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test message handling resolves AGENTS.md and user mentions."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
+    _, project_path, compiled_profile_dir = test_data_structure
 
     # Simulate send_message_for_execution logic from messages.py
     from amplifierd.services.mention_resolver import MentionResolver
 
     user_message = "Check @FEATURE.md"
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     runtime_context_messages = resolver.resolve_runtime_mentions(user_message)
 
     # Should have AGENTS.md mentions + user message mentions
@@ -349,10 +349,10 @@ async def test_message_handling_resolves_runtime_mentions(test_data_structure: t
 async def test_message_handling_missing_agents_md_graceful(tmp_path: Path) -> None:
     """Test message handling when AGENTS.md doesn't exist."""
     # Create directories without AGENTS.md
-    amplified_dir = tmp_path / "no-agents-project"
-    amplified_dir.mkdir()
+    project_path = tmp_path / "no-agents-project"
+    project_path.mkdir()
 
-    feature = amplified_dir / "FEATURE.md"
+    feature = project_path / "FEATURE.md"
     feature.write_text("# Feature\n\nContent")
 
     compiled_profile_dir = tmp_path / "profile"
@@ -363,7 +363,7 @@ async def test_message_handling_missing_agents_md_graceful(tmp_path: Path) -> No
 
     user_message = "Check @FEATURE.md"
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     runtime_context_messages = resolver.resolve_runtime_mentions(user_message)
 
     # Should only have user message mentions (no AGENTS.md)
@@ -374,13 +374,13 @@ async def test_message_handling_missing_agents_md_graceful(tmp_path: Path) -> No
 @pytest.mark.asyncio
 async def test_message_handling_no_mentions_works_normally(test_data_structure: tuple[Path, Path, Path]) -> None:
     """Test message handling without mentions works normally."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
+    _, project_path, compiled_profile_dir = test_data_structure
 
     from amplifierd.services.mention_resolver import MentionResolver
 
     user_message = "Regular message without mentions"
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     runtime_context_messages = resolver.resolve_runtime_mentions(user_message)
 
     # Should only have AGENTS.md mentions
@@ -398,7 +398,7 @@ async def test_execution_runner_injects_profile_context(
     mock_session_metadata: SessionMetadata,
 ) -> None:
     """Test ExecutionRunner injects profile context from cached file."""
-    data_path, amplified_dir, compiled_profile_dir = test_data_structure
+    data_path, project_path, compiled_profile_dir = test_data_structure
 
     # Create session directory with cached profile context
     session_storage = tmp_path / "state" / "sessions"
@@ -477,7 +477,7 @@ async def test_execution_runner_injects_runtime_context(
     mock_session_metadata: SessionMetadata,
 ) -> None:
     """Test ExecutionRunner injects runtime context messages."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
+    _, project_path, compiled_profile_dir = test_data_structure
 
     # Create session directory
     session_storage = tmp_path / "state" / "sessions"
@@ -543,7 +543,7 @@ async def test_execution_runner_context_injection_order(
     mock_session_metadata: SessionMetadata,
 ) -> None:
     """Test context messages injected in correct order: profile → runtime → user."""
-    _, amplified_dir, compiled_profile_dir = test_data_structure
+    _, project_path, compiled_profile_dir = test_data_structure
 
     # Create session directory with profile context
     session_storage = tmp_path / "state" / "sessions"
@@ -666,7 +666,7 @@ async def test_full_mention_resolution_flow(
     4. Runtime mentions resolved
     5. Both profile and runtime context injected into execution
     """
-    data_path, amplified_dir, compiled_profile_dir = test_data_structure
+    data_path, project_path, compiled_profile_dir = test_data_structure
 
     # Step 1: Create session with profile mentions
     session_storage = tmp_path / "state" / "sessions"
@@ -677,7 +677,7 @@ async def test_full_mention_resolution_flow(
 
     mount_plan = {
         "format_version": "1.0",
-        "session": {"settings": {"amplified_dir": str(amplified_dir), "bundle_name": "test-profile"}},
+        "session": {"settings": {"project_path": str(project_path), "bundle_name": "test-profile"}},
         "agents": {"test-agent": {"module_id": "test-agent", "content": "Follow @test-context:guidelines.md"}},
     }
 
@@ -689,7 +689,7 @@ async def test_full_mention_resolution_flow(
         if isinstance(agent_data, dict) and "content" in agent_data:
             all_instructions.append(agent_data["content"])
 
-    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, amplified_dir=amplified_dir)
+    resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     profile_context_messages = resolver.resolve_profile_instructions("\n\n".join(all_instructions))
 
     context_file = session_dir / "profile_context_messages.json"

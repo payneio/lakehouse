@@ -24,8 +24,8 @@ def temp_profile_dir():
 
 
 @pytest.fixture
-def temp_amplified_dir():
-    """Create a temporary amplified directory."""
+def temp_project_path():
+    """Create a temporary project directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
 
@@ -61,7 +61,7 @@ class TestBehaviorInstructionLoading:
     """Test behavior instruction loading during session creation."""
 
     def test_profile_with_instructions_and_behaviors_with_instructions(
-        self, temp_profile_dir, temp_amplified_dir
+        self, temp_profile_dir, temp_project_path
     ):
         """Test loading instructions from profile and all behaviors."""
         # Create profile with instructions
@@ -110,7 +110,7 @@ class TestBehaviorInstructionLoading:
 
             if all_instructions:
                 combined = "\n\n".join(all_instructions)
-                resolver = MentionResolver(temp_profile_dir, temp_amplified_dir)
+                resolver = MentionResolver(temp_profile_dir, temp_project_path)
                 resolver.resolve_profile_instructions(combined)
 
         # Verify all instructions were combined
@@ -119,7 +119,7 @@ class TestBehaviorInstructionLoading:
         assert behavior1_instructions in captured_instructions
         assert behavior2_instructions in captured_instructions
 
-    def test_profile_without_instructions_behaviors_with_instructions(self, temp_profile_dir, temp_amplified_dir):
+    def test_profile_without_instructions_behaviors_with_instructions(self, temp_profile_dir, temp_project_path):
         """Test loading when profile has no instructions but behaviors do."""
         # Create profile without instructions
         create_profile_yaml(
@@ -156,7 +156,7 @@ class TestBehaviorInstructionLoading:
         assert len(all_instructions) == 1
         assert all_instructions[0] == behavior1_instructions
 
-    def test_profile_with_instructions_behaviors_without(self, temp_profile_dir, temp_amplified_dir):
+    def test_profile_with_instructions_behaviors_without(self, temp_profile_dir, temp_project_path):
         """Test loading when profile has instructions but behaviors don't."""
         # Create profile with instructions
         profile_instructions = "Profile instruction only"
@@ -193,7 +193,7 @@ class TestBehaviorInstructionLoading:
         assert len(all_instructions) == 1
         assert all_instructions[0] == profile_instructions
 
-    def test_missing_behavior_yaml_graceful(self, temp_profile_dir, temp_amplified_dir):
+    def test_missing_behavior_yaml_graceful(self, temp_profile_dir, temp_project_path):
         """Test graceful handling when behavior YAML is missing."""
         # Create profile with behaviors
         create_profile_yaml(
@@ -232,11 +232,11 @@ class TestBehaviorInstructionLoading:
         assert len(all_instructions) == 2
         assert loaded_count == 1
 
-    def test_behavior_instructions_with_at_mentions(self, temp_profile_dir, temp_amplified_dir):
+    def test_behavior_instructions_with_at_mentions(self, temp_profile_dir, temp_project_path):
         """Test that at-mentions in behavior instructions are resolved."""
         # Create files to be mentioned
-        (temp_amplified_dir / "file1.md").write_text("File 1 content")
-        (temp_amplified_dir / "file2.md").write_text("File 2 content")
+        (temp_project_path / "file1.md").write_text("File 1 content")
+        (temp_project_path / "file2.md").write_text("File 2 content")
 
         # Create profile with mention
         profile_instructions = "Profile with @file1.md"
@@ -273,7 +273,7 @@ class TestBehaviorInstructionLoading:
         combined_instructions = "\n\n".join(all_instructions)
 
         # Resolve with actual resolver
-        resolver = MentionResolver(temp_profile_dir, temp_amplified_dir)
+        resolver = MentionResolver(temp_profile_dir, temp_project_path)
         context_messages = resolver.resolve_profile_instructions(combined_instructions)
 
         # Should have resolved both mentions
@@ -284,7 +284,7 @@ class TestBehaviorInstructionLoading:
         assert "File 1 content" in all_content
         assert "File 2 content" in all_content
 
-    def test_no_instructions_anywhere(self, temp_profile_dir, temp_amplified_dir):
+    def test_no_instructions_anywhere(self, temp_profile_dir, temp_project_path):
         """Test when neither profile nor behaviors have instructions."""
         # Create profile without instructions
         create_profile_yaml(
@@ -319,7 +319,7 @@ class TestBehaviorInstructionLoading:
         # Should be empty
         assert len(all_instructions) == 0
 
-    def test_behavior_reference_formats(self, temp_profile_dir, temp_amplified_dir):
+    def test_behavior_reference_formats(self, temp_profile_dir, temp_project_path):
         """Test different behavior reference formats (dict vs string)."""
         # Create profile with different behavior formats
         create_profile_yaml(

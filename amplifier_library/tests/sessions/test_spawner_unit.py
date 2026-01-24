@@ -9,7 +9,6 @@ import sys
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -26,10 +25,8 @@ from amplifier_library.models.sessions import SessionMessage
 from amplifier_library.models.sessions import SessionMetadata
 from amplifier_library.models.sessions import SessionStatus
 from amplifier_library.sessions.spawner import AgentNotFoundError
-from amplifier_library.sessions.spawner import ExecutionError
 from amplifier_library.sessions.spawner import SessionNotFoundError
 from amplifier_library.sessions.spawner import _generate_child_session_id
-from amplifier_library.sessions.spawner import _merge_configs
 from amplifier_library.sessions.spawner import resume_spawned_agent
 from amplifier_library.sessions.spawner import spawn_agent
 
@@ -99,7 +96,7 @@ class TestSpawnAgentValidation:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         agent_configs = {"bug-hunter": {}, "test-coverage": {}}
         session_manager = Mock()
@@ -162,7 +159,7 @@ class TestSpawnAgentSessionCreation:
         parent_session = Mock()
         parent_session.config = parent_config
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -197,7 +194,7 @@ class TestSpawnAgentSessionCreation:
             # Verify session created with merged config
             assert session_manager.create_session.called
             call_args = session_manager.create_session.call_args
-            assert call_args[1]["profile_name"] == "bug-hunter"
+            assert call_args[1]["bundle_name"] == "bug-hunter"
             assert call_args[1]["parent_session_id"] == "parent123"
 
             # Verify merged config has both parent and agent values
@@ -214,7 +211,7 @@ class TestSpawnAgentSessionCreation:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -260,7 +257,7 @@ class TestSpawnAgentSessionCreation:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -308,7 +305,7 @@ class TestSpawnAgentExecution:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -353,7 +350,7 @@ class TestSpawnAgentExecution:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -396,7 +393,7 @@ class TestSpawnAgentExecution:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -441,7 +438,7 @@ class TestSpawnAgentExecution:
         parent_session = Mock()
         parent_session.config = {"session": {}}
         parent_session.session_id = "parent123"
-        parent_session.amplified_dir = "."
+        parent_session.project_path = "."
 
         session_manager = Mock()
         session_manager.create_session = Mock()
@@ -502,8 +499,8 @@ class TestResumeSpawnedAgent:
         """
         metadata = SessionMetadata(
             session_id="test123",
-            amplified_dir=".",
-            profile_name="bug-hunter",
+            project_path=".",
+            bundle_name="bug-hunter",
             status=SessionStatus.COMPLETED,
             created_at=datetime.now(UTC),
             mount_plan_path="mount_plan.json",
@@ -541,8 +538,8 @@ class TestResumeSpawnedAgent:
 
         metadata = SessionMetadata(
             session_id=session_id,
-            amplified_dir=".",
-            profile_name="bug-hunter",
+            project_path=".",
+            bundle_name="bug-hunter",
             status=SessionStatus.COMPLETED,
             created_at=datetime.now(UTC),
             mount_plan_path="mount_plan.json",
@@ -598,8 +595,8 @@ class TestResumeSpawnedAgent:
 
         metadata = SessionMetadata(
             session_id=session_id,
-            amplified_dir=".",
-            profile_name="bug-hunter",
+            project_path=".",
+            bundle_name="bug-hunter",
             status=SessionStatus.COMPLETED,
             created_at=datetime.now(UTC),
             mount_plan_path="mount_plan.json",
@@ -663,8 +660,8 @@ class TestResumeSpawnedAgent:
 
         metadata = SessionMetadata(
             session_id=session_id,
-            amplified_dir=".",
-            profile_name="bug-hunter",
+            project_path=".",
+            bundle_name="bug-hunter",
             status=SessionStatus.FAILED,
             created_at=datetime.now(UTC),
             mount_plan_path="mount_plan.json",
@@ -717,8 +714,8 @@ class TestResumeSpawnedAgent:
 
         metadata = SessionMetadata(
             session_id=session_id,
-            amplified_dir=".",
-            profile_name="my-custom-agent",
+            project_path=".",
+            bundle_name="my-custom-agent",
             status=SessionStatus.COMPLETED,
             created_at=datetime.now(UTC),
             mount_plan_path="mount_plan.json",

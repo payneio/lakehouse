@@ -4,13 +4,13 @@ import type { Session, SessionMessage, CreateSessionRequest } from '@/types/api'
 export const listSessions = (params?: {
   status?: string;
   bundle_name?: string;
-  amplified_dir?: string;
+  project_path?: string;
   limit?: number;
 }) => {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
   if (params?.bundle_name) searchParams.set('bundle_name', params.bundle_name);
-  if (params?.amplified_dir) searchParams.set('amplified_dir', params.amplified_dir);
+  if (params?.project_path) searchParams.set('project_path', params.project_path);
   if (params?.limit) searchParams.set('limit', String(params.limit));
 
   const query = searchParams.toString();

@@ -2,19 +2,16 @@
 
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 
 from pydantic import Field
-from pydantic import computed_field
 from pydantic import model_validator
 
-from amplifier_library.config.loader import load_config
 from amplifier_library.models.base import CamelCaseModel
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    pass
 
 
 class SessionStatus(str, Enum):
@@ -53,8 +50,8 @@ class SessionMetadata(CamelCaseModel):
     session_id: str = Field(description="Unique session identifier")
     name: str | None = Field(default=None, description="User-defined session name (optional, max 200 chars)")
     parent_session_id: str | None = Field(default=None, description="Parent session ID for sub-sessions")
-    amplified_dir: str = Field(
-        default=".", description="Relative path to amplified directory (immutable anchor for .amplified/ config)"
+    project_path: str = Field(
+        default=".", description="Relative path to project directory (immutable anchor for .amplified/ config)"
     )
     status: SessionStatus = Field(description="Current session status")
     created_at: datetime = Field(description="Session creation timestamp")
@@ -74,12 +71,15 @@ class SessionMetadata(CamelCaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_profile_name(cls, data: Any) -> Any:
-        """Migrate legacy profile_name to bundle_name for backward compatibility."""
+    def migrate_legacy_fields(cls, data: Any) -> Any:
+        """Migrate legacy field names for backward compatibility."""
         if isinstance(data, dict):
-            # If bundle_name is missing or empty but profile_name exists, use profile_name
+            # Migrate profile_name to bundle_name
             if not data.get("bundle_name") and data.get("profile_name"):
                 data["bundle_name"] = data["profile_name"]
+            # Migrate amplified_dir to project_path
+            if not data.get("project_path") and data.get("amplified_dir"):
+                data["project_path"] = data["amplified_dir"]
         return data
 
 
@@ -105,7 +105,7 @@ class SessionIndexEntry(CamelCaseModel):
     """
 
     session_id: str = Field(description="Session identifier")
-    amplified_dir: str = Field(default=".", description="Relative path to amplified directory")
+    project_path: str = Field(default=".", description="Relative path to project directory")
     status: SessionStatus = Field(description="Current session status")
     bundle_name: str = Field(default="", description="Bundle used for this session")
     # Backward compatibility: old index entries may have profile_name
@@ -116,11 +116,15 @@ class SessionIndexEntry(CamelCaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def migrate_profile_name(cls, data: Any) -> Any:
-        """Migrate legacy profile_name to bundle_name for backward compatibility."""
+    def migrate_legacy_fields(cls, data: Any) -> Any:
+        """Migrate legacy field names for backward compatibility."""
         if isinstance(data, dict):
+            # Migrate profile_name to bundle_name
             if not data.get("bundle_name") and data.get("profile_name"):
                 data["bundle_name"] = data["profile_name"]
+            # Migrate amplified_dir to project_path
+            if not data.get("project_path") and data.get("amplified_dir"):
+                data["project_path"] = data["amplified_dir"]
         return data
 
 

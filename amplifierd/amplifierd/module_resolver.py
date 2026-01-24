@@ -11,6 +11,7 @@ Contract:
 
 import logging
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,25 +64,32 @@ class DaemonModuleSourceResolver:
         "provider-": "providers",
         "tool-": "tools",
         "hooks-": "hooks",
+        "hook-": "hooks",  # Support singular form (Foundation bundles use hook-)
         "loop-": "orchestrator",
         "orchestrator-": "orchestrator",
         "context-": "context",
     }
 
-    def __init__(self, share_dir: Path):
+    def __init__(self, share_dir: Path, default_profile: str | None = None):
         """Initialize resolver with share directory.
 
         Args:
             share_dir: Path to amplifierd share directory
+            default_profile: Default profile to use when profile_hint is a URL
         """
         self.share_dir = Path(share_dir)
-        logger.debug(f"DaemonModuleSourceResolver initialized with share_dir={self.share_dir}")
+        self.default_profile = default_profile
+        logger.debug(
+            f"DaemonModuleSourceResolver initialized with share_dir={self.share_dir}, "
+            f"default_profile={self.default_profile}"
+        )
 
     def resolve(
         self,
         module_id: str,
         profile_hint: str | None = None,
         component_type: str | None = None,
+        **kwargs: Any,  # Accept extra kwargs from amplifier-core (source_hint, etc.)
     ) -> ModuleSource:
         """Resolve module ID to source path.
 
@@ -108,6 +116,11 @@ class DaemonModuleSourceResolver:
             >>> resolver.resolve("provider-anthropic", "software-developer")
             ModuleSource(.../.amplifierd/share/profiles/software-developer/.../providers/provider-anthropic)
         """
+        # Detect if profile_hint looks like a URL (amplifier-core passes source field as hint)
+        if profile_hint and self._is_url(profile_hint):
+            logger.debug(f"profile_hint '{profile_hint}' looks like URL, using default_profile")
+            profile_hint = self.default_profile
+
         if not profile_hint:
             raise ValueError("profile_hint (profile ID) is required for v3 profiles")
 
@@ -172,6 +185,10 @@ class DaemonModuleSourceResolver:
             'tools'
             >>> resolver._infer_component_type("hooks-logging")
             'hooks'
+            >>> resolver._infer_component_type("hook-logging")
+            'hooks'
+            >>> # Note: Directory names must match Python package convention
+            >>> # e.g., hooks-logging (plural) matches amplifier_module_hooks_logging
         """
         # Check patterns in order
         for pattern, type_name in self.TYPE_PATTERNS.items():
@@ -191,3 +208,20 @@ class DaemonModuleSourceResolver:
             f"Consider passing component_type explicitly to resolve() for better accuracy."
         )
         return "tools"
+
+    def _is_url(self, hint: str) -> bool:
+        """Check if hint looks like a URL rather than a profile name.
+
+        Args:
+            hint: The profile hint to check
+
+        Returns:
+            True if hint looks like a URL, False otherwise
+
+        Example:
+            >>> resolver._is_url("git+https://github.com/microsoft/module@main")
+            True
+            >>> resolver._is_url("software-developer")
+            False
+        """
+        return hint.startswith(("git+", "file://", "http://", "https://"))

@@ -1,4 +1,4 @@
-"""Tests for daemon startup initialization of amplified directories."""
+"""Tests for daemon startup initialization of projects."""
 
 import os
 from pathlib import Path
@@ -6,12 +6,12 @@ from unittest.mock import patch
 
 import pytest
 
-from amplifierd.models.amplified_directories import AmplifiedDirectoryCreate
-from amplifierd.services.amplified_directory_service import AmplifiedDirectoryService
+from amplifierd.models.projects import ProjectCreate
+from amplifierd.services.project_service import ProjectService
 
 
 class TestStartupInitialization:
-    """Test daemon startup behavior for amplified directories."""
+    """Test daemon startup behavior for projects."""
 
     @pytest.fixture
     def test_root(self, tmp_path: Path) -> Path:
@@ -21,18 +21,18 @@ class TestStartupInitialization:
         return root
 
     @pytest.fixture
-    def service(self, test_root: Path) -> AmplifiedDirectoryService:
+    def service(self, test_root: Path) -> ProjectService:
         """Create service instance with test root."""
-        return AmplifiedDirectoryService(test_root)
+        return ProjectService(test_root)
 
-    def test_root_auto_amplified_on_startup(self, service: AmplifiedDirectoryService, test_root: Path) -> None:
+    def test_root_auto_amplified_on_startup(self, service: ProjectService, test_root: Path) -> None:
         """Test that root directory is auto-amplified on daemon startup."""
         # Simulate startup logic
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
 
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile=default_profile,
                     metadata={
@@ -45,7 +45,7 @@ class TestStartupInitialization:
             )
 
         # Verify root is amplified
-        assert service.is_amplified(".")
+        assert service.is_project(".")
 
         # Verify metadata
         root_dir = service.get(".")
@@ -60,14 +60,14 @@ class TestStartupInitialization:
         assert marker_path.is_dir()
 
     @patch.dict(os.environ, {"AMPLIFIERD_DEFAULT_PROFILE": "custom/profile"})
-    def test_root_uses_env_var_profile(self, service: AmplifiedDirectoryService) -> None:
+    def test_root_uses_env_var_profile(self, service: ProjectService) -> None:
         """Test that root uses AMPLIFIERD_DEFAULT_PROFILE environment variable."""
         # Simulate startup logic
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
 
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile=default_profile,
                     metadata={
@@ -83,12 +83,12 @@ class TestStartupInitialization:
         assert root_dir is not None
         assert root_dir.metadata["default_profile"] == "custom/profile"
 
-    def test_startup_idempotent(self, service: AmplifiedDirectoryService) -> None:
+    def test_startup_idempotent(self, service: ProjectService) -> None:
         """Test that startup logic is idempotent (safe to run multiple times)."""
         # First startup
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile="foundation/foundation",
                     metadata={
@@ -104,10 +104,10 @@ class TestStartupInitialization:
         assert root_dir1.metadata["auto_created"] is True
 
         # Second startup (simulate restart)
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             # This should not execute because already amplified
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile="foundation/foundation",
                     metadata={
@@ -122,11 +122,11 @@ class TestStartupInitialization:
         assert root_dir2 is not None
         assert root_dir2.metadata == root_dir1.metadata
 
-    def test_startup_logs_already_amplified(self, service: AmplifiedDirectoryService) -> None:
+    def test_startup_logs_already_amplified(self, service: ProjectService) -> None:
         """Test that startup correctly detects already-amplified root."""
         # Pre-amplify root
         service.create(
-            AmplifiedDirectoryCreate(
+            ProjectCreate(
                 relative_path=".",
                 default_profile="existing/profile",
                 metadata={"name": "Existing Root"},
@@ -134,7 +134,7 @@ class TestStartupInitialization:
         )
 
         # Simulate startup check
-        is_already_amplified = service.is_amplified(".")
+        is_already_amplified = service.is_project(".")
 
         assert is_already_amplified is True
 
@@ -142,14 +142,14 @@ class TestStartupInitialization:
         if not is_already_amplified:
             pytest.fail("Startup logic should have detected existing amplified root")
 
-    def test_startup_handles_corrupted_root(self, service: AmplifiedDirectoryService, test_root: Path) -> None:
+    def test_startup_handles_corrupted_root(self, service: ProjectService, test_root: Path) -> None:
         """Test startup handles case where .amplified exists but is corrupted."""
         # Create corrupted marker (directory exists but no metadata)
         marker_path = test_root / ".amplified"
         marker_path.mkdir()
 
         # Startup check should report as amplified (marker exists)
-        assert service.is_amplified(".")
+        assert service.is_project(".")
 
         # But getting metadata should fail gracefully
         root_dir = service.get(".")
@@ -158,12 +158,12 @@ class TestStartupInitialization:
         # Startup could handle this by recreating metadata
         # (This is a design decision - currently it would log warning)
 
-    def test_startup_creates_marker_directory(self, service: AmplifiedDirectoryService, test_root: Path) -> None:
+    def test_startup_creates_marker_directory(self, service: ProjectService, test_root: Path) -> None:
         """Test that startup creates .amplified marker directory structure."""
         # Simulate startup
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile="foundation/foundation",
                     metadata={"name": "root"},
@@ -181,17 +181,17 @@ class TestStartupInitialization:
         assert metadata_path.is_file()
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_startup_default_profile_fallback(self, service: AmplifiedDirectoryService) -> None:
+    def test_startup_default_profile_fallback(self, service: ProjectService) -> None:
         """Test that startup uses fallback profile when env var not set."""
         # Ensure AMPLIFIERD_DEFAULT_PROFILE is not set
         assert "AMPLIFIERD_DEFAULT_PROFILE" not in os.environ
 
         # Simulate startup
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
 
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile=default_profile,
                     metadata={"name": "root"},
@@ -203,11 +203,11 @@ class TestStartupInitialization:
         assert root_dir is not None
         assert root_dir.metadata["default_profile"] == "foundation/foundation"
 
-    def test_startup_preserves_existing_root_metadata(self, service: AmplifiedDirectoryService) -> None:
+    def test_startup_preserves_existing_root_metadata(self, service: ProjectService) -> None:
         """Test that startup doesn't overwrite existing root metadata."""
         # Create root with custom metadata
         service.create(
-            AmplifiedDirectoryCreate(
+            ProjectCreate(
                 relative_path=".",
                 default_profile="custom/profile",
                 metadata={
@@ -223,10 +223,10 @@ class TestStartupInitialization:
         original_metadata = original_dir.metadata
 
         # Simulate startup (should detect existing and skip)
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             # This won't execute
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile="foundation/foundation",
                     metadata={"name": "root"},
@@ -241,11 +241,11 @@ class TestStartupInitialization:
         assert current_metadata["name"] == "Custom Root"
         assert current_metadata["custom_field"] == "preserved"
 
-    def test_startup_children_inherit_from_root(self, service: AmplifiedDirectoryService) -> None:
+    def test_startup_children_inherit_from_root(self, service: ProjectService) -> None:
         """Test that directories created after startup inherit from root."""
         # Simulate startup - amplify root
         service.create(
-            AmplifiedDirectoryCreate(
+            ProjectCreate(
                 relative_path=".",
                 default_profile="root/profile",
                 metadata={"name": "root"},
@@ -254,7 +254,7 @@ class TestStartupInitialization:
 
         # Create child directory without explicit profile
         child = service.create(
-            AmplifiedDirectoryCreate(
+            ProjectCreate(
                 relative_path="child_project",
             )
         )
@@ -262,7 +262,7 @@ class TestStartupInitialization:
         # Verify child inherited from root
         assert child.metadata["default_profile"] == "root/profile"
 
-    def test_startup_error_doesnt_crash_daemon(self, service: AmplifiedDirectoryService, test_root: Path) -> None:
+    def test_startup_error_doesnt_crash_daemon(self, service: ProjectService, test_root: Path) -> None:
         """Test that startup errors don't crash the daemon."""
         # Make root read-only to cause error
         test_root.chmod(0o444)
@@ -270,9 +270,9 @@ class TestStartupInitialization:
         try:
             # Simulate startup logic with error handling
             try:
-                if not service.is_amplified("."):
+                if not service.is_project("."):
                     service.create(
-                        AmplifiedDirectoryCreate(
+                        ProjectCreate(
                             relative_path=".",
                             default_profile="foundation/foundation",
                             metadata={"name": "root"},
@@ -289,12 +289,12 @@ class TestStartupInitialization:
             # Restore permissions for cleanup
             test_root.chmod(0o755)
 
-    def test_multiple_startups_consistent_state(self, service: AmplifiedDirectoryService) -> None:
+    def test_multiple_startups_consistent_state(self, service: ProjectService) -> None:
         """Test that multiple daemon restarts maintain consistent state."""
         # First startup
-        if not service.is_amplified("."):
+        if not service.is_project("."):
             service.create(
-                AmplifiedDirectoryCreate(
+                ProjectCreate(
                     relative_path=".",
                     default_profile="foundation/foundation",
                     metadata={"name": "root", "startup_count": 1},
@@ -306,7 +306,7 @@ class TestStartupInitialization:
 
         # Simulate multiple restarts
         for _ in range(5):
-            if not service.is_amplified("."):
+            if not service.is_project("."):
                 # Should not execute
                 pytest.fail("Root should remain amplified across restarts")
 

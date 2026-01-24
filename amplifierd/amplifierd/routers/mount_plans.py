@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1/mount-plans", tags=["mount-plans"])
 @router.post("/generate", response_model=MountPlan, status_code=201)
 async def generate_mount_plan(
     bundle_name: str = Body(..., embed=True),
-    amplified_dir: str = Body(".", embed=True),
+    project_path: str = Body(".", embed=True),
 ) -> MountPlan:
     """Generate mount plan from bundle.
 
@@ -26,7 +26,7 @@ async def generate_mount_plan(
 
     Args:
         bundle_name: Bundle identifier (e.g., "foundation/base")
-        amplified_dir: Path to amplified directory for working_dir context
+        project_path: Path to project directory for working_dir context
 
     Returns:
         Complete mount plan with all resources mounted
@@ -41,7 +41,7 @@ async def generate_mount_plan(
         ```json
         {
             "bundle_name": "foundation/base",
-            "amplified_dir": "/path/to/project"
+            "project_path": "/path/to/project"
         }
         ```
     """
@@ -64,7 +64,7 @@ async def generate_mount_plan(
         mount_plan = await bundle_manager.generate_mount_plan(
             bundle_ref=bundle_name,
             session_id=session_id,
-            amplified_dir=amplified_dir,
+            project_path=project_path,
             api_key=api_key,
         )
 

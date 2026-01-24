@@ -85,7 +85,7 @@ class TestMountPlansAPI:
 
             response = client.post(
                 "/api/v1/mount-plans/generate",
-                json={"bundle_name": "foundation/base", "amplified_dir": "/tmp/test"},
+                json={"bundle_name": "foundation/base", "project_path": "/tmp/test"},
             )
 
             assert response.status_code == 201
@@ -112,7 +112,7 @@ class TestMountPlansAPI:
 
             response = client.post(
                 "/api/v1/mount-plans/generate",
-                json={"bundle_name": "nonexistent", "amplified_dir": "/tmp/test"},
+                json={"bundle_name": "nonexistent", "project_path": "/tmp/test"},
             )
 
             assert response.status_code == 404
@@ -136,7 +136,7 @@ class TestMountPlansAPI:
 
             response = client.post(
                 "/api/v1/mount-plans/generate",
-                json={"bundle_name": "invalid//format", "amplified_dir": "/tmp/test"},
+                json={"bundle_name": "invalid//format", "project_path": "/tmp/test"},
             )
 
             assert response.status_code == 400
@@ -160,7 +160,7 @@ class TestMountPlansAPI:
 
             response = client.post(
                 "/api/v1/mount-plans/generate",
-                json={"bundle_name": "foundation/base", "amplified_dir": "/tmp/test"},
+                json={"bundle_name": "foundation/base", "project_path": "/tmp/test"},
             )
 
             assert response.status_code == 500

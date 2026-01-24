@@ -1,5 +1,5 @@
-import * as api from "@/api";
 import { listAutomations } from "@/api/automations";
+import { getProject } from "@/api/projects";
 import { FileBrowserPanel } from "@/components/FileBrowserPanel";
 import { MobileMenuButton } from "@/components/layout/MobileMenuButton";
 import {
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AmplifiedDirectory, AmplifiedDirectoryCreate } from "@/types/api";
+import type { Project, ProjectCreate } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Clock, FileText, FolderOpen, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -35,7 +35,7 @@ export function DirectoriesPage() {
   const [showWork, setShowWork] = useState(false);
   const [showFileBrowser, setShowFileBrowser] = useState(false);
   const [selectedDirectory, setSelectedDirectory] =
-    useState<AmplifiedDirectory | null>(null);
+    useState<Project | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
@@ -60,7 +60,7 @@ export function DirectoriesPage() {
       const fetchDetails = async () => {
         setIsFetchingDetails(true);
         try {
-          const directory = await api.getDirectory(selectedPath);
+          const directory = await getProject(selectedPath);
           if (!cancelled) {
             setSelectedDirectory(directory);
           }
@@ -150,7 +150,7 @@ export function DirectoriesPage() {
     }
   };
 
-  const handleCreateDirectory = async (data: AmplifiedDirectoryCreate) => {
+  const handleCreateDirectory = async (data: ProjectCreate) => {
     setCreateError(null);
     try {
       await createDirectory.mutateAsync(data);
@@ -355,7 +355,7 @@ export function DirectoriesPage() {
             directory={selectedDirectory}
             onSaveSuccess={async () => {
               if (selectedPath) {
-                const updated = await api.getDirectory(selectedPath);
+                const updated = await getProject(selectedPath);
                 setSelectedDirectory(updated);
               }
             }}

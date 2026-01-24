@@ -35,25 +35,25 @@ class MentionLoader:
     1. @context-key:path - Profile context references
        Resolves to: {compiled_profile_dir}/contexts/{context-key}/{path}
     2. @path - Relative to amplified directory
-       Resolves to: {amplified_dir}/{path}
+       Resolves to: {project_path}/{path}
     """
 
     def __init__(
         self: "MentionLoader",
         compiled_profile_dir: Path,
-        amplified_dir: Path,
+        project_path: Path,
         data_dir: Path | None = None,
     ) -> None:
         """Initialize loader with resolution paths.
 
         Args:
             compiled_profile_dir: Path to compiled profile (for context resolution)
-            amplified_dir: Path to amplified directory (for relative resolution)
-            data_dir: Path to data directory (for security validation). Defaults to amplified_dir.parent if not provided.
+            project_path: Path to project directory (for relative resolution)
+            data_dir: Path to data directory (for security validation). Defaults to project_path.parent if not provided.
         """
         self.compiled_profile_dir = compiled_profile_dir
-        self.amplified_dir = amplified_dir
-        self.data_dir = data_dir if data_dir is not None else amplified_dir.parent
+        self.project_path = project_path
+        self.data_dir = data_dir if data_dir is not None else project_path.parent
 
     def load_mentions(
         self: "MentionLoader",
@@ -137,7 +137,7 @@ class MentionLoader:
 
         Two types:
         1. @context-key:path → Context-aware resolution based on source file location
-        2. @path → {amplified_dir}/{path} (with security validation)
+        2. @path → {project_path}/{path} (with security validation)
 
         For @context-key:path mentions:
         - If source file is in behaviors/{behavior_id}/ → Try behavior context first
@@ -201,9 +201,9 @@ class MentionLoader:
             logger.warning(f"Context file not found for {mention} (searched {len(search_paths)} locations)")
             return None
 
-        # Type 2: @path (relative to amplified_dir)
+        # Type 2: @path (relative to project_path)
         path_str = mention.lstrip("@")
-        resolved = (self.amplified_dir / path_str).resolve()
+        resolved = (self.project_path / path_str).resolve()
 
         # Security: Prevent path traversal outside data_dir
         try:

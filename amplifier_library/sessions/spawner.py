@@ -189,10 +189,10 @@ async def spawn_agent(
     child_id = sub_session_id or _generate_child_session_id(parent_id, agent_name)
     trace_id = child_id  # Child ID serves as trace ID
 
-    # Get parent's amplified directory from session metadata (not the AmplifierSession object)
-    # The AmplifierSession doesn't have amplified_dir - it's stored in SessionMetadata
+    # Get parent's project path from session metadata (not the AmplifierSession object)
+    # The AmplifierSession doesn't have project_path - it's stored in SessionMetadata
     parent_metadata = session_manager.get_session(parent_id)
-    parent_amplified_dir = parent_metadata.amplified_dir if parent_metadata else "."
+    parent_project_path = parent_metadata.project_path if parent_metadata else "."
 
     logger.info(f"Spawning agent '{agent_name}' as child of {parent_id}: {child_id}")
 
@@ -203,7 +203,7 @@ async def spawn_agent(
             bundle_name=agent_name,
             mount_plan=merged_config,
             parent_session_id=parent_id,
-            amplified_dir=parent_amplified_dir,
+            project_path=parent_project_path,
             name=f"Subagent: {agent_name}",
         )
     except ValueError as e:
@@ -227,9 +227,8 @@ async def spawn_agent(
 
     # Import module resolver
     try:
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-
         from amplifier_library.storage.paths import get_share_dir
+        from amplifierd.module_resolver import DaemonModuleSourceResolver
     except ImportError as e:
         raise ExecutionError("Could not import required modules for agent execution") from e
 
@@ -392,9 +391,8 @@ async def resume_spawned_agent(
 
     # Import module resolver
     try:
-        from amplifierd.module_resolver import DaemonModuleSourceResolver
-
         from amplifier_library.storage.paths import get_share_dir
+        from amplifierd.module_resolver import DaemonModuleSourceResolver
     except ImportError as e:
         raise ExecutionError("Could not import required modules for agent execution") from e
 

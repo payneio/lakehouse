@@ -369,32 +369,31 @@ class AutomationScheduler:
             session_name = f"{automation.name} - {execution_date}"
 
             # Create session in automation's project
-            # Note: We need to load the amplified directory metadata to get the default profile
+            # Note: We need to load the project metadata to get the default bundle
             from amplifier_library.config.loader import load_config
 
-            from ..services.amplified_directory_service import AmplifiedDirectoryService
+            from ..services.project_service import ProjectService
 
             config = load_config()
             data_path = Path(config.data_path)
-            amplified_service = AmplifiedDirectoryService(data_path)
+            project_service = ProjectService(data_path)
 
-            amplified_dir = amplified_service.get(automation.project_id)
-            if not amplified_dir:
-                raise ValueError(f"Project directory not amplified: {automation.project_id}")
+            project = project_service.get(automation.project_id)
+            if not project:
+                raise ValueError(f"Project directory not found: {automation.project_id}")
 
-            # Get bundle name from directory metadata (try default_bundle, fallback to default_profile)
-            bundle_name = amplified_dir.metadata.get("default_bundle") or amplified_dir.metadata.get("default_profile")
+            # Get bundle name from project metadata (try default_bundle, fallback to default_profile)
+            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_profile")
             if not bundle_name:
                 raise ValueError(f"No default_bundle set for project: {automation.project_id}")
 
             # Get absolute path for mount plan generation
-            absolute_amplified_dir = str((data_path / automation.project_id).resolve())
+            absolute_project_path = str((data_path / automation.project_id).resolve())
 
             # Generate mount plan using bundle manager
             from amplifier_library.bundles import LakehouseBundleManager
 
             from ..config.loader import load_secrets
-            from ..routers.sessions import _inject_runtime_config
 
             bundle_manager = LakehouseBundleManager()
 
@@ -405,12 +404,12 @@ class AutomationScheduler:
             mount_plan = await bundle_manager.generate_mount_plan(
                 bundle_ref=bundle_name,
                 session_id=session_id,
-                amplified_dir=absolute_amplified_dir,
+                project_path=absolute_project_path,
                 api_key=api_key,
             )
 
-            # Inject runtime configuration (working_dir, allowed_write_paths, etc.)
-            _inject_runtime_config(mount_plan, session_id, absolute_amplified_dir)
+            # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
+            # is already injected by bundle_manager.generate_mount_plan()
 
             # Add session metadata
             if "session" not in mount_plan:
@@ -418,7 +417,7 @@ class AutomationScheduler:
             if "settings" not in mount_plan["session"]:
                 mount_plan["session"]["settings"] = {}
 
-            mount_plan["session"]["settings"]["amplified_dir"] = absolute_amplified_dir
+            mount_plan["session"]["settings"]["project_path"] = absolute_project_path
             mount_plan["session"]["settings"]["bundle_name"] = bundle_name
             mount_plan["session"]["settings"]["automation_id"] = automation_id
 
@@ -427,7 +426,7 @@ class AutomationScheduler:
                 session_id=session_id,
                 bundle_name=bundle_name,
                 mount_plan=mount_plan,
-                amplified_dir=automation.project_id,
+                project_path=automation.project_id,
                 name=session_name,
                 created_by="automation",  # Mark as automation-created for unread tracking
             )
@@ -466,7 +465,7 @@ class AutomationScheduler:
             bundle_dir = bundle_manager.bundles_dir / bundle_name
             resolver = MentionResolver(
                 compiled_profile_dir=bundle_dir,
-                amplified_dir=Path(absolute_amplified_dir),
+                project_path=Path(absolute_project_path),
                 data_dir=data_path,
             )
             runtime_context_messages = resolver.resolve_runtime_mentions(automation.message)

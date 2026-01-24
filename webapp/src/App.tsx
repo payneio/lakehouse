@@ -17,8 +17,11 @@ function App() {
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<HomePage />} />
           <Route path="bundles" element={<BundlesPage />} />
-          <Route path="directories" element={<DirectoriesPage />} />
-          <Route path="directories/sessions/:sessionId" element={<SessionView />} />
+          <Route path="projects" element={<DirectoriesPage />} />
+          <Route path="projects/sessions/:sessionId" element={<SessionView />} />
+          {/* Backward compatibility redirects */}
+          <Route path="directories" element={<Navigate to="/projects" replace />} />
+          <Route path="directories/sessions/:sessionId" element={<Navigate to="/projects/sessions/:sessionId" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

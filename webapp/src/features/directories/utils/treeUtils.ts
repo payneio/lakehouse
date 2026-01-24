@@ -1,17 +1,17 @@
-import type { AmplifiedDirectory } from "@/types/api";
+import type { Project } from "@/types/api";
 
 export interface TreeNode {
   name: string;
   fullPath: string;
-  directory: AmplifiedDirectory | null;
+  directory: Project | null;
   children: TreeNode[];
   isExpanded: boolean;
   depth: number;
 }
 
-export function buildDirectoryTree(directories: AmplifiedDirectory[]): TreeNode[] {
+export function buildDirectoryTree(directories: Project[]): TreeNode[] {
   const nodeMap = new Map<string, TreeNode>();
-  const dirMap = new Map<string, AmplifiedDirectory>();
+  const dirMap = new Map<string, Project>();
 
   // Index directories by path for lookup
   for (const dir of directories) {

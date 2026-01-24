@@ -3,11 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listBundles } from '@/api/bundles';
-import type { AmplifiedDirectory } from '@/types/api';
+import type { Project } from '@/types/api';
 
 interface EditDirectoryDialogProps {
   open: boolean;
-  directory: AmplifiedDirectory | null;
+  directory: Project | null;
   onClose: () => void;
   onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;
   isLoading?: boolean;
@@ -56,7 +56,7 @@ function EditDirectoryForm({
   error,
 }: {
   open: boolean;
-  directory: AmplifiedDirectory;
+  directory: Project;
   bundles: Array<{ name: string }>;
   onClose: () => void;
   onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;

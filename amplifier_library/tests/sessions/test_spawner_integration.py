@@ -6,9 +6,6 @@ to verify component interactions and end-to-end functionality.
 
 import json
 import sys
-from datetime import UTC
-from datetime import datetime
-from pathlib import Path
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -44,7 +41,7 @@ def parent_session():
     """Provide mock parent session with realistic config."""
     session = Mock()
     session.session_id = "parent-session-123"
-    session.amplified_dir = "."
+    session.project_path = "."
     session.config = {
         "session": {
             "orchestrator": "default",
@@ -122,7 +119,7 @@ class TestSpawnAgentIntegration:
             metadata = session_manager.get_session(child_id)
             assert metadata is not None
             assert metadata.status == SessionStatus.COMPLETED
-            assert metadata.profile_name == "bug-hunter"
+            assert metadata.bundle_name == "bug-hunter"
             assert metadata.parent_session_id == "parent-session-123"
 
             # Verify mount_plan.json exists

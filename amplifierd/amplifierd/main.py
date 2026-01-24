@@ -14,14 +14,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from amplifier_library.config.loader import load_config
 
 from .config.loader import load_config as load_daemon_config
-from .routers import amplified_directories_router
 from .routers import automations_router
 from .routers import bundles_router
-from .routers import directories_router
 from .routers import events_router
 from .routers import messages_router
 from .routers import modules_router
 from .routers import mount_plans_router
+from .routers import projects_router
 from .routers import sessions_router
 from .routers import settings_router
 from .routers import status_router
@@ -49,38 +48,38 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting amplifierd daemon on {config.host}:{config.port}")
     logger.info(f"Data root: {config.data_path}")
 
-    # Auto-amplify root directory on startup
+    # Auto-create root project on startup
     try:
         import os
 
-        from .models.amplified_directories import AmplifiedDirectoryCreate
-        from .services.amplified_directory_service import AmplifiedDirectoryService
+        from .models.projects import ProjectCreate
+        from .services.project_service import ProjectService
 
         root_dir = Path(config.data_path)
-        amplified_service = AmplifiedDirectoryService(root_dir)
+        project_service = ProjectService(root_dir)
 
-        # Ensure root is amplified
-        if not amplified_service.is_amplified("."):
+        # Ensure root is a project
+        if not project_service.is_project("."):
             default_profile = os.getenv("AMPLIFIERD_DEFAULT_PROFILE", "foundation/foundation")
-            logger.info(f"Auto-amplifying root directory with profile: {default_profile}")
+            logger.info(f"Auto-creating root project with profile: {default_profile}")
 
-            amplified_service.create(
-                AmplifiedDirectoryCreate(
+            project_service.create(
+                ProjectCreate(
                     relative_path=".",
                     default_profile=default_profile,
                     metadata={
                         "name": "root",
-                        "description": "Root amplified directory (auto-created)",
+                        "description": "Root project (auto-created)",
                         "auto_created": True,
                     },
                     create_marker=True,
                 )
             )
-            logger.info("Root directory amplified successfully")
+            logger.info("Root project created successfully")
         else:
-            logger.info("Root directory already amplified")
+            logger.info("Root directory is already a project")
     except Exception as e:
-        logger.error(f"Failed to auto-amplify root directory: {e}")
+        logger.error(f"Failed to auto-create root project: {e}")
         # Don't fail startup, just log the error
 
     # Handle cache updates based on startup configuration
@@ -158,17 +157,16 @@ app.add_middleware(
 logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 
 # Include routers
-app.include_router(amplified_directories_router)
 app.include_router(automations_router)
 app.include_router(bundles_router)
-app.include_router(directories_router)
 app.include_router(events_router)
-app.include_router(sessions_router)
 app.include_router(messages_router)
-app.include_router(settings_router)
-app.include_router(status_router)
 app.include_router(modules_router)
 app.include_router(mount_plans_router)
+app.include_router(projects_router)
+app.include_router(sessions_router)
+app.include_router(settings_router)
+app.include_router(status_router)
 app.include_router(stream_router)
 
 

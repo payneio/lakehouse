@@ -6,13 +6,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AmplifiedDirectory } from "@/types/api";
+import type { Project } from "@/types/api";
 import { useState } from "react";
 
 interface AgentInstructionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  directory: AmplifiedDirectory;
+  directory: Project;
   onSaveSuccess?: () => void;
 }
 
@@ -21,7 +21,7 @@ function AgentInstructionsForm({
   onClose,
   onSaveSuccess,
 }: {
-  directory: AmplifiedDirectory;
+  directory: Project;
   onClose: () => void;
   onSaveSuccess?: () => void;
 }) {
@@ -47,8 +47,8 @@ function AgentInstructionsForm({
       const isRoot =
         !directory.relative_path || directory.relative_path === ".";
       const endpoint = isRoot
-        ? "/api/v1/amplified-directories/root/agents"
-        : `/api/v1/amplified-directories/${encodeURIComponent(
+        ? "/api/v1/projects/root/agents"
+        : `/api/v1/projects/${encodeURIComponent(
             directory.relative_path
           )}/agents`;
 

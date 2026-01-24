@@ -1,7 +1,8 @@
 """Tests for LakehouseBundleManager."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from amplifier_library.bundles import LakehouseBundleManager
 
@@ -174,7 +175,7 @@ providers:
         mount_plan = await manager.generate_mount_plan(
             bundle_ref="test-bundle",
             session_id="sess-123",
-            amplified_dir="/data/projects/test",
+            project_path="/data/projects/test",
             api_key="test-api-key",
         )
 
@@ -215,7 +216,7 @@ tools:
         mount_plan = await manager.generate_mount_plan(
             bundle_ref="test-bundle",
             session_id="sess-123",
-            amplified_dir="/data/projects/test",
+            project_path="/data/projects/test",
         )
 
         # Existing config should be preserved
@@ -259,7 +260,7 @@ class TestRuntimeConfigInjection:
         result = manager._inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
-            amplified_dir="/test/path",
+            project_path="/test/path",
         )
 
         assert result["tools"][0]["config"]["working_dir"] == "/test/path"
@@ -280,7 +281,7 @@ class TestRuntimeConfigInjection:
         result = manager._inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
-            amplified_dir="/test/path",
+            project_path="/test/path",
         )
 
         # Filesystem tool should have allowed_write_paths
@@ -301,7 +302,7 @@ class TestRuntimeConfigInjection:
         result = manager._inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
-            amplified_dir="/test/path",
+            project_path="/test/path",
             api_key="sk-test-key",
         )
 
@@ -319,7 +320,7 @@ class TestRuntimeConfigInjection:
         result = manager._inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
-            amplified_dir="/test/path",
+            project_path="/test/path",
         )
 
         assert "api_key" not in result["providers"][0]["config"]
@@ -336,8 +337,94 @@ class TestRuntimeConfigInjection:
         result = manager._inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
-            amplified_dir="/test/path",
+            project_path="/test/path",
         )
 
         assert "config" in result["tools"][0]
         assert result["tools"][0]["config"]["working_dir"] == "/test/path"
+
+
+class TestRegistryBundles:
+    """Tests for registry_bundles parameter."""
+
+    def test_registry_bundles_registered_first(self, tmp_path: Path) -> None:
+        """Registry bundles are registered before local discovery."""
+        # Create a local bundle with same name as registry bundle
+        bundles_dir = tmp_path / "share" / "bundles"
+        bundles_dir.mkdir(parents=True)
+        (bundles_dir / "my-bundle.md").write_text(
+            "---\nbundle:\n  name: my-bundle\n  version: 1.0.0\n---\n"
+        )
+
+        # Pass registry_bundles that would conflict
+        registry_bundles = {
+            "my-bundle": "git+https://github.com/test/repo@main#bundle.md"
+        }
+
+        manager = LakehouseBundleManager(
+            home_dir=tmp_path,
+            registry_bundles=registry_bundles,
+        )
+
+        # The registry bundle should take precedence (local file skipped)
+        # Check that my-bundle is in _bundle_info with source="registry"
+        assert "my-bundle" in manager._bundle_info
+        assert manager._bundle_info["my-bundle"].source == "registry"
+
+    def test_local_bundles_discovered_when_not_in_registry(self, tmp_path: Path) -> None:
+        """Local bundles are discovered if not in registry_bundles."""
+        # Create a local bundle
+        bundles_dir = tmp_path / "bundles"
+        bundles_dir.mkdir(parents=True)
+        (bundles_dir / "local-only.md").write_text(
+            "---\nbundle:\n  name: local-only\n  version: 1.0.0\n---\n"
+        )
+
+        # Pass registry_bundles without local-only
+        registry_bundles = {
+            "remote-bundle": "git+https://github.com/test/repo@main#bundle.md"
+        }
+
+        manager = LakehouseBundleManager(
+            home_dir=tmp_path,
+            registry_bundles=registry_bundles,
+        )
+
+        # Local bundle should be discovered with source="user"
+        assert "local-only" in manager._bundle_info
+        assert manager._bundle_info["local-only"].source == "user"
+        # Registry bundle should also be tracked with source="registry"
+        assert "remote-bundle" in manager._bundle_info
+        assert manager._bundle_info["remote-bundle"].source == "registry"
+
+    def test_empty_registry_bundles_allows_local_discovery(self, tmp_path: Path) -> None:
+        """Empty registry_bundles doesn't block local discovery."""
+        # Create a local bundle
+        bundles_dir = tmp_path / "bundles"
+        bundles_dir.mkdir(parents=True)
+        (bundles_dir / "test.md").write_text(
+            "---\nbundle:\n  name: test\n  version: 1.0.0\n---\n"
+        )
+
+        manager = LakehouseBundleManager(
+            home_dir=tmp_path,
+            registry_bundles={},
+        )
+
+        assert "test" in manager.list_available_bundles()
+
+    def test_none_registry_bundles_works(self, tmp_path: Path) -> None:
+        """None registry_bundles is handled correctly."""
+        # Create a local bundle
+        bundles_dir = tmp_path / "bundles"
+        bundles_dir.mkdir(parents=True)
+        (bundles_dir / "test.md").write_text(
+            "---\nbundle:\n  name: test\n  version: 1.0.0\n---\n"
+        )
+
+        manager = LakehouseBundleManager(
+            home_dir=tmp_path,
+            registry_bundles=None,
+        )
+
+        assert "test" in manager.list_available_bundles()

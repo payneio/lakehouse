@@ -25,7 +25,7 @@ class SessionCreatedEvent(GlobalEvent):
     event_type: Literal["session:created"] = "session:created"
     session_id: str
     session_name: str | None
-    project_id: str  # Required for sessions
+    project_id: str | None  # Optional - sessions can exist without a project
     is_unread: bool
     created_by: Literal["user", "automation"]
 
@@ -35,7 +35,7 @@ class SessionUpdatedEvent(GlobalEvent):
 
     event_type: Literal["session:updated"] = "session:updated"
     session_id: str
-    project_id: str
+    project_id: str | None  # Optional - sessions can exist without a project
     fields_changed: list[str]
 
 

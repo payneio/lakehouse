@@ -69,21 +69,22 @@ export interface DirectoryMetadata {
   [key: string]: unknown;
 }
 
-export interface AmplifiedDirectory {
+export interface Project {
   path: string;
   relative_path: string;
   default_bundle?: string;
   metadata?: DirectoryMetadata;
   agents_content?: string;
-  is_amplified: boolean;
+  is_project: boolean;
 }
 
-export interface AmplifiedDirectoryCreate {
+export interface ProjectCreate {
   relative_path: string;
   default_bundle?: string;
   metadata?: DirectoryMetadata;
   create_marker?: boolean;
 }
+
 
 export interface Session {
   sessionId: string;
@@ -94,7 +95,7 @@ export interface Session {
   startedAt?: string;
   endedAt?: string;
   parentSessionId?: string;
-  amplifiedDir?: string;
+  projectPath?: string;
   mountPlanPath?: string;
   messageCount?: number;
   agentInvocations?: number;
@@ -115,8 +116,8 @@ export interface SessionMessage {
 }
 
 export interface CreateSessionRequest {
-  bundle_name?: string;  // API expects snake_case for POST body - optional, uses directory default if not provided
-  amplified_dir?: string;  // API expects snake_case for POST body
+  bundle_name?: string;  // API expects snake_case for POST body - optional, uses project default if not provided
+  project_path?: string;  // API expects snake_case for POST body
   parent_session_id?: string;  // API expects snake_case for POST body
   settings_overrides?: Record<string, unknown>;
 }
@@ -126,10 +127,13 @@ export interface SyncCollectionsResponse {
   modules: Record<string, unknown>;
 }
 
-export interface ListDirectoriesResponse {
-  directories: AmplifiedDirectory[];
+export interface ListProjectsResponse {
+  projects: Project[];
   total: number;
 }
+
+// Backward compatibility alias
+export type ListDirectoriesResponse = ListProjectsResponse;
 
 export interface CreateProfileRequest {
   name: string;

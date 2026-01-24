@@ -104,7 +104,7 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
               <span className="text-sm text-muted-foreground">{durationText}</span>
               {tool.childSessionId && (
                 <Link
-                  to={`/directories/sessions/${tool.childSessionId}`}
+                  to={`/projects/sessions/${tool.childSessionId}`}
                   onClick={(e) => e.stopPropagation()}
                   className="text-muted-foreground hover:text-foreground"
                   title="View subsession"

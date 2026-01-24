@@ -105,7 +105,7 @@ export function HomePage() {
           {/* Primary CTA */}
           <div className="pt-4">
             <Link
-              to="/directories"
+              to="/projects"
               className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold text-lg"
             >
               <FolderPlus className="h-5 w-5" />
@@ -152,7 +152,7 @@ export function HomePage() {
             description="Works on YOUR directories. Your data stays local, private, and under your control."
             icon={<FolderOpen className="h-8 w-8" />}
             linkText="Configure data path"
-            linkTo="/directories"
+            linkTo="/projects"
           />
           <ConceptCard
             title="Contextual Intelligence"
@@ -174,7 +174,7 @@ export function HomePage() {
             description="Each project has its own context, chat history, and workflows."
             icon={<Settings className="h-8 w-8" />}
             linkText="See projects"
-            linkTo="/directories"
+            linkTo="/projects"
           />
         </div>
       </section>

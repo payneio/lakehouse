@@ -4,12 +4,12 @@ import { AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { listBundles } from '@/api/bundles';
 import { DirectoryBrowser } from './DirectoryBrowser';
-import type { AmplifiedDirectoryCreate } from '@/types/api';
+import type { ProjectCreate } from '@/types/api';
 
 interface CreateDirectoryDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: AmplifiedDirectoryCreate) => void;
+  onSubmit: (data: ProjectCreate) => void;
   isLoading?: boolean;
   error?: string;
 }
@@ -57,7 +57,7 @@ export function CreateDirectoryDialog({
 
     setValidationError(null);
 
-    const submitData: AmplifiedDirectoryCreate = {
+    const submitData: ProjectCreate = {
       relative_path: formData.relative_path.trim(),
       create_marker: true,
     };
@@ -97,7 +97,7 @@ export function CreateDirectoryDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Create Amplified Directory</DialogTitle>
+          <DialogTitle>Create Project</DialogTitle>
         </DialogHeader>
 
         <form id="create-directory-form" onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 pr-2">

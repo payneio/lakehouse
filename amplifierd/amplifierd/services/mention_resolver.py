@@ -25,7 +25,7 @@ class MentionResolver:
     def __init__(
         self: "MentionResolver",
         compiled_profile_dir: Path,
-        amplified_dir: Path,
+        project_path: Path,
         data_dir: Path | None = None,
         loader: MentionLoader | None = None,
     ) -> None:
@@ -33,16 +33,16 @@ class MentionResolver:
 
         Args:
             compiled_profile_dir: Path to compiled profile directory
-            amplified_dir: Path to amplified directory (project root)
-            data_dir: Path to data directory (for security validation). Defaults to amplified_dir.parent if not provided.
+            project_path: Path to project directory (project root)
+            data_dir: Path to data directory (for security validation). Defaults to project_path.parent if not provided.
             loader: Optional MentionLoader instance (creates default if None)
         """
         self.compiled_profile_dir = compiled_profile_dir.resolve()
-        self.amplified_dir = amplified_dir.resolve()
-        self.data_dir = data_dir.resolve() if data_dir is not None else amplified_dir.parent.resolve()
+        self.project_path = project_path.resolve()
+        self.data_dir = data_dir.resolve() if data_dir is not None else project_path.parent.resolve()
         self.loader = loader or MentionLoader(
             compiled_profile_dir=self.compiled_profile_dir,
-            amplified_dir=self.amplified_dir,
+            project_path=self.project_path,
             data_dir=self.data_dir,
         )
 
@@ -69,12 +69,12 @@ class MentionResolver:
         )
 
     def resolve_agents_md(self: "MentionResolver") -> list[ContextMessage]:
-        """Resolve mentions from {amplified_dir}/AGENTS.md.
+        """Resolve mentions from {project_path}/AGENTS.md.
 
         Returns:
             List of context messages, empty if file doesn't exist
         """
-        agents_md = self.amplified_dir / "AGENTS.md"
+        agents_md = self.project_path / "AGENTS.md"
 
         if not agents_md.exists():
             logger.debug(f"AGENTS.md not found at {agents_md}")
@@ -93,7 +93,7 @@ class MentionResolver:
         logger.info(f"Resolving mentions from AGENTS.md at {agents_md}")
         return self.loader.load_mentions(
             text=content,
-            relative_to=self.amplified_dir,
+            relative_to=self.project_path,
         )
 
     def resolve_runtime_mentions(
@@ -120,7 +120,7 @@ class MentionResolver:
             logger.info("Resolving mentions from user message")
             user_mentions = self.loader.load_mentions(
                 text=user_message,
-                relative_to=self.amplified_dir,
+                relative_to=self.project_path,
             )
             messages.extend(user_mentions)
         else:

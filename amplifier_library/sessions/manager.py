@@ -44,7 +44,7 @@ class SessionManager:
         bundle_name: str,
         mount_plan: Any = None,
         parent_session_id: str | None = None,
-        amplified_dir: str = ".",
+        project_path: str = ".",
         name: str | None = None,
         created_by: str = "user",
     ) -> SessionMetadata:
@@ -55,7 +55,7 @@ class SessionManager:
             bundle_name: Bundle name for this session
             mount_plan: Complete mount plan to persist
             parent_session_id: Optional parent session for sub-sessions
-            amplified_dir: Relative path to amplified directory (defaults to ".")
+            project_path: Relative path to project directory (defaults to ".")
             name: Optional human-readable session name
             created_by: Who created the session ("user" or "automation")
 
@@ -99,7 +99,7 @@ class SessionManager:
             metadata = SessionMetadata(
                 session_id=session_id,
                 name=name,  # Optional human-readable name
-                amplified_dir=amplified_dir,
+                project_path=project_path,
                 bundle_name=bundle_name,
                 status=SessionStatus.ACTIVE,  # Start active immediately
                 created_at=now,
@@ -359,7 +359,7 @@ class SessionManager:
         self,
         status: SessionStatus | None = None,
         bundle_name: str | None = None,
-        amplified_dir: str | None = None,
+        project_path: str | None = None,
         since: datetime | None = None,
         limit: int | None = None,
         parent_session_id: str | None = None,
@@ -371,7 +371,7 @@ class SessionManager:
         Args:
             status: Optional filter by session status
             bundle_name: Optional filter by bundle name
-            amplified_dir: Optional filter by amplified directory path
+            project_path: Optional filter by project path
             since: Optional filter by creation time
             limit: Optional maximum number of results
             parent_session_id: Optional filter by parent session ID (for finding subsessions)
@@ -389,7 +389,7 @@ class SessionManager:
                 continue
             if bundle_name is not None and entry.bundle_name != bundle_name:
                 continue
-            if amplified_dir is not None and entry.amplified_dir != amplified_dir:
+            if project_path is not None and entry.project_path != project_path:
                 continue
             if since is not None and entry.created_at < since:
                 continue
@@ -551,7 +551,7 @@ class SessionManager:
         # Create SessionIndexEntry from metadata
         entry = SessionIndexEntry(
             session_id=metadata.session_id,
-            amplified_dir=metadata.amplified_dir,
+            project_path=metadata.project_path,
             bundle_name=metadata.bundle_name,
             status=metadata.status,
             created_at=metadata.created_at,

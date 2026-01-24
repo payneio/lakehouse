@@ -110,11 +110,10 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
 
 
 @pytest.fixture
-def mock_amplified_directory_service(monkeypatch, mock_mount_plan: MountPlan):
-    """Mock AmplifiedDirectoryService and LakehouseBundleManager to bypass directory validation.
+def mock_project_service(mock_mount_plan: MountPlan):
+    """Mock ProjectService and LakehouseBundleManager to bypass directory validation.
 
     Args:
-        monkeypatch: Pytest monkeypatch fixture
         mock_mount_plan: Sample mount plan fixture
 
     Yields:
@@ -122,26 +121,21 @@ def mock_amplified_directory_service(monkeypatch, mock_mount_plan: MountPlan):
     """
     from pathlib import Path
     import tempfile
+    from unittest.mock import patch
 
-    from amplifierd.models.amplified_directories import AmplifiedDirectory
+    from amplifierd.models.projects import Project
 
-    mock_directory = AmplifiedDirectory(
+    mock_project = Project(
         relative_path=".",
         default_bundle="foundation/base",
         metadata={"default_bundle": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
-        is_amplified=True,
+        is_project=True,
     )
 
     mock_service = Mock()
-    mock_service.get = Mock(return_value=mock_directory)
-
-    # Monkeypatch the AmplifiedDirectoryService class
-    monkeypatch.setattr(
-        "amplifierd.routers.sessions.AmplifiedDirectoryService",
-        lambda data_dir: mock_service
-    )
+    mock_service.get = Mock(return_value=mock_project)
 
     # Create mock bundle manager
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -157,26 +151,29 @@ def mock_amplified_directory_service(monkeypatch, mock_mount_plan: MountPlan):
 
         mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
 
-        # Mock the LakehouseBundleManager class
-        monkeypatch.setattr(
+        # Use unittest.mock.patch for reliable patching
+        with patch(
+            "amplifierd.services.project_service.ProjectService",
+            return_value=mock_service
+        ), patch(
             "amplifier_library.bundles.LakehouseBundleManager",
-            lambda *args, **kwargs: mock_bundle_manager
-        )
-        yield
+            return_value=mock_bundle_manager
+        ):
+            yield
 
 
 @pytest.fixture
 def override_services(
     mock_session_manager: Mock,
     mock_session_state_service: Mock,
-    mock_amplified_directory_service,
+    mock_project_service,
 ):
     """Override service dependencies with test services.
 
     Args:
         mock_session_manager: Mock session manager
         mock_session_state_service: Mock session state service
-        mock_amplified_directory_service: Mock amplified directory service
+        mock_project_service: Mock project service
 
     Yields:
         None
@@ -215,6 +212,8 @@ def session_id(client: TestClient) -> str:
         Session ID
     """
     response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
+    if response.status_code != 201:
+        raise RuntimeError(f"Failed to create session: {response.status_code} - {response.json()}")
     return response.json()["sessionId"]
 
 

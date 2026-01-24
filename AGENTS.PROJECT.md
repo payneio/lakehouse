@@ -53,7 +53,7 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
 - Examples: daily newspaper generation, lead dossier creation, self-improvement suggestions
 
 ### Project-Based Organization
-- Each amplified directory becomes a project with:
+- Any directory can be "amplified" to become a project with:
   - Chat sessions with historical context
   - Default bundles and custom context
   - Project-specific workflows and automation

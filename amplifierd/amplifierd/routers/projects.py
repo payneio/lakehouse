@@ -1,41 +1,41 @@
-"""Amplified directories API endpoints."""
+"""Projects API endpoints."""
 
 import logging
 from functools import lru_cache
 from pathlib import Path
 
-from amplifier_library.config.loader import load_config
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 
-from amplifierd.models.amplified_directories import AgentsContentResponse
-from amplifierd.models.amplified_directories import AgentsContentUpdate
-from amplifierd.models.amplified_directories import AmplifiedDirectory
-from amplifierd.models.amplified_directories import AmplifiedDirectoryCreate
-from amplifierd.models.amplified_directories import AmplifiedDirectoryList
-from amplifierd.models.amplified_directories import AmplifiedDirectoryUpdate
-from amplifierd.services.amplified_directory_service import AmplifiedDirectoryService
+from amplifier_library.config.loader import load_config
+from amplifierd.models.projects import AgentsContentResponse
+from amplifierd.models.projects import AgentsContentUpdate
+from amplifierd.models.projects import Project
+from amplifierd.models.projects import ProjectCreate
+from amplifierd.models.projects import ProjectList
+from amplifierd.models.projects import ProjectUpdate
+from amplifierd.services.project_service import ProjectService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/amplified-directories", tags=["amplified-directories"])
+router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
 
 @lru_cache(maxsize=1)
-def get_service() -> AmplifiedDirectoryService:
-    """Get amplified directory service singleton instance."""
+def get_service() -> ProjectService:
+    """Get project service singleton instance."""
     config = load_config()
     data_path = Path(config.data_path)
-    return AmplifiedDirectoryService(data_path)
+    return ProjectService(data_path)
 
 
-@router.post("/", response_model=AmplifiedDirectory, status_code=201)
-async def create_amplified_directory(
-    create_req: AmplifiedDirectoryCreate,
-    service: AmplifiedDirectoryService = Depends(get_service),
-) -> AmplifiedDirectory:
-    """Create/register a new amplified directory.
+@router.post("/", response_model=Project, status_code=201)
+async def create_project(
+    create_req: ProjectCreate,
+    service: ProjectService = Depends(get_service),
+) -> Project:
+    """Create/register a new project.
 
     Creates directory structure and .amplified marker if requested.
     Resolves default_profile using inheritance if not provided.
@@ -45,11 +45,11 @@ async def create_amplified_directory(
         service: Injected service instance
 
     Returns:
-        Created AmplifiedDirectory with resolved profile
+        Created Project with resolved profile
 
     Raises:
         400: Invalid path (absolute, contains '..', escapes root)
-        400: Directory already amplified
+        400: Directory is already a project
         500: Filesystem error
     """
     try:
@@ -58,100 +58,100 @@ async def create_amplified_directory(
         logger.warning(f"Invalid create request: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Failed to create amplified directory: {e}")
+        logger.error(f"Failed to create project: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.get("/root", response_model=AmplifiedDirectory)
-async def get_root_directory(
-    service: AmplifiedDirectoryService = Depends(get_service),
-) -> AmplifiedDirectory:
-    """Get root amplified directory (special endpoint for path '.').
+@router.get("/root", response_model=Project)
+async def get_root_project(
+    service: ProjectService = Depends(get_service),
+) -> Project:
+    """Get root project (special endpoint for path '.').
 
-    FastAPI routes /amplified-directories/. to the list endpoint,
-    so we provide /amplified-directories/root as an explicit route.
+    FastAPI routes /projects/. to the list endpoint,
+    so we provide /projects/root as an explicit route.
 
     Returns:
-        Root amplified directory with metadata and agents_content
+        Root project with metadata and agents_content
 
     Raises:
-        404: Root directory not amplified
+        404: Root directory is not a project
     """
     try:
-        directory = service.get(".")
+        project = service.get(".")
 
-        if not directory:
-            raise HTTPException(status_code=404, detail="Root directory not amplified")
+        if not project:
+            raise HTTPException(status_code=404, detail="Root directory is not a project")
 
-        return directory
+        return project
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get root directory: {e}")
+        logger.error(f"Failed to get root project: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.get("/", response_model=AmplifiedDirectoryList)
-async def list_amplified_directories(
-    service: AmplifiedDirectoryService = Depends(get_service),
-) -> AmplifiedDirectoryList:
-    """List all amplified directories within AMPLIFIERD_DATA_PATH.
+@router.get("/", response_model=ProjectList)
+async def list_projects(
+    service: ProjectService = Depends(get_service),
+) -> ProjectList:
+    """List all projects within AMPLIFIERD_DATA_PATH.
 
-    Discovers directories by walking filesystem to find .amplified markers.
+    Discovers projects by walking filesystem to find .amplified markers.
 
     Returns:
-        List of all amplified directories with metadata
+        List of all projects with metadata
     """
     try:
-        directories = service.list_all()
-        return AmplifiedDirectoryList(
-            directories=directories,
-            total=len(directories),
+        projects = service.list_all()
+        return ProjectList(
+            projects=projects,
+            total=len(projects),
         )
     except Exception as e:
-        logger.error(f"Failed to list amplified directories: {e}")
+        logger.error(f"Failed to list projects: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.get("/{relative_path:path}", response_model=AmplifiedDirectory)
-async def get_amplified_directory(
+@router.get("/{relative_path:path}", response_model=Project)
+async def get_project(
     relative_path: str,
-    service: AmplifiedDirectoryService = Depends(get_service),
-) -> AmplifiedDirectory:
-    """Get specific amplified directory by relative path.
+    service: ProjectService = Depends(get_service),
+) -> Project:
+    """Get specific project by relative path.
 
     Args:
         relative_path: Path relative to AMPLIFIERD_DATA_PATH
         service: Injected service instance
 
     Returns:
-        AmplifiedDirectory with metadata
+        Project with metadata
 
     Raises:
-        404: Directory not found or not amplified
+        404: Directory not found or not a project
     """
     try:
-        directory = service.get(relative_path)
+        project = service.get(relative_path)
 
-        if not directory:
-            raise HTTPException(status_code=404, detail=f"Amplified directory not found: {relative_path}")
+        if not project:
+            raise HTTPException(status_code=404, detail=f"Project not found: {relative_path}")
 
-        return directory
+        return project
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get amplified directory {relative_path}: {e}")
+        logger.error(f"Failed to get project {relative_path}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-@router.patch("/{relative_path:path}", response_model=AmplifiedDirectory)
-async def update_amplified_directory(
+@router.patch("/{relative_path:path}", response_model=Project)
+async def update_project(
     relative_path: str,
-    update_req: AmplifiedDirectoryUpdate,
-    service: AmplifiedDirectoryService = Depends(get_service),
-) -> AmplifiedDirectory:
-    """Update amplified directory metadata.
+    update_req: ProjectUpdate,
+    service: ProjectService = Depends(get_service),
+) -> Project:
+    """Update project metadata.
 
     Merges provided metadata with existing metadata.
 
@@ -161,33 +161,33 @@ async def update_amplified_directory(
         service: Injected service instance
 
     Returns:
-        Updated AmplifiedDirectory
+        Updated Project
 
     Raises:
-        404: Directory not found or not amplified
+        404: Directory not found or not a project
         500: Update failed
     """
     try:
-        directory = service.update(relative_path, update_req)
+        project = service.update(relative_path, update_req)
 
-        if not directory:
-            raise HTTPException(status_code=404, detail=f"Amplified directory not found: {relative_path}")
+        if not project:
+            raise HTTPException(status_code=404, detail=f"Project not found: {relative_path}")
 
-        return directory
+        return project
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update amplified directory {relative_path}: {e}")
+        logger.error(f"Failed to update project {relative_path}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
 @router.put("/root/agents", response_model=AgentsContentResponse)
 async def update_root_agents_content(
     update_req: AgentsContentUpdate,
-    service: AmplifiedDirectoryService = Depends(get_service),
+    service: ProjectService = Depends(get_service),
 ) -> AgentsContentResponse:
-    """Update AGENTS.md file for root amplified directory (special endpoint for path '.').
+    """Update AGENTS.md file for root project (special endpoint for path '.').
 
     FastAPI has issues routing '.' in paths, so we provide /root/agents as an explicit route.
 
@@ -199,7 +199,7 @@ async def update_root_agents_content(
         Success status and message
 
     Raises:
-        404: Root directory not amplified
+        404: Root directory is not a project
         400: Invalid content (empty)
         500: File write failed
     """
@@ -214,7 +214,7 @@ async def update_root_agents_content(
         if not success:
             raise HTTPException(
                 status_code=404,
-                detail="Root directory not amplified",
+                detail="Root directory is not a project",
             )
 
         return AgentsContentResponse(
@@ -225,7 +225,7 @@ async def update_root_agents_content(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update AGENTS.md for root directory: {e}")
+        logger.error(f"Failed to update AGENTS.md for root project: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to update AGENTS.md: {str(e)}",
@@ -236,9 +236,9 @@ async def update_root_agents_content(
 async def update_agents_content(
     relative_path: str,
     update_req: AgentsContentUpdate,
-    service: AmplifiedDirectoryService = Depends(get_service),
+    service: ProjectService = Depends(get_service),
 ) -> AgentsContentResponse:
-    """Update AGENTS.md file for an amplified directory.
+    """Update AGENTS.md file for a project.
 
     Args:
         relative_path: Path relative to AMPLIFIERD_DATA_PATH
@@ -249,7 +249,7 @@ async def update_agents_content(
         Success status and message
 
     Raises:
-        404: Directory not found or not amplified
+        404: Directory not found or not a project
         400: Invalid content (empty)
         500: File write failed
     """
@@ -264,7 +264,7 @@ async def update_agents_content(
         if not success:
             raise HTTPException(
                 status_code=404,
-                detail=f"Amplified directory not found: {relative_path}",
+                detail=f"Project not found: {relative_path}",
             )
 
         return AgentsContentResponse(
@@ -283,12 +283,12 @@ async def update_agents_content(
 
 
 @router.delete("/{relative_path:path}", status_code=204)
-async def delete_amplified_directory(
+async def delete_project(
     relative_path: str,
     remove_marker: bool = False,
-    service: AmplifiedDirectoryService = Depends(get_service),
+    service: ProjectService = Depends(get_service),
 ) -> None:
-    """Unregister/delete amplified directory.
+    """Unregister/delete project.
 
     Args:
         relative_path: Path relative to AMPLIFIERD_DATA_PATH
@@ -296,8 +296,8 @@ async def delete_amplified_directory(
         service: Injected service instance
 
     Raises:
-        404: Directory not found or not amplified
-        409: Cannot delete - directory has active sessions
+        404: Directory not found or not a project
+        409: Cannot delete - project has active sessions
         500: Deletion failed
 
     Note: Deletion protection (409) will be implemented when session
@@ -310,10 +310,10 @@ async def delete_amplified_directory(
         success = service.delete(relative_path, remove_marker=remove_marker)
 
         if not success:
-            raise HTTPException(status_code=404, detail=f"Amplified directory not found: {relative_path}")
+            raise HTTPException(status_code=404, detail=f"Project not found: {relative_path}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete amplified directory {relative_path}: {e}")
+        logger.error(f"Failed to delete project {relative_path}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
