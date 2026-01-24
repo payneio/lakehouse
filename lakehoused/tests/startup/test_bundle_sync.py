@@ -114,8 +114,10 @@ name2:ref2
 
         bundles = parse_bundles_file(bundles_file)
 
-        # Should have 4 entries from the default content
-        assert len(bundles) == 4
+        # Should have 6 entries from the default content (includes foundation and payne-amplifier namespaces)
+        assert len(bundles) == 6
+        assert "foundation" in bundles
+        assert "payne-amplifier" in bundles
         assert "amplifier-dev" in bundles
         assert "minimal" in bundles
         assert "software-developer" in bundles

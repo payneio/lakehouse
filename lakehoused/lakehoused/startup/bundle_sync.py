@@ -14,17 +14,22 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_BUNDLES_TXT = """\
 # Amplifier Foundation bundles
-# Format: name:git+https://github.com/owner/repo@branch#path/to/bundle.md
+# Format: name:git+https://github.com/owner/repo@branch#subdirectory=path/to/bundle.md
+# Note: Fragment format follows pip/uv standard with subdirectory= prefix
 #
 # Foundation handles git cloning/caching to ~/.amplifier/cache/
 # This preserves full repo structure for namespace:path resolution
 #
-amplifier-dev:git+https://github.com/microsoft/amplifier-foundation@main#bundles/amplifier-dev.md
-minimal:git+https://github.com/microsoft/amplifier-foundation@main#bundles/minimal.md
+# Foundation namespace (required for namespace:path includes like foundation:behaviors/logging)
+foundation:git+https://github.com/microsoft/amplifier-foundation@main
+amplifier-dev:git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/amplifier-dev.yaml
+minimal:git+https://github.com/microsoft/amplifier-foundation@main#subdirectory=bundles/minimal.yaml
 
 # Personal bundles (payneio/payne-amplifier)
-software-developer:git+https://github.com/payneio/payne-amplifier@main#bundles/software-developer.md
-basic:git+https://github.com/payneio/payne-amplifier@main#bundles/basic.md
+# payne-amplifier namespace (required for namespace:path includes like payne-amplifier:behaviors/software-development)
+payne-amplifier:git+https://github.com/payneio/payne-amplifier@main
+software-developer:git+https://github.com/payneio/payne-amplifier@main#subdirectory=bundles/software-developer.md
+basic:git+https://github.com/payneio/payne-amplifier@main#subdirectory=bundles/basic.md
 """
 
 
