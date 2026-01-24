@@ -43,7 +43,7 @@ members = []
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
-lakehouse-library = { path = "../lakehouse_library", editable = true }
+lakehouse-library = { path = "../lakehouse-library", editable = true }
 
 [dependency-groups]
 dev = [

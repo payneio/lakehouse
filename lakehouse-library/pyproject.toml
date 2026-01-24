@@ -19,7 +19,7 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["lakehouse_library"]
-package-dir = {"lakehouse_library" = "."}
+package-dir = {"lakehouse_library" = "lakehouse_library"}
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
