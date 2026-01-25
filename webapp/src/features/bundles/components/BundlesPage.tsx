@@ -11,7 +11,6 @@ import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { BundleCard } from "./BundleCard";
 import { BundleDetailDialog } from "./BundleDetailDialog";
-import { BundleEditDialog } from "./BundleEditDialog";
 import { BundleSourceDialog } from "./BundleSourceDialog";
 import { CopyBundleDialog } from "./CopyBundleDialog";
 import { CreateBundleDialog } from "./CreateBundleDialog";
@@ -35,7 +34,6 @@ export function BundlesPage() {
     null,
   );
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -91,15 +89,17 @@ export function BundlesPage() {
     },
   });
 
-  // Filter bundles
-  const filteredBundles = bundles.filter((bundle) => {
-    const matchesSearch = bundle.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesSource =
-      sourceFilter === "all" || bundle.source === sourceFilter;
-    return matchesSearch && matchesSource;
-  });
+  // Filter and sort bundles alphabetically
+  const filteredBundles = bundles
+    .filter((bundle) => {
+      const matchesSearch = bundle.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      const matchesSource =
+        sourceFilter === "all" || bundle.source === sourceFilter;
+      return matchesSearch && matchesSource;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   // Event handlers
   const handleView = (bundle: BundleListItem) => {
@@ -107,19 +107,8 @@ export function BundlesPage() {
     setDetailDialogOpen(true);
   };
 
-  const handleCopy = (bundle: BundleListItem) => {
-    setSelectedBundle(bundle);
-    setMutationError(null);
-    setCopyDialogOpen(true);
-  };
-
-  const handleEdit = (bundle: BundleListItem) => {
-    setSelectedBundle(bundle);
-    setEditDialogOpen(true);
-  };
-
-  const handleDelete = (bundle: BundleListItem) => {
-    setSelectedBundle(bundle);
+  const handleDeleteFromDetail = () => {
+    setDetailDialogOpen(false);
     setMutationError(null);
     setDeleteDialogOpen(true);
   };
@@ -127,6 +116,13 @@ export function BundlesPage() {
   const handleCopyFromDetail = () => {
     setDetailDialogOpen(false);
     setCopyDialogOpen(true);
+  };
+
+  const handleRenameFromDetail = (newName: string) => {
+    // Update selected bundle with new name so dialog shows correct name
+    if (selectedBundle) {
+      setSelectedBundle({ ...selectedBundle, name: newName });
+    }
   };
 
   if (isLoading) {
@@ -187,27 +183,20 @@ export function BundlesPage() {
         </div>
       </div>
 
-      {/* Bundle List */}
-      <div className="space-y-2">
-        {filteredBundles.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            {searchQuery || sourceFilter !== "all"
-              ? "No bundles match your search"
-              : "No bundles found. Add bundles to ~/.lakehoused/bundles/"}
-          </div>
-        ) : (
-          filteredBundles.map((bundle) => (
-            <BundleCard
-              key={bundle.name}
-              bundle={bundle}
-              onView={handleView}
-              onCopy={handleCopy}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))
-        )}
-      </div>
+      {/* Bundle Grid */}
+      {filteredBundles.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          {searchQuery || sourceFilter !== "all"
+            ? "No bundles match your search"
+            : "No bundles found. Add bundles to ~/.lakehoused/bundles/"}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4">
+          {filteredBundles.map((bundle) => (
+            <BundleCard key={bundle.name} bundle={bundle} onView={handleView} />
+          ))}
+        </div>
+      )}
 
       {/* Dialogs */}
       <BundleDetailDialog
@@ -219,15 +208,8 @@ export function BundlesPage() {
           setSelectedBundle(null);
         }}
         onCopy={handleCopyFromDetail}
-      />
-
-      <BundleEditDialog
-        bundleName={selectedBundle?.name ?? null}
-        open={editDialogOpen}
-        onClose={() => {
-          setEditDialogOpen(false);
-          setSelectedBundle(null);
-        }}
+        onDelete={handleDeleteFromDetail}
+        onRename={handleRenameFromDetail}
       />
 
       <BundleSourceDialog

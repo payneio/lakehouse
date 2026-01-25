@@ -487,6 +487,9 @@ class LakehouseBundleManager:
         # This caches bundles without includes composed - we need this for the raw includes list
         includes_chain = await self._build_includes_chain(name)
 
+        # Build includes tree for UI display of nesting structure
+        includes_tree = await self._build_includes_tree(name)
+
         # Track contributions: module_id -> (bundle_name, config, source)
         def track_modules(module_list: list[dict], bundle_name: str, contributions: dict) -> None:
             """Track which bundle contributed each module."""
@@ -636,6 +639,7 @@ class LakehouseBundleManager:
             "name": final_bundle.name,
             "source": info.source,
             "includes_chain": friendly_chain,
+            "includes_tree": includes_tree,
             "session": session_config,
             "providers": build_resolved_modules(final_bundle.providers or [], provider_contributions),
             "tools": build_resolved_modules(final_bundle.tools or [], tool_contributions),
@@ -643,6 +647,45 @@ class LakehouseBundleManager:
             "agents": resolved_agents,
             "instruction": final_bundle.instruction,
         }
+
+    async def _build_includes_tree(self, name: str, seen: set[str] | None = None) -> dict[str, Any]:
+        """Build the includes tree for a bundle showing nesting structure.
+
+        Args:
+            name: Bundle name.
+            seen: Set of already-seen bundle names (for cycle detection).
+
+        Returns:
+            Dict with 'name' and 'includes' (list of child trees).
+        """
+        if seen is None:
+            seen = set()
+
+        friendly_name = self._resolve_to_friendly_name(name)
+
+        if name in seen:
+            return {"name": friendly_name, "includes": []}  # Cycle detected
+        seen.add(name)
+
+        # Load bundle WITHOUT includes to get its direct includes list
+        try:
+            bundle = await self._registry._load_single(
+                name,
+                auto_register=True,
+                auto_include=False,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to load bundle {name} for includes tree: {e}")
+            return {"name": friendly_name, "includes": []}
+
+        children = []
+        for include in bundle.includes or []:
+            include_source = self._parse_include(include)
+            if include_source:
+                child_tree = await self._build_includes_tree(include_source, seen.copy())
+                children.append(child_tree)
+
+        return {"name": friendly_name, "includes": children}
 
     async def _build_includes_chain(self, name: str, seen: set[str] | None = None) -> list[str]:
         """Build the full includes chain for a bundle.
@@ -1130,3 +1173,81 @@ Your custom assistant configuration.
             info.path.write_text(content)
 
         logger.info(f"Updated bundle: {name}")
+
+    def rename_bundle(self, old_name: str, new_name: str) -> BundleInfo:
+        """Rename a user bundle.
+
+        Args:
+            old_name: Current bundle name.
+            new_name: New bundle name.
+
+        Returns:
+            BundleInfo for the renamed bundle.
+
+        Raises:
+            ValueError: If bundle not found, is a system bundle, or new name exists.
+        """
+        import re
+
+        info = self._bundle_info.get(old_name)
+        if not info:
+            raise ValueError(f"Bundle not found: {old_name}")
+
+        if info.source != "user":
+            raise ValueError(f"Cannot rename system bundle: {old_name}")
+
+        if new_name in self._bundle_info:
+            raise ValueError(f"Bundle already exists: {new_name}")
+
+        # Determine old and new paths
+        old_path = info.path
+        if old_path.is_dir():
+            # Directory bundle
+            new_path = old_path.parent / new_name
+        else:
+            # Single file bundle - convert to directory on rename
+            new_path = self._bundles_dir / new_name
+
+        if new_path.exists():
+            raise ValueError(f"Path already exists: {new_path}")
+
+        # Move/rename the bundle
+        if old_path.is_dir():
+            old_path.rename(new_path)
+            bundle_file = new_path / "bundle.md"
+            if not bundle_file.exists():
+                bundle_file = new_path / "bundle.yaml"
+        else:
+            # Single file -> convert to directory
+            new_path.mkdir(parents=True)
+            new_bundle_file = new_path / "bundle.md"
+            shutil.copy2(old_path, new_bundle_file)
+            old_path.unlink()
+            bundle_file = new_bundle_file
+
+        # Update the name in the bundle file
+        if bundle_file.exists():
+            content = bundle_file.read_text()
+            content = re.sub(
+                r"(name:\s*)" + re.escape(old_name),
+                r"\g<1>" + new_name,
+                content,
+                count=1,
+            )
+            bundle_file.write_text(content)
+
+        # Update tracking
+        del self._bundle_info[old_name]
+        new_info = BundleInfo(
+            name=new_name,
+            path=new_path,
+            source="user",
+            uri=f"file://{new_path.resolve()}",
+        )
+        self._bundle_info[new_name] = new_info
+
+        # Update registry
+        self._registry.register({new_name: new_info.uri})
+
+        logger.info(f"Renamed bundle: {old_name} -> {new_name}")
+        return new_info

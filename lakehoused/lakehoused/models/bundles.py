@@ -90,6 +90,13 @@ class BundleDetails(CamelCaseModel):
     instruction: str | None = Field(default=None, description="System instruction (markdown body)")
 
 
+class IncludesTreeNode(CamelCaseModel):
+    """Tree node for bundle includes hierarchy."""
+
+    name: str = Field(description="Bundle name")
+    includes: list["IncludesTreeNode"] = Field(default_factory=list, description="Child bundles this bundle includes")
+
+
 class ResolvedBundle(CamelCaseModel):
     """Flattened bundle with source tracking.
 
@@ -101,6 +108,9 @@ class ResolvedBundle(CamelCaseModel):
     source: str = Field(description="Bundle source: 'user' or 'system'")
     includes_chain: list[str] = Field(
         default_factory=list, description="Full includes chain (e.g., ['foundation/base', 'basic', 'my-bundle'])"
+    )
+    includes_tree: IncludesTreeNode | None = Field(
+        default=None, description="Tree structure showing includes hierarchy"
     )
 
     # Resolved sections with source tracking
@@ -141,3 +151,9 @@ class UpdateBundleRequest(CamelCaseModel):
     """Request to update a bundle."""
 
     content: str = Field(description="Raw bundle content (markdown with YAML frontmatter)")
+
+
+class RenameBundleRequest(CamelCaseModel):
+    """Request to rename a bundle."""
+
+    new_name: str = Field(pattern=r"^[a-z0-9-]+$", description="New bundle name (kebab-case)")

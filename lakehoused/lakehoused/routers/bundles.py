@@ -10,6 +10,7 @@ from lakehoused.models.bundles import BundleListItem
 from lakehoused.models.bundles import BundleSource
 from lakehoused.models.bundles import CopyBundleRequest
 from lakehoused.models.bundles import CreateBundleRequest
+from lakehoused.models.bundles import RenameBundleRequest
 from lakehoused.models.bundles import ResolvedBundle
 from lakehoused.models.bundles import UpdateBundleRequest
 
@@ -241,6 +242,40 @@ async def update_bundle(name: str, request: UpdateBundleRequest) -> BundleListIt
     try:
         bundle_manager.update_bundle(name, request.content)
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return await _build_bundle_list_item(bundle_manager, info)
+
+
+@router.post("/{name}/rename")
+async def rename_bundle(name: str, request: RenameBundleRequest) -> BundleListItem:
+    """Rename a user bundle.
+
+    Args:
+        name: Current bundle name.
+        request: Rename request with new name.
+
+    Returns:
+        BundleListItem for the renamed bundle.
+
+    Raises:
+        404: If bundle not found.
+        403: If trying to rename a system bundle.
+        400: If new name already exists.
+    """
+    from lakehoused.models.bundles import RenameBundleRequest as RenameBundleRequestModel
+
+    # Cast to proper type (workaround for forward reference)
+    _ = RenameBundleRequestModel
+    bundle_manager = _get_bundle_manager()
+
+    try:
+        info = bundle_manager.rename_bundle(name, request.new_name)
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        if "system bundle" in str(e).lower():
+            raise HTTPException(status_code=403, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
     return await _build_bundle_list_item(bundle_manager, info)

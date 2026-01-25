@@ -56,11 +56,18 @@ export interface BundleDetails extends BundleListItem {
   instruction?: string | null;
 }
 
+// Tree node for includes hierarchy
+export interface IncludesTreeNode {
+  name: string;
+  includes: IncludesTreeNode[];
+}
+
 // Resolved bundle with source tracking
 export interface ResolvedBundle {
   name: string;
   source: 'user' | 'system';
   includesChain: string[];
+  includesTree: IncludesTreeNode;
 
   session?: ResolvedSessionConfig | null;
   providers: ResolvedModuleRef[];
@@ -87,6 +94,10 @@ export interface CreateBundleRequest {
 }
 
 export interface CopyBundleRequest {
+  newName: string;
+}
+
+export interface RenameBundleRequest {
   newName: string;
 }
 
@@ -124,6 +135,13 @@ export const copyBundle = (name: string, newName: string) =>
   fetchApi<BundleListItem>(`/api/v1/bundles/${encodeURIComponent(name)}/copy`, {
     method: 'POST',
     body: JSON.stringify({ newName } as CopyBundleRequest),
+  });
+
+// Rename a bundle
+export const renameBundle = (name: string, newName: string) =>
+  fetchApi<BundleListItem>(`/api/v1/bundles/${encodeURIComponent(name)}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ newName } as RenameBundleRequest),
   });
 
 // Update a bundle

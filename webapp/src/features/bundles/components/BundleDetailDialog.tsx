@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronDown,
   ChevronRight,
@@ -10,10 +10,25 @@ import {
   Settings,
   FileText,
   Copy,
+  Save,
+  RotateCcw,
+  AlertCircle,
+  Trash2,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { getResolvedBundle, getBundleSource, type ResolvedBundle, type ResolvedModuleRef } from '@/api/bundles';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  getResolvedBundle,
+  getBundleSource,
+  updateBundle,
+  renameBundle,
+  type ResolvedBundle,
+  type ResolvedModuleRef,
+  type IncludesTreeNode,
+} from '@/api/bundles';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 type ViewMode = 'details' | 'source';
 
@@ -23,6 +38,8 @@ interface BundleDetailDialogProps {
   open: boolean;
   onClose: () => void;
   onCopy: () => void;
+  onDelete?: () => void;
+  onRename?: (newName: string) => void;
 }
 
 export function BundleDetailDialog({
@@ -31,41 +48,192 @@ export function BundleDetailDialog({
   open,
   onClose,
   onCopy,
+  onDelete,
+  onRename,
 }: BundleDetailDialogProps) {
+  if (!open || !bundleName) return null;
+
+  return (
+    <BundleDetailDialogContent
+      bundleName={bundleName}
+      bundleSource={bundleSource}
+      onClose={onClose}
+      onCopy={onCopy}
+      onDelete={onDelete}
+      onRename={onRename}
+    />
+  );
+}
+
+// Inner component that only mounts when dialog is open
+// This ensures state resets when dialog reopens
+function BundleDetailDialogContent({
+  bundleName,
+  bundleSource,
+  onClose,
+  onCopy,
+  onDelete,
+  onRename,
+}: {
+  bundleName: string;
+  bundleSource: 'user' | 'system' | null;
+  onClose: () => void;
+  onCopy: () => void;
+  onDelete?: () => void;
+  onRename?: (newName: string) => void;
+}) {
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('details');
+  const [editedContent, setEditedContent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(bundleName);
+
+  const isEditable = bundleSource === 'user';
 
   const { data: bundle, isLoading: bundleLoading, error: bundleError } = useQuery({
     queryKey: ['bundle', bundleName, 'resolved'],
-    queryFn: () => getResolvedBundle(bundleName!),
-    enabled: !!bundleName && open,
+    queryFn: () => getResolvedBundle(bundleName),
   });
 
   const { data: source, isLoading: sourceLoading, error: sourceError } = useQuery({
     queryKey: ['bundle', bundleName, 'source'],
-    queryFn: () => getBundleSource(bundleName!),
-    enabled: !!bundleName && open && viewMode === 'source',
+    queryFn: () => getBundleSource(bundleName),
+    enabled: viewMode === 'source',
   });
 
-  // Reset view mode when dialog closes
+  // Derive current content: edited content if user made changes, otherwise source
+  const currentContent = editedContent ?? source?.content ?? '';
+  const hasChanges = editedContent !== null && editedContent !== source?.content;
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: (content: string) => updateBundle(bundleName, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      queryClient.invalidateQueries({ queryKey: ['bundle', bundleName] });
+      setEditedContent(null);
+      setError(null);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  // Rename mutation
+  const renameMutation = useMutation({
+    mutationFn: (name: string) => renameBundle(bundleName, name),
+    onSuccess: (_, newBundleName) => {
+      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      setIsEditingName(false);
+      setError(null);
+      onRename?.(newBundleName);
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
   const handleClose = () => {
-    setViewMode('details');
+    if (hasChanges) {
+      if (!confirm('You have unsaved changes. Are you sure you want to close?')) {
+        return;
+      }
+    }
+    setError(null);
+    setEditedContent(null);
     onClose();
   };
 
-  if (!bundleName) return null;
+  const handleSave = () => {
+    setError(null);
+    saveMutation.mutate(currentContent);
+  };
+
+  const handleReset = () => {
+    setEditedContent(null);
+  };
+
+  const handleStartRename = () => {
+    setNewName(bundleName);
+    setIsEditingName(true);
+  };
+
+  const handleCancelRename = () => {
+    setNewName(bundleName);
+    setIsEditingName(false);
+  };
+
+  const handleConfirmRename = () => {
+    if (newName && newName !== bundleName) {
+      setError(null);
+      renameMutation.mutate(newName);
+    } else {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleConfirmRename();
+    } else if (e.key === 'Escape') {
+      handleCancelRename();
+    }
+  };
 
   const isLoading = viewMode === 'details' ? bundleLoading : sourceLoading;
-  const error = viewMode === 'details' ? bundleError : sourceError;
+  const loadError = viewMode === 'details' ? bundleError : sourceError;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+    <Dialog open onOpenChange={handleClose}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Package className="h-6 w-6" />
               <div>
-                <DialogTitle>{bundleName}</DialogTitle>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={handleRenameKeyDown}
+                      className="px-2 py-1 text-lg font-semibold border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      autoFocus
+                      disabled={renameMutation.isPending}
+                    />
+                    <button
+                      onClick={handleConfirmRename}
+                      className="p-1 text-green-600 hover:bg-green-50 rounded"
+                      disabled={renameMutation.isPending}
+                      title="Confirm rename"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={handleCancelRename}
+                      className="p-1 text-gray-500 hover:bg-gray-100 rounded"
+                      disabled={renameMutation.isPending}
+                      title="Cancel"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <DialogTitle>{bundleName}</DialogTitle>
+                    {isEditable && (
+                      <button
+                        onClick={handleStartRename}
+                        className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded"
+                        title="Rename bundle"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <span
                   className={`text-xs px-1.5 py-0.5 rounded ${
                     bundleSource === 'user'
@@ -108,28 +276,89 @@ export function BundleDetailDialog({
                 <Copy className="h-4 w-4" />
                 Copy
               </button>
+              {bundleSource === 'user' && onDelete && (
+                <button
+                  onClick={onDelete}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-md hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              )}
             </div>
           </div>
           {viewMode === 'source' && source && (
             <p className="text-xs text-muted-foreground mt-1">
               {source.path} ({source.format})
+              {isEditable && <span className="ml-2 text-green-600">• Editable</span>}
             </p>
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-hidden">
           {isLoading ? (
             <div className="py-8 text-center text-muted-foreground">Loading...</div>
-          ) : error ? (
+          ) : loadError ? (
             <div className="py-8 text-center text-red-500">Failed to load bundle</div>
           ) : viewMode === 'details' && bundle ? (
-            <BundleDetailContent bundle={bundle} />
+            <div className="h-full overflow-y-auto">
+              <BundleDetailContent bundle={bundle} />
+            </div>
           ) : viewMode === 'source' && source ? (
-            <pre className="text-sm bg-muted text-foreground p-4 rounded overflow-x-auto font-mono whitespace-pre">
-              {source.content}
-            </pre>
+            isEditable ? (
+              <div className="h-full flex flex-col">
+                <textarea
+                  value={currentContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  className="flex-1 w-full min-h-[400px] p-4 font-mono text-sm bg-muted text-foreground border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <pre className="text-sm bg-muted text-foreground p-4 rounded overflow-auto font-mono whitespace-pre h-full">
+                {source.content}
+              </pre>
+            )
           ) : null}
         </div>
+
+        {error && (
+          <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm">
+            <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="text-destructive">{error}</div>
+          </div>
+        )}
+
+        {/* Footer with save controls for editable bundles in source mode */}
+        {viewMode === 'source' && isEditable && (
+          <DialogFooter className="flex items-center justify-between border-t pt-4">
+            <div className="flex items-center gap-2">
+              {hasChanges && (
+                <span className="text-sm text-amber-600">Unsaved changes</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {hasChanges && (
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm border rounded-md hover:bg-accent"
+                  disabled={saveMutation.isPending}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset
+                </button>
+              )}
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+                disabled={!hasChanges || saveMutation.isPending}
+              >
+                <Save className="h-4 w-4" />
+                {saveMutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -138,23 +367,14 @@ export function BundleDetailDialog({
 function BundleDetailContent({ bundle }: { bundle: ResolvedBundle }) {
   return (
     <div className="space-y-4 mt-4">
-      {/* Composition Chain */}
-      {bundle.includesChain.length > 1 && (
+      {/* Composition Tree */}
+      {bundle.includesTree && bundle.includesTree.includes.length > 0 && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="text-sm font-medium text-blue-700 mb-2">
-            Composition Chain
+            Composition Tree
           </div>
-          <div className="flex items-center gap-2 text-sm text-blue-600 flex-wrap">
-            {bundle.includesChain.map((name, idx) => (
-              <span key={name} className="flex items-center gap-2">
-                <span className={idx === bundle.includesChain.length - 1 ? 'font-medium' : ''}>
-                  {name}
-                </span>
-                {idx < bundle.includesChain.length - 1 && (
-                  <ChevronRight className="h-4 w-4 text-blue-400" />
-                )}
-              </span>
-            ))}
+          <div className="text-sm text-blue-600 font-mono">
+            <IncludesTree node={bundle.includesTree} isRoot />
           </div>
         </div>
       )}
@@ -333,6 +553,35 @@ function ModuleItem({ module, label }: ModuleItemProps) {
           Original config: {JSON.stringify(module.originalConfig)}
         </div>
       )}
+    </div>
+  );
+}
+
+interface IncludesTreeProps {
+  node: IncludesTreeNode;
+  isRoot?: boolean;
+  isLast?: boolean;
+  prefix?: string;
+}
+
+function IncludesTree({ node, isRoot = false, isLast = false, prefix = '' }: IncludesTreeProps) {
+  const connector = isRoot ? '' : (isLast ? '└─ ' : '├─ ');
+  const childPrefix = isRoot ? '' : prefix + (isLast ? '   ' : '│  ');
+
+  return (
+    <div>
+      <div className={isRoot ? 'font-semibold' : ''}>
+        <span className="text-blue-400">{prefix}{connector}</span>
+        {node.name}
+      </div>
+      {node.includes.map((child, idx) => (
+        <IncludesTree
+          key={child.name}
+          node={child}
+          isLast={idx === node.includes.length - 1}
+          prefix={childPrefix}
+        />
+      ))}
     </div>
   );
 }
