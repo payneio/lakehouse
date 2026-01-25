@@ -12,7 +12,7 @@ class TestBundleSourceContent:
     @pytest.mark.asyncio
     async def test_get_source_for_local_bundle(self, tmp_path: Path) -> None:
         """Can retrieve source content for local bundles."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
 
         # Create a local bundle
@@ -37,7 +37,7 @@ Test content.
     @pytest.mark.asyncio
     async def test_get_source_for_directory_bundle(self, tmp_path: Path) -> None:
         """Can retrieve source content for directory-based bundles."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundle_dir = bundles_dir / "test-bundle"
         bundle_dir.mkdir(parents=True)
 

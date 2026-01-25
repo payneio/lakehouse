@@ -19,6 +19,7 @@ from typing import Any
 from amplifier_foundation import Bundle
 from amplifier_foundation import BundleRegistry
 
+from lakehouse_library.storage.paths import get_bundles_dir
 from lakehouse_library.storage.paths import get_home_dir
 
 logger = logging.getLogger(__name__)
@@ -67,9 +68,14 @@ class LakehouseBundleManager:
                               via git cloning. Registered FIRST before local discovery.
         """
         self._home_dir = home_dir or get_home_dir()
-        # Derive bundle directories from home_dir to support test isolation
-        self._bundles_dir = self._home_dir / "bundles"
-        self._share_bundles_dir = self._home_dir / "share" / "bundles"
+        # All local bundles are in share/bundles (user-editable)
+        # Registry bundles (git+ URIs) are cached separately by Foundation
+        if home_dir:
+            # Test isolation: derive from provided home_dir
+            self._bundles_dir = home_dir / "share" / "bundles"
+        else:
+            # Production: use paths module
+            self._bundles_dir = get_bundles_dir()
 
         # Initialize Foundation's BundleRegistry with our home directory
         # Foundation uses {home}/cache for remote bundle caching
@@ -115,11 +121,10 @@ class LakehouseBundleManager:
         return self._registry
 
     def _discover_local_bundles(self) -> None:
-        """Discover and register bundles in well-known bundle directories.
+        """Discover and register bundles in the bundles directory.
 
-        Scans multiple locations for bundles:
-        - ~/.lakehoused/bundles/ (user bundles)
-        - ~/.lakehoused/share/bundles/ (system/shared bundles)
+        All local bundles are in share/bundles/ and are user-editable.
+        Registry bundles (git+ URIs) are cached separately by Foundation.
 
         Supports multiple bundle formats:
         - Single .md files (e.g., basic.md) - name derived from filename
@@ -127,20 +132,14 @@ class LakehouseBundleManager:
 
         Registers each as a local file:// URI.
         """
-        # Directories to scan for bundles (in priority order - user bundles first)
-        bundle_dirs = [
-            (self._bundles_dir, "user"),  # ~/.lakehoused/bundles/
-            (self._share_bundles_dir, "system"),  # ~/.lakehoused/share/bundles/
-        ]
-
         discovered: dict[str, str] = {}
 
-        for bundles_dir, source_type in bundle_dirs:
-            if not bundles_dir.exists():
-                logger.debug(f"Bundles directory does not exist: {bundles_dir}")
-                continue
+        if not self._bundles_dir.exists():
+            logger.debug(f"Bundles directory does not exist: {self._bundles_dir}")
+            return
 
-            self._discover_bundles_in_dir(bundles_dir, discovered, source_type=source_type)
+        # All local bundles are "user" bundles (editable)
+        self._discover_bundles_in_dir(self._bundles_dir, discovered, source_type="user")
 
         if discovered:
             self._registry.register(discovered)
@@ -242,9 +241,7 @@ class LakehouseBundleManager:
         # This maps bundle namespaces (e.g., "foundation") to their base paths
         # enabling @foundation:context/file.md to resolve correctly
         if bundle.source_base_paths:
-            mount_plan["source_base_paths"] = {
-                ns: str(path) for ns, path in bundle.source_base_paths.items()
-            }
+            mount_plan["source_base_paths"] = {ns: str(path) for ns, path in bundle.source_base_paths.items()}
 
         return mount_plan
 
@@ -872,6 +869,13 @@ class LakehouseBundleManager:
     async def copy_bundle(self, source_name: str, new_name: str) -> BundleInfo:
         """Copy a bundle to user bundles directory.
 
+        All bundles are directories. This copies:
+        - Directory bundles: entire directory structure
+        - Legacy single-file bundles: creates directory with bundle.md inside
+        - Registry bundles: resolves cached path first, then copies
+
+        Updates the bundle name in the main bundle file.
+
         Args:
             source_name: Name of bundle to copy.
             new_name: Name for the new bundle.
@@ -882,6 +886,8 @@ class LakehouseBundleManager:
         Raises:
             ValueError: If source not found or new name already exists.
         """
+        import re
+
         source_info = self._bundle_info.get(source_name)
         if not source_info:
             raise ValueError(f"Source bundle not found: {source_name}")
@@ -892,35 +898,60 @@ class LakehouseBundleManager:
         # Ensure user bundles directory exists
         self._bundles_dir.mkdir(parents=True, exist_ok=True)
 
-        source_path = source_info.path
-        new_path = self._bundles_dir / f"{new_name}.md"
+        # Target is always a directory
+        new_dir = self._bundles_dir / new_name
+        if new_dir.exists():
+            raise ValueError(f"Bundle directory already exists: {new_dir}")
 
-        # Read source content
-        if source_path.is_dir():
-            bundle_file = source_path / "bundle.md"
-            if not bundle_file.exists():
-                bundle_file = source_path / "bundle.yaml"
-            content = bundle_file.read_text()
+        # Resolve source path - handle registry bundles specially
+        if source_info.source == "registry":
+            # Registry bundles need to be loaded to get their cached path
+            source_path = await self._resolve_registry_bundle_path(source_name, source_info)
         else:
-            content = source_path.read_text()
+            source_path = source_info.path
 
-        # Update bundle name in content
-        # Simple replacement of name in YAML frontmatter
-        import re
+        # Determine bundle structure: directory or single file
+        if source_path.is_dir():
+            # Directory bundle - copy entire directory
+            shutil.copytree(source_path, new_dir)
+            # Find the main bundle file
+            bundle_md = new_dir / "bundle.md"
+            bundle_yaml = new_dir / "bundle.yaml"
+            if bundle_md.exists():
+                new_bundle_file = bundle_md
+            elif bundle_yaml.exists():
+                new_bundle_file = bundle_yaml
+            else:
+                raise ValueError(f"Copied bundle directory missing bundle.md or bundle.yaml: {new_dir}")
+        elif source_path.name in ("bundle.md", "bundle.yaml"):
+            # Path points to bundle file inside a directory - copy parent directory
+            source_dir = source_path.parent
+            shutil.copytree(source_dir, new_dir)
+            new_bundle_file = new_dir / source_path.name
+        else:
+            # Legacy single file - create directory structure
+            new_dir.mkdir(parents=True)
+            new_bundle_file = new_dir / "bundle.md"
+            shutil.copy2(source_path, new_bundle_file)
 
-        content = re.sub(r"(name:\s*)" + re.escape(source_name), r"\g<1>" + new_name, content, count=1)
+        # Update bundle name in the main file
+        content = new_bundle_file.read_text()
+        content = re.sub(
+            r"(name:\s*)" + re.escape(source_name),
+            r"\g<1>" + new_name,
+            content,
+            count=1,
+        )
+        new_bundle_file.write_text(content)
 
-        # Write new bundle
-        new_path.write_text(content)
-
-        # Register the new bundle
-        bundle_uri = f"file://{new_path.resolve()}"
+        # Register the new bundle (directory URI)
+        bundle_uri = f"file://{new_dir.resolve()}"
         self._registry.register({new_name: bundle_uri})
 
         # Track info
         new_info = BundleInfo(
             name=new_name,
-            path=new_path,
+            path=new_bundle_file,
             source="user",
             uri=bundle_uri,
         )
@@ -928,6 +959,62 @@ class LakehouseBundleManager:
 
         logger.info(f"Copied bundle {source_name} to {new_name}")
         return new_info
+
+    async def _resolve_registry_bundle_path(self, name: str, info: BundleInfo) -> Path:
+        """Resolve the cached filesystem path for a registry bundle.
+
+        Registry bundles are git+ URIs that Foundation caches locally.
+        This loads the bundle to get its actual cached path.
+
+        Args:
+            name: Bundle name.
+            info: BundleInfo with the registry URI.
+
+        Returns:
+            Path to the cached bundle file or directory.
+
+        Raises:
+            ValueError: If bundle cannot be loaded or path cannot be determined.
+        """
+        try:
+            bundle = await self._registry._load_single(
+                name,
+                auto_register=False,
+                auto_include=False,
+            )
+
+            # Get repo root from source_base_paths if available
+            repo_root = bundle.source_base_paths.get(bundle.name) if bundle.source_base_paths else None
+
+            if not repo_root and not bundle.base_path:
+                raise ValueError(f"Bundle {name} has no base_path after loading")
+
+            uri = info.uri
+
+            # Check if URI has a fragment with subdirectory=
+            if "#" in uri and "subdirectory=" in uri.split("#", 1)[1]:
+                fragment = uri.split("#", 1)[1]
+                if fragment.startswith("subdirectory="):
+                    fragment = fragment.split("=", 1)[1]
+
+                # Use repo root from source_base_paths
+                if repo_root:
+                    path = repo_root / fragment
+                elif bundle.base_path:
+                    path = bundle.base_path / fragment
+                else:
+                    raise ValueError(f"Could not determine path for bundle {name}")
+            else:
+                # No subdirectory fragment - base_path is the bundle location
+                path = bundle.base_path
+
+            if path is None:
+                raise ValueError(f"Could not determine path for bundle {name}")
+
+            return path
+
+        except Exception as e:
+            raise ValueError(f"Failed to resolve registry bundle {name}: {e}")
 
     async def create_bundle(
         self,

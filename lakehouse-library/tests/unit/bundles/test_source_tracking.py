@@ -16,7 +16,7 @@ class TestBundleSourceTracking:
     @pytest.mark.asyncio
     async def test_tracks_components_from_included_bundles(self, tmp_path: Path) -> None:
         """Components from included bundles show correct source."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
 
         # Create a base bundle with a provider
@@ -68,7 +68,7 @@ tools:
     @pytest.mark.asyncio
     async def test_tracks_deep_includes_chain(self, tmp_path: Path) -> None:
         """Components are tracked through multiple levels of includes."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
 
         # Create a chain: foundation -> python-dev -> my-app
@@ -138,7 +138,7 @@ hooks:
     @pytest.mark.asyncio
     async def test_tracks_config_overrides(self, tmp_path: Path) -> None:
         """Tracks when a component config is overridden in a later bundle."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
 
         # Base defines a tool with default config

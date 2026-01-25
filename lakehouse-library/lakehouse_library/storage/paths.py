@@ -133,22 +133,14 @@ def get_git_cache_dir() -> Path:
 
 
 def get_bundles_dir() -> Path:
-    """Get system/shared bundles directory.
+    """Get bundles directory for user-editable bundles.
+
+    All local bundles (user-created, copied, edited) are stored here.
+    Registry bundles (from git+ URIs) are cached separately.
 
     Returns:
-        Path to shared bundles ($LAKEHOUSED_HOME/share/bundles)
+        Path to bundles directory ($LAKEHOUSED_HOME/share/bundles)
     """
     bundles_dir = get_share_dir() / "bundles"
-    bundles_dir.mkdir(parents=True, exist_ok=True)
-    return bundles_dir
-
-
-def get_user_bundles_dir() -> Path:
-    """Get user bundles directory.
-
-    Returns:
-        Path to user bundles ($LAKEHOUSED_HOME/bundles)
-    """
-    bundles_dir = get_home_dir() / "bundles"
     bundles_dir.mkdir(parents=True, exist_ok=True)
     return bundles_dir

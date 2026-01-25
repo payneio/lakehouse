@@ -1,37 +1,39 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search } from 'lucide-react';
-import { useState } from 'react';
 import {
-  listBundles,
   copyBundle,
   createBundle,
   deleteBundle,
+  listBundles,
   type BundleListItem,
-} from '@/api/bundles';
-import { MobileMenuButton } from '@/components/layout/MobileMenuButton';
-import { BundleCard } from './BundleCard';
-import { BundleDetailDialog } from './BundleDetailDialog';
-import { BundleEditDialog } from './BundleEditDialog';
-import { BundleSourceDialog } from './BundleSourceDialog';
-import { CopyBundleDialog } from './CopyBundleDialog';
-import { CreateBundleDialog } from './CreateBundleDialog';
-import { DeleteBundleDialog } from './DeleteBundleDialog';
+} from "@/api/bundles";
+import { MobileMenuButton } from "@/components/layout/MobileMenuButton";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search } from "lucide-react";
+import { useState } from "react";
+import { BundleCard } from "./BundleCard";
+import { BundleDetailDialog } from "./BundleDetailDialog";
+import { BundleEditDialog } from "./BundleEditDialog";
+import { BundleSourceDialog } from "./BundleSourceDialog";
+import { CopyBundleDialog } from "./CopyBundleDialog";
+import { CreateBundleDialog } from "./CreateBundleDialog";
+import { DeleteBundleDialog } from "./DeleteBundleDialog";
 
-type SourceFilter = 'all' | 'user' | 'system';
+type SourceFilter = "all" | "user" | "system";
 
 export function BundlesPage() {
   const queryClient = useQueryClient();
 
   const { data: bundles = [], isLoading } = useQuery({
-    queryKey: ['bundles'],
+    queryKey: ["bundles"],
     queryFn: listBundles,
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   // Dialog states
-  const [selectedBundle, setSelectedBundle] = useState<BundleListItem | null>(null);
+  const [selectedBundle, setSelectedBundle] = useState<BundleListItem | null>(
+    null,
+  );
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
@@ -44,10 +46,15 @@ export function BundlesPage() {
 
   // Copy mutation
   const copyMutation = useMutation({
-    mutationFn: ({ sourceName, newName }: { sourceName: string; newName: string }) =>
-      copyBundle(sourceName, newName),
+    mutationFn: ({
+      sourceName,
+      newName,
+    }: {
+      sourceName: string;
+      newName: string;
+    }) => copyBundle(sourceName, newName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      queryClient.invalidateQueries({ queryKey: ["bundles"] });
       setCopyDialogOpen(false);
       setSelectedBundle(null);
       setMutationError(null);
@@ -61,7 +68,7 @@ export function BundlesPage() {
   const createMutation = useMutation({
     mutationFn: createBundle,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      queryClient.invalidateQueries({ queryKey: ["bundles"] });
       setCreateDialogOpen(false);
       setMutationError(null);
     },
@@ -74,7 +81,7 @@ export function BundlesPage() {
   const deleteMutation = useMutation({
     mutationFn: (name: string) => deleteBundle(name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bundles'] });
+      queryClient.invalidateQueries({ queryKey: ["bundles"] });
       setDeleteDialogOpen(false);
       setSelectedBundle(null);
       setMutationError(null);
@@ -86,8 +93,11 @@ export function BundlesPage() {
 
   // Filter bundles
   const filteredBundles = bundles.filter((bundle) => {
-    const matchesSearch = bundle.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSource = sourceFilter === 'all' || bundle.source === sourceFilter;
+    const matchesSearch = bundle.name
+      .toLowerCase()
+      .includes(searchQuery.toLowerCase());
+    const matchesSource =
+      sourceFilter === "all" || bundle.source === sourceFilter;
     return matchesSearch && matchesSource;
   });
 
@@ -145,11 +155,7 @@ export function BundlesPage() {
 
       {/* Description */}
       <p className="text-muted-foreground">
-        Bundles configure agent behavior and capabilities. They are loaded from{' '}
-        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.lakehoused/bundles/</code>{' '}
-        (user) and{' '}
-        <code className="px-1.5 py-0.5 bg-muted rounded text-sm">~/.lakehoused/share/bundles/</code>{' '}
-        (system).
+        Bundles configure agent behavior and capabilities.
       </p>
 
       {/* Search and Filter */}
@@ -165,17 +171,17 @@ export function BundlesPage() {
           />
         </div>
         <div className="flex border rounded-md overflow-hidden">
-          {(['all', 'user', 'system'] as const).map((filter) => (
+          {(["all", "user", "system"] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setSourceFilter(filter)}
               className={`px-3 py-2 text-sm ${
                 sourceFilter === filter
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent'
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-accent"
               }`}
             >
-              {filter === 'all' ? 'All' : filter === 'user' ? 'User' : 'System'}
+              {filter === "all" ? "All" : filter === "user" ? "User" : "System"}
             </button>
           ))}
         </div>
@@ -185,9 +191,9 @@ export function BundlesPage() {
       <div className="space-y-2">
         {filteredBundles.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            {searchQuery || sourceFilter !== 'all'
-              ? 'No bundles match your search'
-              : 'No bundles found. Add bundles to ~/.lakehoused/bundles/'}
+            {searchQuery || sourceFilter !== "all"
+              ? "No bundles match your search"
+              : "No bundles found. Add bundles to ~/.lakehoused/bundles/"}
           </div>
         ) : (
           filteredBundles.map((bundle) => (

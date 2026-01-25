@@ -10,6 +10,7 @@ class TestRegistryBundlePaths:
     """Debug tests for understanding registry bundle path resolution."""
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Debug test - Foundation actually clones git+ URLs, can't mock with local dirs")
     async def test_base_path_for_subdirectory_fragment(self, tmp_path: Path) -> None:
         """Test what base_path contains for subdirectory= fragments."""
         # Create a mock registry bundle structure
@@ -49,14 +50,14 @@ bundle:
 
         # What files are in base_path?
         if bundle.base_path and bundle.base_path.exists():
-            print(f"Contents of base_path:")
+            print("Contents of base_path:")
             for item in bundle.base_path.iterdir():
                 print(f"  {item.name} ({'dir' if item.is_dir() else 'file'})")
 
         # Now test source content retrieval
         try:
             content, path, fmt = await manager.get_bundle_source_content("test-bundle")
-            print(f"\nSource retrieval SUCCESS")
+            print("\nSource retrieval SUCCESS")
             print(f"Path: {path}")
             print(f"Format: {fmt}")
             assert content == bundle_content

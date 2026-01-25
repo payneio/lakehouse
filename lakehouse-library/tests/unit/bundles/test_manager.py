@@ -13,12 +13,12 @@ class TestLakehouseBundleManager:
         """Manager initializes with provided home directory."""
         manager = LakehouseBundleManager(home_dir=tmp_path)
         assert manager.home_dir == tmp_path
-        assert manager.bundles_dir == tmp_path / "bundles"
+        assert manager.bundles_dir == tmp_path / "share" / "bundles"
 
     def test_discover_local_bundles(self, tmp_path: Path) -> None:
         """Manager discovers bundles in bundles directory."""
         # Create a test bundle
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
         (test_bundle / "bundle.yaml").write_text("bundle:\n  name: test-bundle\n  version: 1.0.0\n")
@@ -30,7 +30,7 @@ class TestLakehouseBundleManager:
 
     def test_discover_skips_non_bundles(self, tmp_path: Path) -> None:
         """Manager skips directories without bundle files."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         not_a_bundle = bundles_dir / "not-a-bundle"
         not_a_bundle.mkdir(parents=True)
         (not_a_bundle / "random.txt").write_text("not a bundle")
@@ -41,7 +41,7 @@ class TestLakehouseBundleManager:
 
     def test_discover_single_file_bundles(self, tmp_path: Path) -> None:
         """Manager discovers single .md file bundles."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
 
         # Create a single-file bundle (like basic.md)
@@ -52,7 +52,7 @@ class TestLakehouseBundleManager:
         assert "basic" in manager.list_available_bundles()
 
     def test_discover_bundles_in_share_directory(self, tmp_path: Path) -> None:
-        """Manager discovers bundles in share/bundles directory."""
+        """Manager discovers bundles in share/bundles directory (canonical location)."""
         share_bundles = tmp_path / "share" / "bundles"
         share_bundles.mkdir(parents=True)
 
@@ -63,26 +63,9 @@ class TestLakehouseBundleManager:
 
         assert "shared-bundle" in manager.list_available_bundles()
 
-    def test_user_bundles_override_share_bundles(self, tmp_path: Path) -> None:
-        """User bundles in bundles/ take priority over share/bundles/."""
-        # Create bundle in share directory
-        share_bundles = tmp_path / "share" / "bundles"
-        share_bundles.mkdir(parents=True)
-        (share_bundles / "test-bundle.md").write_text("---\nbundle:\n  name: test-bundle\n  version: 1.0.0\n---\n")
-
-        # Create same bundle in user directory
-        user_bundles = tmp_path / "bundles"
-        user_bundles.mkdir(parents=True)
-        (user_bundles / "test-bundle.md").write_text("---\nbundle:\n  name: test-bundle\n  version: 2.0.0\n---\n")
-
-        manager = LakehouseBundleManager(home_dir=tmp_path)
-
-        # Should only have one entry (user takes priority)
-        assert manager.list_available_bundles().count("test-bundle") == 1
-
     def test_discover_nested_bundles(self, tmp_path: Path) -> None:
         """Manager discovers bundles in subdirectories with prefix."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         foundation_dir = bundles_dir / "foundation"
         foundation_dir.mkdir(parents=True)
 
@@ -97,7 +80,7 @@ class TestLakehouseBundleManager:
     async def test_load_bundle_from_well_known_path(self, tmp_path: Path) -> None:
         """Manager loads bundle from well-known bundles directory."""
         # Create a test bundle
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
         (test_bundle / "bundle.yaml").write_text("bundle:\n  name: test-bundle\n  version: 1.0.0\n")
@@ -112,7 +95,7 @@ class TestLakehouseBundleManager:
     async def test_bundle_to_mount_plan(self, tmp_path: Path) -> None:
         """bundle_to_mount_plan converts Bundle to dict."""
         # Create a test bundle with tools
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
         (test_bundle / "bundle.yaml").write_text(
@@ -138,7 +121,7 @@ tools:
     async def test_generate_mount_plan_injects_runtime_config(self, tmp_path: Path) -> None:
         """generate_mount_plan injects runtime configuration."""
         # Create a test bundle with tools
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
         (test_bundle / "bundle.yaml").write_text(
@@ -175,7 +158,7 @@ providers:
     async def test_generate_mount_plan_preserves_existing_config(self, tmp_path: Path) -> None:
         """generate_mount_plan doesn't overwrite existing config values."""
         # Create a test bundle with pre-configured tools
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
         (test_bundle / "bundle.yaml").write_text(
@@ -204,7 +187,7 @@ tools:
 
     def test_list_available_bundles(self, tmp_path: Path) -> None:
         """list_available_bundles returns sorted list of bundle names."""
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
 
         # Create multiple bundles
         for name in ["zebra", "alpha", "middle"]:
@@ -343,7 +326,7 @@ class TestRegistryBundles:
     def test_local_bundles_discovered_when_not_in_registry(self, tmp_path: Path) -> None:
         """Local bundles are discovered if not in registry_bundles."""
         # Create a local bundle
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
         (bundles_dir / "local-only.md").write_text("---\nbundle:\n  name: local-only\n  version: 1.0.0\n---\n")
 
@@ -365,7 +348,7 @@ class TestRegistryBundles:
     def test_empty_registry_bundles_allows_local_discovery(self, tmp_path: Path) -> None:
         """Empty registry_bundles doesn't block local discovery."""
         # Create a local bundle
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
         (bundles_dir / "test.md").write_text("---\nbundle:\n  name: test\n  version: 1.0.0\n---\n")
 
@@ -379,7 +362,7 @@ class TestRegistryBundles:
     def test_none_registry_bundles_works(self, tmp_path: Path) -> None:
         """None registry_bundles is handled correctly."""
         # Create a local bundle
-        bundles_dir = tmp_path / "bundles"
+        bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
         (bundles_dir / "test.md").write_text("---\nbundle:\n  name: test\n  version: 1.0.0\n---\n")
 

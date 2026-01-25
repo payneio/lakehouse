@@ -27,6 +27,40 @@ def _get_bundle_manager():
     return LakehouseBundleManager(registry_bundles=get_registry_bundles())
 
 
+async def _build_bundle_list_item(bundle_manager, info) -> BundleListItem:
+    """Build a complete BundleListItem with full details.
+
+    Args:
+        bundle_manager: LakehouseBundleManager instance.
+        info: BundleInfo for the bundle.
+
+    Returns:
+        BundleListItem with all fields populated.
+    """
+    try:
+        details = await bundle_manager.get_bundle_details(info.name)
+        return BundleListItem(
+            name=info.name,
+            version=details.get("version", "1.0.0"),
+            description=details.get("description"),
+            source=info.source,
+            path=str(info.path),
+            provider_count=details.get("provider_count", 0),
+            tool_count=details.get("tool_count", 0),
+            hook_count=details.get("hook_count", 0),
+            agent_count=details.get("agent_count", 0),
+            includes=details.get("includes", []),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load bundle details for {info.name}: {e}")
+        # Return minimal info on error
+        return BundleListItem(
+            name=info.name,
+            source=info.source,
+            path=str(info.path),
+        )
+
+
 @router.get("/")
 async def list_bundles() -> list[BundleListItem]:
     """List all available bundles with summary information.
@@ -43,33 +77,8 @@ async def list_bundles() -> list[BundleListItem]:
 
     result = []
     for info in bundles_info:
-        # Load bundle to get details
-        try:
-            details = await bundle_manager.get_bundle_details(info.name)
-            result.append(
-                BundleListItem(
-                    name=info.name,
-                    version=details.get("version", "1.0.0"),
-                    description=details.get("description"),
-                    source=info.source,
-                    path=str(info.path),
-                    provider_count=details.get("provider_count", 0),
-                    tool_count=details.get("tool_count", 0),
-                    hook_count=details.get("hook_count", 0),
-                    agent_count=details.get("agent_count", 0),
-                    includes=details.get("includes", []),
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Failed to load bundle details for {info.name}: {e}")
-            # Return minimal info on error
-            result.append(
-                BundleListItem(
-                    name=info.name,
-                    source=info.source,
-                    path=str(info.path),
-                )
-            )
+        item = await _build_bundle_list_item(bundle_manager, info)
+        result.append(item)
 
     return result
 
@@ -175,11 +184,7 @@ async def create_bundle(request: CreateBundleRequest) -> BundleListItem:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    return BundleListItem(
-        name=info.name,
-        source=info.source,
-        path=str(info.path),
-    )
+    return await _build_bundle_list_item(bundle_manager, info)
 
 
 @router.post("/{name}/copy")
@@ -206,11 +211,7 @@ async def copy_bundle(name: str, request: CopyBundleRequest) -> BundleListItem:
             raise HTTPException(status_code=404, detail=str(e))
         raise HTTPException(status_code=400, detail=str(e))
 
-    return BundleListItem(
-        name=info.name,
-        source=info.source,
-        path=str(info.path),
-    )
+    return await _build_bundle_list_item(bundle_manager, info)
 
 
 @router.put("/{name}/")
@@ -242,11 +243,7 @@ async def update_bundle(name: str, request: UpdateBundleRequest) -> BundleListIt
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    return BundleListItem(
-        name=info.name,
-        source=info.source,
-        path=str(info.path),
-    )
+    return await _build_bundle_list_item(bundle_manager, info)
 
 
 @router.delete("/{name}/")
