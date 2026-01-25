@@ -139,7 +139,7 @@ async def get_bundle_source(name: str) -> BundleSource:
     bundle_manager = _get_bundle_manager()
 
     try:
-        content, path, file_format = bundle_manager.get_bundle_source_content(name)
+        content, path, file_format = await bundle_manager.get_bundle_source_content(name)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

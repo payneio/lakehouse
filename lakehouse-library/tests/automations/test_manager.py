@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from lakehouse_library.automations.manager import AutomationManager
 from lakehouse_library.models.automations import ScheduleConfig
 

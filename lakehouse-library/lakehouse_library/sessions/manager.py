@@ -152,6 +152,7 @@ class SessionManager:
             ValueError: If session is in terminal state
             FileNotFoundError: If session not found
         """
+
         def update(metadata: SessionMetadata) -> None:
             # Already active? No-op (common path after this change)
             if metadata.status == SessionStatus.ACTIVE:

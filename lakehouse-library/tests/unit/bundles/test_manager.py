@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from lakehouse_library.bundles import LakehouseBundleManager
 
 
@@ -22,9 +21,7 @@ class TestLakehouseBundleManager:
         bundles_dir = tmp_path / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
-        (test_bundle / "bundle.yaml").write_text(
-            "bundle:\n  name: test-bundle\n  version: 1.0.0\n"
-        )
+        (test_bundle / "bundle.yaml").write_text("bundle:\n  name: test-bundle\n  version: 1.0.0\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
 
@@ -48,9 +45,7 @@ class TestLakehouseBundleManager:
         bundles_dir.mkdir(parents=True)
 
         # Create a single-file bundle (like basic.md)
-        (bundles_dir / "basic.md").write_text(
-            "---\nbundle:\n  name: basic\n  version: 1.0.0\n---\n# Basic Bundle\n"
-        )
+        (bundles_dir / "basic.md").write_text("---\nbundle:\n  name: basic\n  version: 1.0.0\n---\n# Basic Bundle\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
 
@@ -62,9 +57,7 @@ class TestLakehouseBundleManager:
         share_bundles.mkdir(parents=True)
 
         # Create a bundle in share directory
-        (share_bundles / "shared-bundle.md").write_text(
-            "---\nbundle:\n  name: shared-bundle\n  version: 1.0.0\n---\n"
-        )
+        (share_bundles / "shared-bundle.md").write_text("---\nbundle:\n  name: shared-bundle\n  version: 1.0.0\n---\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
 
@@ -75,16 +68,12 @@ class TestLakehouseBundleManager:
         # Create bundle in share directory
         share_bundles = tmp_path / "share" / "bundles"
         share_bundles.mkdir(parents=True)
-        (share_bundles / "test-bundle.md").write_text(
-            "---\nbundle:\n  name: test-bundle\n  version: 1.0.0\n---\n"
-        )
+        (share_bundles / "test-bundle.md").write_text("---\nbundle:\n  name: test-bundle\n  version: 1.0.0\n---\n")
 
         # Create same bundle in user directory
         user_bundles = tmp_path / "bundles"
         user_bundles.mkdir(parents=True)
-        (user_bundles / "test-bundle.md").write_text(
-            "---\nbundle:\n  name: test-bundle\n  version: 2.0.0\n---\n"
-        )
+        (user_bundles / "test-bundle.md").write_text("---\nbundle:\n  name: test-bundle\n  version: 2.0.0\n---\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
 
@@ -98,9 +87,7 @@ class TestLakehouseBundleManager:
         foundation_dir.mkdir(parents=True)
 
         # Create nested bundle (like foundation/base.md)
-        (foundation_dir / "base.md").write_text(
-            "---\nbundle:\n  name: base\n  version: 1.0.0\n---\n"
-        )
+        (foundation_dir / "base.md").write_text("---\nbundle:\n  name: base\n  version: 1.0.0\n---\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
 
@@ -113,9 +100,7 @@ class TestLakehouseBundleManager:
         bundles_dir = tmp_path / "bundles"
         test_bundle = bundles_dir / "test-bundle"
         test_bundle.mkdir(parents=True)
-        (test_bundle / "bundle.yaml").write_text(
-            "bundle:\n  name: test-bundle\n  version: 1.0.0\n"
-        )
+        (test_bundle / "bundle.yaml").write_text("bundle:\n  name: test-bundle\n  version: 1.0.0\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
         bundle = await manager.load_bundle("test-bundle")
@@ -150,9 +135,7 @@ tools:
         assert mount_plan["tools"][0]["module"] == "tool-test"
 
     @pytest.mark.asyncio
-    async def test_generate_mount_plan_injects_runtime_config(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_generate_mount_plan_injects_runtime_config(self, tmp_path: Path) -> None:
         """generate_mount_plan injects runtime configuration."""
         # Create a test bundle with tools
         bundles_dir = tmp_path / "bundles"
@@ -183,17 +166,13 @@ providers:
         assert mount_plan["tools"][0]["config"]["working_dir"] == "/data/projects/test"
 
         # Check allowed_write_paths injected for filesystem tool
-        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [
-            "/data/projects/test"
-        ]
+        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == ["/data/projects/test"]
 
         # Check api_key injected into providers
         assert mount_plan["providers"][0]["config"]["api_key"] == "test-api-key"
 
     @pytest.mark.asyncio
-    async def test_generate_mount_plan_preserves_existing_config(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_generate_mount_plan_preserves_existing_config(self, tmp_path: Path) -> None:
         """generate_mount_plan doesn't overwrite existing config values."""
         # Create a test bundle with pre-configured tools
         bundles_dir = tmp_path / "bundles"
@@ -221,9 +200,7 @@ tools:
 
         # Existing config should be preserved
         assert mount_plan["tools"][0]["config"]["working_dir"] == "/custom/path"
-        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == [
-            "/custom/allowed"
-        ]
+        assert mount_plan["tools"][0]["config"]["allowed_write_paths"] == ["/custom/allowed"]
 
     def test_list_available_bundles(self, tmp_path: Path) -> None:
         """list_available_bundles returns sorted list of bundle names."""
@@ -233,9 +210,7 @@ tools:
         for name in ["zebra", "alpha", "middle"]:
             bundle_dir = bundles_dir / name
             bundle_dir.mkdir(parents=True)
-            (bundle_dir / "bundle.yaml").write_text(
-                f"bundle:\n  name: {name}\n  version: 1.0.0\n"
-            )
+            (bundle_dir / "bundle.yaml").write_text(f"bundle:\n  name: {name}\n  version: 1.0.0\n")
 
         manager = LakehouseBundleManager(home_dir=tmp_path)
         bundles = manager.list_available_bundles()
@@ -266,9 +241,7 @@ class TestRuntimeConfigInjection:
         assert result["tools"][0]["config"]["working_dir"] == "/test/path"
         assert result["tools"][1]["config"]["working_dir"] == "/test/path"
 
-    def test_inject_allowed_write_paths_only_to_filesystem_tools(
-        self, tmp_path: Path
-    ) -> None:
+    def test_inject_allowed_write_paths_only_to_filesystem_tools(self, tmp_path: Path) -> None:
         """allowed_write_paths only injected into filesystem tools."""
         manager = LakehouseBundleManager(home_dir=tmp_path)
         mount_plan = {
@@ -352,14 +325,10 @@ class TestRegistryBundles:
         # Create a local bundle with same name as registry bundle
         bundles_dir = tmp_path / "share" / "bundles"
         bundles_dir.mkdir(parents=True)
-        (bundles_dir / "my-bundle.md").write_text(
-            "---\nbundle:\n  name: my-bundle\n  version: 1.0.0\n---\n"
-        )
+        (bundles_dir / "my-bundle.md").write_text("---\nbundle:\n  name: my-bundle\n  version: 1.0.0\n---\n")
 
         # Pass registry_bundles that would conflict
-        registry_bundles = {
-            "my-bundle": "git+https://github.com/test/repo@main#bundle.md"
-        }
+        registry_bundles = {"my-bundle": "git+https://github.com/test/repo@main#bundle.md"}
 
         manager = LakehouseBundleManager(
             home_dir=tmp_path,
@@ -376,14 +345,10 @@ class TestRegistryBundles:
         # Create a local bundle
         bundles_dir = tmp_path / "bundles"
         bundles_dir.mkdir(parents=True)
-        (bundles_dir / "local-only.md").write_text(
-            "---\nbundle:\n  name: local-only\n  version: 1.0.0\n---\n"
-        )
+        (bundles_dir / "local-only.md").write_text("---\nbundle:\n  name: local-only\n  version: 1.0.0\n---\n")
 
         # Pass registry_bundles without local-only
-        registry_bundles = {
-            "remote-bundle": "git+https://github.com/test/repo@main#bundle.md"
-        }
+        registry_bundles = {"remote-bundle": "git+https://github.com/test/repo@main#bundle.md"}
 
         manager = LakehouseBundleManager(
             home_dir=tmp_path,
@@ -402,9 +367,7 @@ class TestRegistryBundles:
         # Create a local bundle
         bundles_dir = tmp_path / "bundles"
         bundles_dir.mkdir(parents=True)
-        (bundles_dir / "test.md").write_text(
-            "---\nbundle:\n  name: test\n  version: 1.0.0\n---\n"
-        )
+        (bundles_dir / "test.md").write_text("---\nbundle:\n  name: test\n  version: 1.0.0\n---\n")
 
         manager = LakehouseBundleManager(
             home_dir=tmp_path,
@@ -418,9 +381,7 @@ class TestRegistryBundles:
         # Create a local bundle
         bundles_dir = tmp_path / "bundles"
         bundles_dir.mkdir(parents=True)
-        (bundles_dir / "test.md").write_text(
-            "---\nbundle:\n  name: test\n  version: 1.0.0\n---\n"
-        )
+        (bundles_dir / "test.md").write_text("---\nbundle:\n  name: test\n  version: 1.0.0\n---\n")
 
         manager = LakehouseBundleManager(
             home_dir=tmp_path,
