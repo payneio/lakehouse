@@ -1251,3 +1251,49 @@ Your custom assistant configuration.
 
         logger.info(f"Renamed bundle: {old_name} -> {new_name}")
         return new_info
+
+    async def register_and_fetch_bundle(self, name: str, git_url: str) -> BundleInfo:
+        """Register a git+ bundle and fetch/cache it immediately.
+
+        This registers the bundle with Foundation and triggers the git clone/cache
+        process so the bundle is ready to use immediately.
+
+        Args:
+            name: Bundle name.
+            git_url: Git URL (e.g., git+https://github.com/owner/repo@branch#subdirectory=path).
+
+        Returns:
+            BundleInfo for the registered bundle.
+
+        Raises:
+            ValueError: If bundle already exists or fetch fails.
+        """
+        if name in self._bundle_info:
+            raise ValueError(f"Bundle already exists: {name}")
+
+        # Register with Foundation
+        self._registry.register({name: git_url})
+
+        # Track in our bundle info
+        info = BundleInfo(
+            name=name,
+            path=Path(git_url),  # Store URI as path for display
+            source="registry",
+            uri=git_url,
+        )
+        self._bundle_info[name] = info
+
+        # Trigger fetch/caching by loading the bundle
+        try:
+            await self._registry._load_single(
+                name,
+                auto_register=False,
+                auto_include=False,
+            )
+            logger.info(f"Registered and fetched bundle: {name}")
+        except Exception as e:
+            # Remove from tracking if fetch failed
+            del self._bundle_info[name]
+            raise ValueError(f"Failed to fetch bundle {name}: {e}")
+
+        return info

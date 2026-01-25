@@ -320,9 +320,9 @@ async def delete_bundle(name: str) -> dict[str, str]:
 async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, str]:
     """Add a bundle from a git URL to the registry (BUNDLES.txt).
 
-    This adds an entry to ~/.lakehoused/share/bundles/BUNDLES.txt which
-    makes the bundle available as a system bundle. Foundation handles
-    git cloning/caching when the bundle is loaded.
+    This adds an entry to ~/.lakehoused/share/bundles/BUNDLES.txt,
+    registers with Foundation, and fetches/caches the bundle immediately
+    so it's ready to use.
 
     Args:
         request: Registry bundle request with name and git_url.
@@ -331,7 +331,7 @@ async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, st
         Success message.
 
     Raises:
-        400: If bundle name already exists or URL is invalid.
+        400: If bundle name already exists, URL is invalid, or fetch fails.
     """
     from lakehouse_library.storage.paths import get_bundles_dir
 
@@ -340,6 +340,7 @@ async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, st
     bundles_dir = get_bundles_dir()
     bundles_file = bundles_dir / "BUNDLES.txt"
 
+    # First add to BUNDLES.txt for persistence
     try:
         add_bundle_entry(bundles_file, request.name, request.git_url)
     except ValueError as e:
@@ -352,7 +353,23 @@ async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, st
     _REGISTRY_BUNDLES.clear()
     _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
 
-    return {"message": f"Added registry bundle: {request.name}"}
+    # Register with Foundation and fetch/cache immediately
+    bundle_manager = _get_bundle_manager()
+    try:
+        await bundle_manager.register_and_fetch_bundle(request.name, request.git_url)
+    except ValueError as e:
+        # Fetch failed - remove from BUNDLES.txt to keep consistent
+        from lakehoused.startup import remove_bundle_entry
+
+        try:
+            remove_bundle_entry(bundles_file, request.name)
+            _REGISTRY_BUNDLES.clear()
+            _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
+        except Exception:
+            pass  # Best effort cleanup
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"message": f"Added and cached registry bundle: {request.name}"}
 
 
 @router.delete("/registry/{name}")
