@@ -238,6 +238,14 @@ class LakehouseBundleManager:
         if bundle.instruction:
             mount_plan["instruction"] = bundle.instruction
 
+        # Include source_base_paths for @namespace:path @mention resolution
+        # This maps bundle namespaces (e.g., "foundation") to their base paths
+        # enabling @foundation:context/file.md to resolve correctly
+        if bundle.source_base_paths:
+            mount_plan["source_base_paths"] = {
+                ns: str(path) for ns, path in bundle.source_base_paths.items()
+            }
+
         return mount_plan
 
     async def generate_mount_plan(
@@ -478,31 +486,22 @@ class LakehouseBundleManager:
         if not info:
             raise ValueError(f"Bundle not found: {name}")
 
-        # Build includes chain by loading bundles in order
+        # Build includes chain by loading bundles WITHOUT includes
+        # This caches bundles without includes composed - we need this for the raw includes list
         includes_chain = await self._build_includes_chain(name)
 
-        # Load all bundles in the chain WITHOUT auto-include to track direct declarations
-        # This allows us to see which bundle actually declared each component
-        bundles_by_name: dict[str, Bundle] = {}
-        for bundle_name in includes_chain:
-            try:
-                # Load with auto_include=False to get ONLY direct declarations
-                bundles_by_name[bundle_name] = await self._registry._load_single(
-                    bundle_name,
-                    auto_register=False,
-                    auto_include=False,
-                )
-            except Exception as e:
-                logger.warning(f"Failed to load bundle {bundle_name} in chain: {e}")
-
-        # Track contributions: module_id -> (bundle_name, config)
+        # Track contributions: module_id -> (bundle_name, config, source)
         def track_modules(module_list: list[dict], bundle_name: str, contributions: dict) -> None:
             """Track which bundle contributed each module."""
             for mod in module_list:
                 mod_id = mod.get("module") or mod.get("id", "")
                 if mod_id:
                     if mod_id not in contributions:
-                        contributions[mod_id] = {"defined_in": bundle_name, "config": mod.get("config")}
+                        contributions[mod_id] = {
+                            "defined_in": bundle_name,
+                            "config": mod.get("config"),
+                            "source": mod.get("source", ""),
+                        }
                     else:
                         # Check if config changed (override)
                         prev = contributions[mod_id]
@@ -514,45 +513,65 @@ class LakehouseBundleManager:
                                 "override_in": bundle_name,
                                 "original_config": prev.get("config"),
                                 "config": new_config,
+                                "source": mod.get("source", prev.get("source", "")),
                             }
 
-        # Process each bundle in chain order to track where components are defined
+        # Process each bundle in chain order to track where components are FIRST defined
+        # We compose manually to track sources while building the final bundle
         provider_contributions: dict[str, Any] = {}
         tool_contributions: dict[str, Any] = {}
         hook_contributions: dict[str, Any] = {}
         agent_contributions: dict[str, Any] = {}
 
-        for bundle_name in includes_chain:
-            bundle = bundles_by_name.get(bundle_name)
-            if not bundle:
-                continue
+        # Load each bundle in chain individually to get direct declarations
+        # Foundation's _load_single(auto_include=False) returns a Bundle with only its
+        # direct declarations (no includes composed), which is exactly what we need
+        for bundle_ref in includes_chain:
+            # Use friendly name for display in defined_in fields
+            friendly_name = self._resolve_to_friendly_name(bundle_ref)
+            try:
+                bundle = await self._registry._load_single(
+                    bundle_ref,
+                    auto_register=True,
+                    auto_include=False,  # Get direct declarations only
+                )
 
-            track_modules(bundle.providers or [], bundle_name, provider_contributions)
-            track_modules(bundle.tools or [], bundle_name, tool_contributions)
-            track_modules(bundle.hooks or [], bundle_name, hook_contributions)
+                # Track direct declarations from this bundle using friendly name
+                track_modules(bundle.providers or [], friendly_name, provider_contributions)
+                track_modules(bundle.tools or [], friendly_name, tool_contributions)
+                track_modules(bundle.hooks or [], friendly_name, hook_contributions)
 
-            # Track agents (slightly different format)
-            for agent_name, agent_config in (bundle.agents or {}).items():
-                if agent_name not in agent_contributions:
-                    agent_contributions[agent_name] = {
-                        "defined_in": bundle_name,
-                        "config": agent_config,
-                    }
-                else:
-                    prev = agent_contributions[agent_name]
-                    if agent_config != prev.get("config"):
+                # Track agents
+                for agent_name, agent_config in (bundle.agents or {}).items():
+                    if agent_name not in agent_contributions:
                         agent_contributions[agent_name] = {
-                            "defined_in": prev["defined_in"],
-                            "overridden": True,
-                            "override_in": bundle_name,
-                            "original_config": prev.get("config"),
+                            "defined_in": friendly_name,
                             "config": agent_config,
                         }
+                    else:
+                        prev = agent_contributions[agent_name]
+                        if agent_config != prev.get("config"):
+                            agent_contributions[agent_name] = {
+                                "defined_in": prev["defined_in"],
+                                "overridden": True,
+                                "override_in": friendly_name,
+                                "original_config": prev.get("config"),
+                                "config": agent_config,
+                            }
 
-        # Now load the final composed bundle (WITH includes resolved) to get all components
+            except Exception as e:
+                logger.warning(f"Failed to load bundle {bundle_ref} for source tracking: {e}")
+
+        # IMPORTANT: Clear the cache before loading the final composed bundle.
+        # The previous _load_single calls with auto_include=False cached bundles without
+        # includes composed. We need to clear that cache so load_bundle() gets the fully
+        # composed bundle with all includes merged.
+        self._registry._loaded_bundles.clear()
         final_bundle = await self.load_bundle(name)
 
-        # Build resolved module lists with source tracking
+        # Build resolved module lists by enriching final_bundle components with source tracking
+        # We iterate over final_bundle to get ALL components (including from remote bundles),
+        # then add source tracking from our contributions dict
         def build_resolved_modules(module_list: list[dict], contributions: dict) -> list[dict]:
             result = []
             for mod in module_list:
@@ -561,9 +580,9 @@ class LakehouseBundleManager:
                 result.append(
                     {
                         "module": mod_id,
-                        "source": mod.get("source"),
+                        "source": mod.get("source", ""),
                         "config": mod.get("config"),
-                        "defined_in": contrib.get("defined_in", name),
+                        "defined_in": contrib.get("defined_in", name),  # Default to current bundle if not tracked
                         "overridden": contrib.get("overridden", False),
                         "override_in": contrib.get("override_in"),
                         "original_config": contrib.get("original_config"),
@@ -613,10 +632,13 @@ class LakehouseBundleManager:
                 else None,
             }
 
+        # Convert includes_chain to friendly names for display
+        friendly_chain = [self._resolve_to_friendly_name(ref) for ref in includes_chain]
+
         return {
             "name": final_bundle.name,
             "source": info.source,
-            "includes_chain": includes_chain,
+            "includes_chain": friendly_chain,
             "session": session_config,
             "providers": build_resolved_modules(final_bundle.providers or [], provider_contributions),
             "tools": build_resolved_modules(final_bundle.tools or [], tool_contributions),
@@ -640,35 +662,118 @@ class LakehouseBundleManager:
 
         if name in seen:
             return []  # Cycle detected
-
         seen.add(name)
 
+        # Load bundle WITHOUT includes to get its direct includes list
         try:
-            # Load WITHOUT auto_include to see the raw includes list
             bundle = await self._registry._load_single(
                 name,
-                auto_register=False,
-                auto_include=False,
+                auto_register=True,
+                auto_include=False,  # Don't compose, just get direct declarations
             )
-        except Exception:
-            return [name]  # Can't load, just return the name
+        except Exception as e:
+            logger.warning(f"Failed to load bundle {name} for includes chain: {e}")
+            return [name]
 
         chain = []
 
-        # Recursively process includes first
+        # Process includes from the loaded bundle
         for include in bundle.includes or []:
-            sub_chain = await self._build_includes_chain(include, seen)
-            for b in sub_chain:
-                if b not in chain:
-                    chain.append(b)
+            include_source = self._parse_include(include)
+            if include_source:
+                sub_chain = await self._build_includes_chain(include_source, seen)
+                for b in sub_chain:
+                    if b not in chain:
+                        chain.append(b)
 
-        # Add this bundle last
         if name not in chain:
             chain.append(name)
 
         return chain
 
-    def get_bundle_source_content(self, name: str) -> tuple[str, str, str]:
+    def _parse_include(self, include: str | dict) -> str | None:
+        """Parse include directive to get bundle name or URI.
+
+        Args:
+            include: Include directive (string or dict with 'bundle' key).
+
+        Returns:
+            Bundle name/URI or None if couldn't parse.
+        """
+        if isinstance(include, str):
+            return include
+        if isinstance(include, dict):
+            bundle_ref = include.get("bundle")
+            if bundle_ref:
+                return str(bundle_ref)
+        return None
+
+    def _resolve_to_friendly_name(self, bundle_ref: str) -> str:
+        """Resolve a bundle reference (name or URI) to a friendly display name.
+
+        For URIs like 'git+https://github.com/.../something.yaml#subdirectory=path/to/bundle.md',
+        this extracts a friendly name. For registered names, returns as-is.
+
+        Args:
+            bundle_ref: Bundle name or URI.
+
+        Returns:
+            Friendly name for display.
+        """
+        # Check if it's already a registered name (not a URI)
+        if not bundle_ref.startswith(("git+", "file://", "http://", "https://")):
+            return bundle_ref
+
+        # Check if this URI is in our registry_bundles (reverse lookup)
+        for name, uri in self._registry_bundles.items():
+            if uri == bundle_ref:
+                return name
+
+        # Check bundle_info for URI matches
+        for info in self._bundle_info.values():
+            if info.uri == bundle_ref:
+                return info.name
+
+        # Extract from URI - try to get a meaningful name
+        # Format: git+https://github.com/org/repo@branch#subdirectory=path/to/bundle.md
+        if "#subdirectory=" in bundle_ref:
+            # Extract from subdirectory fragment
+            fragment = bundle_ref.split("#subdirectory=", 1)[1]
+            # Get filename without extension
+            name = fragment.rsplit("/", 1)[-1]  # Last path component
+            if name.endswith((".md", ".yaml", ".yml")):
+                name = name.rsplit(".", 1)[0]
+            return name
+
+        # Try to extract from namespace:path format
+        if ":" in bundle_ref and not bundle_ref.startswith(("git+", "file:", "http:", "https:")):
+            # Format: namespace:path/to/bundle
+            path_part = bundle_ref.split(":", 1)[1]
+            name = path_part.rsplit("/", 1)[-1]
+            if name.endswith((".md", ".yaml", ".yml")):
+                name = name.rsplit(".", 1)[0]
+            return name
+
+        # Fallback: extract repo name from git URL
+        # git+https://github.com/org/repo@branch
+        if "github.com/" in bundle_ref:
+            try:
+                # Extract org/repo part
+                parts = bundle_ref.split("github.com/", 1)[1]
+                if "@" in parts:
+                    parts = parts.split("@", 1)[0]
+                if "/" in parts:
+                    repo = parts.split("/")[1]
+                    return repo
+            except (IndexError, ValueError):
+                pass
+
+        # Last resort: return the URI (truncated for readability)
+        if len(bundle_ref) > 50:
+            return f"...{bundle_ref[-47:]}"
+        return bundle_ref
+
+    async def get_bundle_source_content(self, name: str) -> tuple[str, str, str]:
         """Get the raw source content of a bundle file.
 
         Args:
@@ -684,9 +789,53 @@ class LakehouseBundleManager:
         if not info:
             raise ValueError(f"Bundle not found: {name}")
 
-        path = info.path
+        # For registry bundles (git+ URIs), we need to resolve the cached path
+        if info.source == "registry":
+            # Load the bundle to get its cached location
+            # Foundation caches git+ bundles to disk and sets base_path
+            try:
+                bundle = await self._registry._load_single(
+                    name,
+                    auto_register=False,
+                    auto_include=False,
+                )
+                # For registry bundles with subdirectory=, we need the repo root
+                # source_base_paths[bundle.name] contains the repo root
+                # base_path is just the parent dir of the file, not the repo root
+                repo_root = bundle.source_base_paths.get(bundle.name) if bundle.source_base_paths else None
 
-        # Determine format
+                if not repo_root and not bundle.base_path:
+                    raise ValueError(f"Bundle {name} has no base_path after loading")
+
+                uri = info.uri
+                path = None
+
+                # Check if URI has a fragment with subdirectory=
+                if "#" in uri and "subdirectory=" in uri.split("#", 1)[1]:
+                    fragment = uri.split("#", 1)[1]
+                    if fragment.startswith("subdirectory="):
+                        fragment = fragment.split("=", 1)[1]
+
+                    # Use repo root from source_base_paths, not base_path
+                    # source_base_paths[name] = repo root (set by Registry)
+                    # base_path = parent of bundle file (NOT repo root for subdirectory bundles)
+                    if repo_root:
+                        path = repo_root / fragment
+                    elif bundle.base_path:
+                        # Fallback: no source_base_paths, try base_path
+                        path = bundle.base_path / fragment
+                else:
+                    # No subdirectory fragment - base_path is the bundle directory
+                    path = bundle.base_path
+
+                if path is None:
+                    raise ValueError(f"Could not determine path for bundle {name}")
+            except Exception as e:
+                raise ValueError(f"Failed to load registry bundle {name}: {e}")
+        else:
+            path = info.path
+
+        # Determine format and read content
         if path.is_dir():
             # Directory bundle - look for bundle.md or bundle.yaml
             bundle_md = path / "bundle.md"
@@ -694,16 +843,19 @@ class LakehouseBundleManager:
             if bundle_md.exists():
                 content = bundle_md.read_text()
                 file_format = "md"
+                actual_path = bundle_md
             elif bundle_yaml.exists():
                 content = bundle_yaml.read_text()
                 file_format = "yaml"
+                actual_path = bundle_yaml
             else:
                 raise ValueError(f"Bundle directory missing bundle.md or bundle.yaml: {path}")
         else:
             content = path.read_text()
             file_format = "md" if path.suffix == ".md" else "yaml"
+            actual_path = path
 
-        return content, str(path), file_format
+        return content, str(actual_path), file_format
 
     def is_user_bundle(self, name: str) -> bool:
         """Check if a bundle is a user bundle (editable).
