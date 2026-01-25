@@ -17,14 +17,13 @@ from fastapi import APIRouter
 from fastapi import Body
 from fastapi import Depends
 from fastapi import HTTPException
-from pydantic import BaseModel
-from pydantic import Field as PydanticField
-
 from lakehouse_library.models.sessions import SessionMessage
 from lakehouse_library.models.sessions import SessionMetadata
 from lakehouse_library.models.sessions import SessionStatus
 from lakehouse_library.sessions.manager import SessionManager as SessionStateService
 from lakehouse_library.storage import get_state_dir
+from pydantic import BaseModel
+from pydantic import Field as PydanticField
 
 from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
@@ -289,9 +288,9 @@ async def create_session(
                 detail=f"Directory '{project_path}' is not a project. Create it first using POST /api/v1/projects/",
             )
 
-        # If no bundle specified, use directory's default_bundle (or legacy default_bundle)
+        # If no bundle specified, use directory's default_bundle (or legacy default_profile)
         if not bundle_name:
-            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_bundle")
+            bundle_name = project.default_bundle or project.metadata.get("default_profile")
             if not bundle_name:
                 raise HTTPException(
                     status_code=400,
