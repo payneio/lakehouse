@@ -86,3 +86,74 @@ def parse_bundles_file(bundles_file: Path) -> dict[str, str]:
             continue
 
     return bundles
+
+
+def add_bundle_entry(bundles_file: Path, name: str, git_url: str) -> None:
+    """Add a new bundle entry to BUNDLES.txt.
+
+    Args:
+        bundles_file: Path to BUNDLES.txt file.
+        name: Bundle name (kebab-case).
+        git_url: Git URL (e.g., git+https://github.com/owner/repo@branch#subdirectory=path).
+
+    Raises:
+        ValueError: If bundle name already exists or URL is invalid.
+    """
+    # Ensure file exists
+    ensure_bundles_file(bundles_file)
+
+    # Parse existing bundles to check for duplicates
+    existing = parse_bundles_file(bundles_file)
+    if name in existing:
+        raise ValueError(f"Bundle already exists: {name}")
+
+    # Validate git URL format
+    if not git_url.startswith("git+"):
+        raise ValueError("Git URL must start with 'git+' (e.g., git+https://github.com/...)")
+
+    # Append the new entry
+    content = bundles_file.read_text()
+    if not content.endswith("\n"):
+        content += "\n"
+    content += f"{name}:{git_url}\n"
+    bundles_file.write_text(content)
+
+    logger.info(f"Added bundle entry: {name}:{git_url}")
+
+
+def remove_bundle_entry(bundles_file: Path, name: str) -> None:
+    """Remove a bundle entry from BUNDLES.txt.
+
+    Args:
+        bundles_file: Path to BUNDLES.txt file.
+        name: Bundle name to remove.
+
+    Raises:
+        ValueError: If bundle name not found.
+    """
+    if not bundles_file.exists():
+        raise ValueError(f"Bundle not found: {name}")
+
+    # Parse to verify it exists
+    existing = parse_bundles_file(bundles_file)
+    if name not in existing:
+        raise ValueError(f"Bundle not found: {name}")
+
+    # Rebuild the file without the removed entry
+    lines = bundles_file.read_text().splitlines()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        # Keep comments and empty lines
+        if not stripped or stripped.startswith("#"):
+            new_lines.append(line)
+            continue
+        # Check if this is the entry to remove
+        if ":" in stripped:
+            entry_name = stripped.split(":", 1)[0].strip()
+            if entry_name == name:
+                continue  # Skip this entry
+        new_lines.append(line)
+
+    bundles_file.write_text("\n".join(new_lines) + "\n")
+    logger.info(f"Removed bundle entry: {name}")

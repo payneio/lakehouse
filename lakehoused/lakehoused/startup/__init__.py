@@ -7,8 +7,10 @@ import logging
 
 from lakehoused.config.models import StartupConfig
 
+from .bundle_sync import add_bundle_entry
 from .bundle_sync import ensure_bundles_file
 from .bundle_sync import parse_bundles_file
+from .bundle_sync import remove_bundle_entry
 
 logger = logging.getLogger(__name__)
 

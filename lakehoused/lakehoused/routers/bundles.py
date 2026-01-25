@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter
 from fastapi import HTTPException
 
+from lakehoused.models.bundles import AddRegistryBundleRequest
 from lakehoused.models.bundles import BundleDetails
 from lakehoused.models.bundles import BundleListItem
 from lakehoused.models.bundles import BundleSource
@@ -38,13 +39,16 @@ async def _build_bundle_list_item(bundle_manager, info) -> BundleListItem:
     Returns:
         BundleListItem with all fields populated.
     """
+    # Normalize source: "registry" bundles are non-editable like "system" bundles
+    source = "user" if info.source == "user" else "system"
+
     try:
         details = await bundle_manager.get_bundle_details(info.name)
         return BundleListItem(
             name=info.name,
             version=details.get("version", "1.0.0"),
             description=details.get("description"),
-            source=info.source,
+            source=source,
             path=str(info.path),
             provider_count=details.get("provider_count", 0),
             tool_count=details.get("tool_count", 0),
@@ -57,7 +61,7 @@ async def _build_bundle_list_item(bundle_manager, info) -> BundleListItem:
         # Return minimal info on error
         return BundleListItem(
             name=info.name,
-            source=info.source,
+            source=source,
             path=str(info.path),
         )
 
@@ -310,3 +314,77 @@ async def delete_bundle(name: str) -> dict[str, str]:
         raise HTTPException(status_code=400, detail=str(e))
 
     return {"message": f"Bundle deleted: {name}"}
+
+
+@router.post("/registry")
+async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, str]:
+    """Add a bundle from a git URL to the registry (BUNDLES.txt).
+
+    This adds an entry to ~/.lakehoused/share/bundles/BUNDLES.txt which
+    makes the bundle available as a system bundle. Foundation handles
+    git cloning/caching when the bundle is loaded.
+
+    Args:
+        request: Registry bundle request with name and git_url.
+
+    Returns:
+        Success message.
+
+    Raises:
+        400: If bundle name already exists or URL is invalid.
+    """
+    from lakehouse_library.storage.paths import get_bundles_dir
+
+    from lakehoused.startup import add_bundle_entry
+
+    bundles_dir = get_bundles_dir()
+    bundles_file = bundles_dir / "BUNDLES.txt"
+
+    try:
+        add_bundle_entry(bundles_file, request.name, request.git_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Refresh the registry cache
+    from lakehoused.startup import _REGISTRY_BUNDLES
+    from lakehoused.startup.bundle_sync import parse_bundles_file
+
+    _REGISTRY_BUNDLES.clear()
+    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
+
+    return {"message": f"Added registry bundle: {request.name}"}
+
+
+@router.delete("/registry/{name}")
+async def remove_registry_bundle(name: str) -> dict[str, str]:
+    """Remove a bundle from the registry (BUNDLES.txt).
+
+    Args:
+        name: Bundle name to remove.
+
+    Returns:
+        Success message.
+
+    Raises:
+        404: If bundle not found in registry.
+    """
+    from lakehouse_library.storage.paths import get_bundles_dir
+
+    from lakehoused.startup import remove_bundle_entry
+
+    bundles_dir = get_bundles_dir()
+    bundles_file = bundles_dir / "BUNDLES.txt"
+
+    try:
+        remove_bundle_entry(bundles_file, name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Refresh the registry cache
+    from lakehoused.startup import _REGISTRY_BUNDLES
+    from lakehoused.startup.bundle_sync import parse_bundles_file
+
+    _REGISTRY_BUNDLES.clear()
+    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
+
+    return {"message": f"Removed registry bundle: {name}"}

@@ -101,6 +101,11 @@ export interface RenameBundleRequest {
   newName: string;
 }
 
+export interface AddRegistryBundleRequest {
+  name: string;
+  gitUrl: string;
+}
+
 export interface UpdateBundleRequest {
   content: string;
 }
@@ -154,5 +159,18 @@ export const updateBundle = (name: string, content: string) =>
 // Delete a bundle
 export const deleteBundle = (name: string) =>
   fetchApi<{ message: string }>(`/api/v1/bundles/${encodeURIComponent(name)}/`, {
+    method: 'DELETE',
+  });
+
+// Add a bundle from git URL to registry
+export const addRegistryBundle = (name: string, gitUrl: string) =>
+  fetchApi<{ message: string }>('/api/v1/bundles/registry', {
+    method: 'POST',
+    body: JSON.stringify({ name, gitUrl } as AddRegistryBundleRequest),
+  });
+
+// Remove a bundle from registry
+export const removeRegistryBundle = (name: string) =>
+  fetchApi<{ message: string }>(`/api/v1/bundles/registry/${encodeURIComponent(name)}`, {
     method: 'DELETE',
   });

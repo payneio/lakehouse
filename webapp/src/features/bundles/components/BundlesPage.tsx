@@ -7,8 +7,9 @@ import {
 } from "@/api/bundles";
 import { MobileMenuButton } from "@/components/layout/MobileMenuButton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { GitBranch, Plus, Search } from "lucide-react";
 import { useState } from "react";
+import { AddRegistryBundleDialog } from "./AddRegistryBundleDialog";
 import { BundleCard } from "./BundleCard";
 import { BundleDetailDialog } from "./BundleDetailDialog";
 import { BundleSourceDialog } from "./BundleSourceDialog";
@@ -38,6 +39,7 @@ export function BundlesPage() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addRegistryDialogOpen, setAddRegistryDialogOpen] = useState(false);
 
   // Mutation states
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -137,16 +139,25 @@ export function BundlesPage() {
           <MobileMenuButton />
           <h1 className="text-3xl font-bold">Bundles</h1>
         </div>
-        <button
-          onClick={() => {
-            setMutationError(null);
-            setCreateDialogOpen(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Create Bundle
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAddRegistryDialogOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 border rounded-md hover:bg-accent"
+          >
+            <GitBranch className="h-4 w-4" />
+            Add from Git
+          </button>
+          <button
+            onClick={() => {
+              setMutationError(null);
+              setCreateDialogOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Create Bundle
+          </button>
+        </div>
       </div>
 
       {/* Description */}
@@ -268,6 +279,11 @@ export function BundlesPage() {
         }}
         isLoading={deleteMutation.isPending}
         error={mutationError}
+      />
+
+      <AddRegistryBundleDialog
+        open={addRegistryDialogOpen}
+        onClose={() => setAddRegistryDialogOpen(false)}
       />
     </div>
   );

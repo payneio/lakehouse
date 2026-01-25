@@ -157,3 +157,10 @@ class RenameBundleRequest(CamelCaseModel):
     """Request to rename a bundle."""
 
     new_name: str = Field(pattern=r"^[a-z0-9-]+$", description="New bundle name (kebab-case)")
+
+
+class AddRegistryBundleRequest(CamelCaseModel):
+    """Request to add a bundle from a git URL to the registry."""
+
+    name: str = Field(pattern=r"^[a-z0-9-]+$", description="Bundle name (kebab-case)")
+    git_url: str = Field(description="Git URL (e.g., git+https://github.com/owner/repo@branch#subdirectory=path)")
