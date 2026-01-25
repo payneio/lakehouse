@@ -267,6 +267,7 @@ export function BundlesPage() {
       <DeleteBundleDialog
         open={deleteDialogOpen}
         bundleName={selectedBundle?.name ?? null}
+        bundleSource={selectedBundle?.source ?? null}
         onClose={() => {
           setDeleteDialogOpen(false);
           setSelectedBundle(null);

@@ -66,6 +66,7 @@ export interface IncludesTreeNode {
 export interface ResolvedBundle {
   name: string;
   source: 'user' | 'system';
+  gitUrl?: string | null;
   includesChain: string[];
   includesTree: IncludesTreeNode;
 

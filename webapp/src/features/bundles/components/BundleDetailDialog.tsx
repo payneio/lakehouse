@@ -243,6 +243,11 @@ function BundleDetailDialogContent({
                 >
                   {bundleSource === 'user' ? 'User' : 'System'}
                 </span>
+                {bundle?.gitUrl && (
+                  <div className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-md" title={bundle.gitUrl}>
+                    {bundle.gitUrl}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -276,13 +281,14 @@ function BundleDetailDialogContent({
                 <Copy className="h-4 w-4" />
                 Copy
               </button>
-              {bundleSource === 'user' && onDelete && (
+              {onDelete && (
                 <button
                   onClick={onDelete}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-md hover:bg-red-50"
+                  title={bundleSource === 'user' ? 'Delete user bundle' : 'Remove from registry'}
                 >
                   <Trash2 className="h-4 w-4" />
-                  Delete
+                  {bundleSource === 'user' ? 'Delete' : 'Remove'}
                 </button>
               )}
             </div>

@@ -635,9 +635,13 @@ class LakehouseBundleManager:
         # Convert includes_chain to friendly names for display
         friendly_chain = [self._resolve_to_friendly_name(ref) for ref in includes_chain]
 
+        # Include git URL for registry bundles
+        git_url = info.uri if info.source == "registry" else None
+
         return {
             "name": final_bundle.name,
             "source": info.source,
+            "git_url": git_url,
             "includes_chain": friendly_chain,
             "includes_tree": includes_tree,
             "session": session_config,

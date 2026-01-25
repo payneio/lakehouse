@@ -106,6 +106,7 @@ class ResolvedBundle(CamelCaseModel):
 
     name: str = Field(description="Bundle name")
     source: str = Field(description="Bundle source: 'user' or 'system'")
+    git_url: str | None = Field(default=None, description="Git URL for system/registry bundles")
     includes_chain: list[str] = Field(
         default_factory=list, description="Full includes chain (e.g., ['foundation/base', 'basic', 'my-bundle'])"
     )

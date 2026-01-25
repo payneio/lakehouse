@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 interface DeleteBundleDialogProps {
   open: boolean;
   bundleName: string | null;
+  bundleSource?: 'user' | 'system' | null;
   onClose: () => void;
   onDelete: () => void;
   isLoading?: boolean;
@@ -13,6 +14,7 @@ interface DeleteBundleDialogProps {
 export function DeleteBundleDialog({
   open,
   bundleName,
+  bundleSource = 'user',
   onClose,
   onDelete,
   isLoading = false,
@@ -26,24 +28,38 @@ export function DeleteBundleDialog({
 
   if (!bundleName) return null;
 
+  const isUserBundle = bundleSource === 'user';
+  const title = isUserBundle ? 'Delete Bundle' : 'Remove Bundle';
+  const actionLabel = isUserBundle ? 'Delete Bundle' : 'Remove Bundle';
+  const loadingLabel = isUserBundle ? 'Deleting...' : 'Removing...';
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <Trash2 className="h-5 w-5" />
-            Delete Bundle
+            {title}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <p className="text-sm">
-            Are you sure you want to delete the bundle{' '}
+            Are you sure you want to {isUserBundle ? 'delete' : 'remove'} the bundle{' '}
             <code className="bg-gray-100 px-1 rounded font-mono">{bundleName}</code>?
           </p>
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. The bundle file will be permanently removed from your user
-            bundles folder.
+            {isUserBundle ? (
+              <>
+                This action cannot be undone. The bundle file will be permanently removed from your user
+                bundles folder.
+              </>
+            ) : (
+              <>
+                This will remove the bundle from your registry (BUNDLES.txt). The cached files will remain
+                but the bundle will no longer be available. You can re-add it later using the git URL.
+              </>
+            )}
           </p>
 
           {error && (
@@ -69,7 +85,7 @@ export function DeleteBundleDialog({
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
             disabled={isLoading}
           >
-            {isLoading ? 'Deleting...' : 'Delete Bundle'}
+            {isLoading ? loadingLabel : actionLabel}
           </button>
         </DialogFooter>
       </DialogContent>

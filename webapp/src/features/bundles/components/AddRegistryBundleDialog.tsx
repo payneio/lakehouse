@@ -57,13 +57,10 @@ function AddRegistryBundleDialogContent({
       return;
     }
 
-    // Validate git URL format
-    if (!gitUrl.startsWith("git+")) {
-      setError("Git URL must start with 'git+' (e.g., git+https://github.com/...)");
-      return;
-    }
+    // Auto-prepend git+ if missing
+    const finalGitUrl = gitUrl.startsWith("git+") ? gitUrl : `git+${gitUrl}`;
 
-    addMutation.mutate({ name: effectiveName, gitUrl });
+    addMutation.mutate({ name: effectiveName, gitUrl: finalGitUrl });
   };
 
   return (

@@ -287,7 +287,10 @@ async def rename_bundle(name: str, request: RenameBundleRequest) -> BundleListIt
 
 @router.delete("/{name}/")
 async def delete_bundle(name: str) -> dict[str, str]:
-    """Delete a user bundle.
+    """Delete a bundle (user or registry).
+
+    User bundles are deleted from the filesystem.
+    Registry bundles are removed from BUNDLES.txt.
 
     Args:
         name: Bundle name.
@@ -297,7 +300,6 @@ async def delete_bundle(name: str) -> dict[str, str]:
 
     Raises:
         404: If bundle not found.
-        403: If trying to delete a system bundle.
     """
     bundle_manager = _get_bundle_manager()
 
@@ -305,15 +307,33 @@ async def delete_bundle(name: str) -> dict[str, str]:
     if not info:
         raise HTTPException(status_code=404, detail=f"Bundle not found: {name}")
 
-    if info.source != "user":
-        raise HTTPException(status_code=403, detail=f"Cannot delete system bundle: {name}")
+    if info.source == "user":
+        # Delete user bundle from filesystem
+        try:
+            bundle_manager.delete_bundle(name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {"message": f"Bundle deleted: {name}"}
+    # Remove registry bundle from BUNDLES.txt
+    from lakehouse_library.storage.paths import get_bundles_dir
+
+    from lakehoused.startup import _REGISTRY_BUNDLES
+    from lakehoused.startup import remove_bundle_entry
+    from lakehoused.startup.bundle_sync import parse_bundles_file
+
+    bundles_dir = get_bundles_dir()
+    bundles_file = bundles_dir / "BUNDLES.txt"
 
     try:
-        bundle_manager.delete_bundle(name)
+        remove_bundle_entry(bundles_file, name)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
 
-    return {"message": f"Bundle deleted: {name}"}
+    # Refresh the registry cache
+    _REGISTRY_BUNDLES.clear()
+    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
+
+    return {"message": f"Registry bundle removed: {name}"}
 
 
 @router.post("/registry")
