@@ -71,16 +71,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
     staleTime: Infinity, // Historical data doesn't change
   });
 
-  // Initialize state with historical trace (in effect, not during render)
-  useEffect(() => {
-    if (historicalTrace?.turns && !initializedRef.current) {
-      stateRef.current.turns = historicalTrace.turns;
-      initializedRef.current = true;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync ref state to React after async data load
-      forceUpdate();
-    }
-  }, [historicalTrace, forceUpdate]);
-
   // Calculate metrics from current state
   const calculateMetrics = useCallback((): SessionMetrics => {
     const allTools = stateRef.current.turns.flatMap((t) => t.tools);
@@ -110,6 +100,17 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
       longestTool: longest,
     };
   }, []);
+
+  // Initialize state with historical trace (in effect, not during render)
+  useEffect(() => {
+    if (historicalTrace?.turns && !initializedRef.current) {
+      stateRef.current.turns = historicalTrace.turns;
+      stateRef.current.metrics = calculateMetrics();
+      initializedRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: sync ref state to React after async data load
+      forceUpdate();
+    }
+  }, [historicalTrace, forceUpdate, calculateMetrics]);
 
   // Start new turn
   const startTurn = useCallback((userMessage: string) => {

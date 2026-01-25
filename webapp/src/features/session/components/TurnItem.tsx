@@ -1,13 +1,57 @@
 import React from 'react';
-import { Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Brain, Clock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
-import type { Turn } from '../types/execution';
-import { ToolTraceList } from './ToolTraceList';
+import type { Turn, ToolCall, ThinkingBlock } from '../types/execution';
+import { ToolCallItem } from './ToolCallItem';
 
 interface TurnItemProps {
   turn: Turn;
   turnNumber: number;
+}
+
+// Activity item for timeline rendering - either a tool call or thinking block
+type ActivityItem =
+  | { type: 'tool'; data: ToolCall; timestamp: number }
+  | { type: 'thinking'; data: ThinkingBlock; timestamp: number };
+
+// Merge tools and thinking blocks into a single timeline sorted by timestamp
+function mergeActivities(tools: ToolCall[], thinking: ThinkingBlock[]): ActivityItem[] {
+  const activities: ActivityItem[] = [
+    ...tools.map((t) => ({ type: 'tool' as const, data: t, timestamp: t.startTime })),
+    ...thinking.map((t) => ({ type: 'thinking' as const, data: t, timestamp: t.timestamp })),
+  ];
+  return activities.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+// Collapsible thinking block display
+function ThinkingItem({ thinking }: { thinking: ThinkingBlock }) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const preview = thinking.content.length > 150
+    ? thinking.content.substring(0, 150) + '...'
+    : thinking.content;
+  const hasMore = thinking.content.length > 150;
+
+  return (
+    <div className="border-l-2 border-amber-300 pl-3 py-2 bg-amber-50/50 rounded-r">
+      <div className="flex items-start gap-2">
+        <Brain className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-amber-900">
+            {isExpanded ? thinking.content : preview}
+          </div>
+          {hasMore && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs text-amber-700 hover:text-amber-900 mt-1"
+            >
+              {isExpanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function TurnItem({ turn, turnNumber }: TurnItemProps) {
@@ -96,27 +140,21 @@ export function TurnItem({ turn, turnNumber }: TurnItemProps) {
             </div>
           )}
 
-          {/* Tool trace */}
+          {/* Activity timeline - tools and thinking interspersed by timestamp */}
           <div>
-            <div className="font-medium text-sm text-muted-foreground mb-2">Tools Executed:</div>
-            <ToolTraceList tools={turn.tools} />
-          </div>
-
-          {/* Thinking blocks (if any) */}
-          {turn.thinking.length > 0 && (
-            <div>
-              <div className="font-medium text-sm text-muted-foreground mb-2">
-                Thinking ({turn.thinking.length} blocks)
-              </div>
-              <div className="bg-yellow-50 p-3 rounded text-sm space-y-2">
-                {turn.thinking.map((block) => (
-                  <div key={block.id} className="text-yellow-900">
-                    {block.content}
-                  </div>
-                ))}
-              </div>
+            <div className="font-medium text-sm text-muted-foreground mb-2">
+              Activity Timeline ({turn.tools.length} tools, {turn.thinking.length} thinking)
             </div>
-          )}
+            <div className="space-y-2">
+              {mergeActivities(turn.tools, turn.thinking).map((activity) =>
+                activity.type === 'tool' ? (
+                  <ToolCallItem key={activity.data.id} tool={activity.data} />
+                ) : (
+                  <ThinkingItem key={activity.data.id} thinking={activity.data} />
+                )
+              )}
+            </div>
+          </div>
         </div>
       </AccordionContent>
     </AccordionItem>

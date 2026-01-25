@@ -69,7 +69,8 @@ def aggregate_events_to_turns(events_file: Path) -> list[TraceTurn]:
         - prompt:submit: Start new turn with user message
         - tool:pre: Add tool to current turn
         - tool:post: Update tool with result and timing
-        - thinking:delta: Record thinking block content
+        - thinking:delta: Record thinking block content (if emitted)
+        - llm:response:raw: Extract thinking blocks from LLM response content
         - session:end: Complete current turn
     """
     if not events_file.exists():
@@ -183,13 +184,31 @@ def aggregate_events_to_turns(events_file: Path) -> list[TraceTurn]:
                         )
 
                 elif event_type == "thinking:delta" and current_turn is not None:
-                    # Record thinking block
+                    # Record thinking block (kept for future compatibility if amplifier_core
+                    # starts emitting these events)
                     thinking = TraceThinking(
                         id=str(uuid4()),
                         content=data.get("delta", ""),
                         timestamp=_parse_timestamp(ts),
                     )
                     current_turn.thinking.append(thinking)
+
+                elif event_type == "llm:response:raw" and current_turn is not None:
+                    # Extract thinking blocks from LLM response content
+                    # This is the workaround since thinking:delta events are not emitted
+                    response = data.get("response", {})
+                    content_blocks = response.get("content", [])
+
+                    for block in content_blocks:
+                        if isinstance(block, dict) and block.get("type") == "thinking":
+                            thinking_content = block.get("thinking", "")
+                            if thinking_content:
+                                thinking = TraceThinking(
+                                    id=str(uuid4()),
+                                    content=thinking_content,
+                                    timestamp=_parse_timestamp(ts),
+                                )
+                                current_turn.thinking.append(thinking)
 
                 elif event_type == "session:end" and current_turn is not None:
                     # Complete current turn
