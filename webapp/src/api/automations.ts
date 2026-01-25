@@ -127,7 +127,7 @@ export async function getAutomation(
   automationId: string
 ): Promise<Automation> {
   const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/`
+    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`
   );
 
   if (!response.ok) {
@@ -147,7 +147,7 @@ export async function updateAutomation(
   update: AutomationUpdate
 ): Promise<Automation> {
   const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/`,
+    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -172,7 +172,7 @@ export async function deleteAutomation(
   automationId: string
 ): Promise<void> {
   const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/`,
+    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
     {
       method: "DELETE",
     }
@@ -192,7 +192,7 @@ export async function toggleAutomation(
   enabled: boolean
 ): Promise<{ automation_id: string; enabled: boolean }> {
   const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/toggle/`,
+    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/toggle`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -215,7 +215,7 @@ export async function executeAutomation(
   automationId: string
 ): Promise<{ session_id: string; status: string }> {
   const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/execute/`,
+    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/execute`,
     {
       method: "POST",
     }
@@ -246,7 +246,7 @@ export async function getExecutionHistory(
   if (options?.limit !== undefined) params.set("limit", String(options.limit));
   if (options?.offset !== undefined) params.set("offset", String(options.offset));
 
-  const url = `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/executions/${
+  const url = `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/executions${
     params.toString() ? `?${params}` : ""
   }`;
 
