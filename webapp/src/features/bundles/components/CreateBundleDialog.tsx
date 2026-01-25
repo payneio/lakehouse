@@ -92,19 +92,21 @@ export function CreateBundleDialog({
                 <span className="text-sm">Existing bundle</span>
               </label>
               {startFromExisting && (
-                <select
-                  value={baseBundle}
-                  onChange={(e) => setBaseBundle(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md ml-6"
-                  disabled={isLoading}
-                >
-                  <option value="">Select a bundle...</option>
-                  {bundles.map((bundle) => (
-                    <option key={bundle.name} value={bundle.name}>
-                      {bundle.name} ({bundle.source})
-                    </option>
-                  ))}
-                </select>
+                <div className="pl-6">
+                  <select
+                    value={baseBundle}
+                    onChange={(e) => setBaseBundle(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md"
+                    disabled={isLoading}
+                  >
+                    <option value="">Select a bundle...</option>
+                    {bundles.map((bundle) => (
+                      <option key={bundle.name} value={bundle.name}>
+                        {bundle.name} ({bundle.source})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
               <label className="flex items-center gap-2">
                 <input
