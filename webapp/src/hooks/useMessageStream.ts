@@ -21,11 +21,12 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
 
   useEffect(() => {
     return eventStream.on('user_message', (data) => {
+      const eventData = data as { content?: string; timestamp?: string };
       const msg: Message = {
         id: `msg-${Date.now()}-user`,
         role: 'user',
-        content: data.content,
-        timestamp: data.timestamp || new Date().toISOString(),
+        content: eventData.content || '',
+        timestamp: eventData.timestamp || new Date().toISOString(),
         status: 'complete',
       };
       setMessages((prev) => [...prev, msg]);
@@ -34,19 +35,20 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
 
   useEffect(() => {
     return eventStream.on('content', (data) => {
+      const eventData = data as { content?: string };
       setStreamingMessage((prev) => {
         if (!prev) {
           return {
             id: `msg-${Date.now()}-assistant`,
             role: 'assistant',
-            content: data.content || '',
+            content: eventData.content || '',
             timestamp: new Date().toISOString(),
             status: 'streaming',
           };
         } else {
           return {
             ...prev,
-            content: prev.content + (data.content || ''),
+            content: prev.content + (eventData.content || ''),
           };
         }
       });
@@ -68,6 +70,7 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
 
   useEffect(() => {
     return eventStream.on('error', (data) => {
+      const eventData = data as { error?: string };
       if (streamingMessage) {
         setMessages((prev) => [
           ...prev,
@@ -75,7 +78,7 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
         ]);
         setStreamingMessage(null);
       }
-      console.error('Stream error:', data.error);
+      console.error('Stream error:', eventData.error);
     });
   }, [eventStream, streamingMessage]);
 
