@@ -98,35 +98,40 @@ def test_resolve_agents_md_missing_file(tmp_path: Path) -> None:
 
 
 def test_resolve_runtime_mentions(test_dirs: tuple[Path, Path]) -> None:
-    """Test resolving runtime mentions from user message."""
+    """Test resolving runtime mentions from user message.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    The ancestor AGENTS.md chain is resolved separately during session creation.
+    """
     compiled_profile, project_path = test_dirs
     resolver = MentionResolver(compiled_profile, project_path)
 
     user_message = "Check @README.md please."
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should include AGENTS.md mentions + user message mentions
-    # AGENTS.md references @README.md, user also references @README.md
-    # Since they're loaded separately, we get 2 messages (no cross-load deduplication)
-    assert len(messages) == 2
-    assert all("Project README" in msg.content for msg in messages)
+    # Should only include user @mentions (ancestor chain is handled separately)
+    assert len(messages) == 1
+    assert "Project README" in messages[0].content
 
 
 def test_resolve_runtime_mentions_no_user_mentions(test_dirs: tuple[Path, Path]) -> None:
-    """Test runtime resolution with no user mentions."""
+    """Test runtime resolution with no user mentions.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    With no @mentions in the message, it returns empty list.
+    """
     compiled_profile, project_path = test_dirs
     resolver = MentionResolver(compiled_profile, project_path)
 
     user_message = "Just a regular message."
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should only get AGENTS.md mentions
-    assert len(messages) == 1
-    assert "Project README" in messages[0].content
+    # No @mentions in user message = empty result
+    assert messages == []
 
 
 def test_resolve_runtime_mentions_order(test_dirs: tuple[Path, Path]) -> None:
-    """Test that AGENTS.md mentions come before user mentions."""
+    """Test resolving multiple user mentions."""
     compiled_profile, project_path = test_dirs
     resolver = MentionResolver(compiled_profile, project_path)
 
@@ -137,7 +142,58 @@ def test_resolve_runtime_mentions_order(test_dirs: tuple[Path, Path]) -> None:
     user_message = "See @OTHER.md"
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should have README.md (from AGENTS.md) first, then OTHER.md (from user)
-    assert len(messages) == 2
-    assert "Project README" in messages[0].content
-    assert "Other content" in messages[1].content
+    # Should only have user @mentions (ancestor chain is handled separately)
+    assert len(messages) == 1
+    assert "Other content" in messages[0].content
+
+
+def test_resolve_agents_md_chain_deduplication(tmp_path: Path) -> None:
+    """Test that resolve_agents_md_chain excludes paths already loaded via @mentions."""
+    # Create directory hierarchy
+    data_dir = tmp_path / "data"
+    project_path = data_dir / "projects" / "my-project"
+    project_path.mkdir(parents=True)
+
+    # Create project AGENTS.md
+    project_agents = project_path / ".amplified" / "AGENTS.md"
+    project_agents.parent.mkdir(parents=True)
+    project_agents.write_text("Project-specific instructions")
+
+    # Create parent AGENTS.md
+    parent_agents = data_dir / "projects" / "AGENTS.md"
+    parent_agents.write_text("Parent project instructions")
+
+    resolver = MentionResolver(
+        compiled_profile_dir=project_path,
+        project_path=project_path,
+        data_dir=data_dir,
+    )
+
+    # First, resolve without exclusion - should get both
+    messages_full = resolver.resolve_agents_md_chain()
+    assert len(messages_full) == 2  # Parent + project AGENTS.md
+
+    # Now, pretend the project AGENTS.md was already loaded via @mention
+    exclude = {project_agents.resolve()}
+    messages_dedup = resolver.resolve_agents_md_chain(exclude_paths=exclude)
+
+    # Should only get parent, not project (since it's excluded)
+    assert len(messages_dedup) == 1
+    assert "Parent project instructions" in messages_dedup[0].content
+    assert "Project-specific instructions" not in messages_dedup[0].content
+
+
+def test_resolve_profile_instructions_with_paths(test_dirs: tuple[Path, Path]) -> None:
+    """Test that resolve_profile_instructions_with_paths returns resolved paths."""
+    compiled_profile, project_path = test_dirs
+    resolver = MentionResolver(compiled_profile, project_path)
+
+    instructions = "Follow @test-context:context.md for guidance."
+    messages, resolved_paths = resolver.resolve_profile_instructions_with_paths(instructions)
+
+    assert len(messages) == 1
+    assert len(resolved_paths) == 1
+    # The resolved path should exist and be the context file
+    resolved_path = list(resolved_paths)[0]
+    assert resolved_path.exists()
+    assert resolved_path.name == "context.md"

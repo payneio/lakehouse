@@ -177,29 +177,33 @@ def _generate_bundle_context_messages(
     instruction: str | None,
     project_path: Path,
     data_dir: Path,
+    source_base_paths: dict[str, Path] | None = None,
 ) -> list[ContextMessage]:
-    """Generate bundle context messages from instruction.
+    """Generate bundle context messages from instruction and ancestor AGENTS.md files.
 
-    Automatically prepends lakehouse-specific context to ensure users
-    always have context about how Lakehouse works.
+    Automatically includes:
+    1. Lakehouse-specific context (how Lakehouse works)
+    2. Bundle instruction with @mentions resolved
+    3. Ancestor AGENTS.md chain (from data_dir down to project)
+
+    Files that are already included via @mentions in the bundle instruction
+    are deduplicated from the ancestor chain to avoid duplicate context.
 
     Args:
         instruction: The composed bundle instruction (from markdown body)
         project_path: Project directory for @mention resolution
-        data_dir: Data directory for security validation
+        data_dir: Data directory for security validation and ancestor traversal boundary
+        source_base_paths: Dict mapping bundle namespace to base_path for @namespace:path resolution.
+            Enables @foundation:context/file.md to resolve to Foundation bundle's context directory.
 
     Returns:
-        List of context messages with resolved @mentions
+        List of context messages with resolved @mentions and ancestor AGENTS.md content
     """
     # Prepend lakehouse context to bundle instruction
     lakehouse_context = _get_lakehouse_context()
     full_instruction = lakehouse_context
     if instruction:
         full_instruction += "\n\n" + instruction
-
-    if not full_instruction.strip():
-        logger.debug("No context to resolve")
-        return []
 
     try:
         from lakehoused.services.mention_resolver import MentionResolver
@@ -210,13 +214,30 @@ def _generate_bundle_context_messages(
             compiled_profile_dir=project_path,
             project_path=project_path,
             data_dir=data_dir,
+            source_base_paths=source_base_paths,
         )
-        bundle_context_messages = resolver.resolve_profile_instructions(full_instruction)
-        logger.info(
-            f"Resolved {len(bundle_context_messages)} context messages "
-            f"(lakehouse: {len(lakehouse_context)} chars, bundle: {len(instruction or '')} chars)"
-        )
-        return bundle_context_messages
+
+        messages: list[ContextMessage] = []
+        resolved_paths: set[Path] = set()
+
+        # 1. Resolve @mentions from bundle instruction
+        if full_instruction.strip():
+            instruction_messages, resolved_paths = resolver.resolve_profile_instructions_with_paths(full_instruction)
+            messages.extend(instruction_messages)
+            logger.info(
+                f"Resolved {len(instruction_messages)} context messages from instruction "
+                f"(lakehouse: {len(lakehouse_context)} chars, bundle: {len(instruction or '')} chars)"
+            )
+
+        # 2. Resolve ancestor AGENTS.md chain (from data_dir to project_path)
+        # This includes AGENTS.md files from parent directories up to data_dir
+        # Pass resolved_paths to exclude files already loaded via @mentions (deduplication)
+        ancestor_messages = resolver.resolve_agents_md_chain(exclude_paths=resolved_paths)
+        if ancestor_messages:
+            messages.extend(ancestor_messages)
+            logger.info(f"Added {len(ancestor_messages)} context messages from ancestor AGENTS.md chain")
+
+        return messages
     except Exception as e:
         logger.error(f"Failed to resolve bundle instructions: {e}", exc_info=True)
         return []
@@ -327,10 +348,13 @@ async def create_session(
         )
 
         # Resolve bundle instruction mentions (from mount_plan instruction field)
+        # Extract source_base_paths from mount_plan (convert string paths back to Path objects)
+        source_base_paths = {ns: Path(p) for ns, p in mount_plan.get("source_base_paths", {}).items()}
         bundle_context_messages = _generate_bundle_context_messages(
             instruction=mount_plan.get("instruction"),
             project_path=Path(absolute_project_path),
             data_dir=data_path,
+            source_base_paths=source_base_paths,
         )
 
         # Add session metadata to mount plan settings
@@ -1523,10 +1547,13 @@ async def change_session_bundle(
         # is already injected by bundle_manager.generate_mount_plan()
 
         # 3. Regenerate bundle context messages for new bundle (from mount_plan instruction)
+        # Extract source_base_paths from mount_plan (convert string paths back to Path objects)
+        source_base_paths = {ns: Path(p) for ns, p in new_mount_plan.get("source_base_paths", {}).items()}
         bundle_context_messages = _generate_bundle_context_messages(
             instruction=new_mount_plan.get("instruction"),
             project_path=absolute_project_path,
             data_dir=data_path,
+            source_base_paths=source_base_paths,
         )
 
         # Save to session directory (wrapped with mount plan persistence below for error handling)

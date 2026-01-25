@@ -149,48 +149,53 @@ def test_resolve_agents_md_missing_file(tmp_path: Path) -> None:
 
 
 def test_resolve_runtime_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
-    """Test resolving runtime mentions from user message."""
+    """Test resolving runtime mentions from user message.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    The ancestor AGENTS.md chain is resolved separately during session creation.
+    """
     _, project_path, compiled_profile_dir = test_data_structure
     resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "Check @FEATURE.md please."
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should get AGENTS.md mentions (README.md) + user message mentions (FEATURE.md)
-    assert len(messages) == 2
-
-    # First message from AGENTS.md
-    assert "Test Project" in messages[0].content
-
-    # Second message from user mention
-    assert "Feature X" in messages[1].content
+    # Should only include user @mentions (ancestor chain is handled separately)
+    assert len(messages) == 1
+    assert "Feature X" in messages[0].content
 
 
 def test_resolve_runtime_mentions_no_user_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
-    """Test runtime resolution with no user mentions."""
+    """Test runtime resolution with no user mentions.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    With no @mentions in the message, it returns empty list.
+    """
     _, project_path, compiled_profile_dir = test_data_structure
     resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "Just a regular message."
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should only get AGENTS.md mentions
-    assert len(messages) == 1
-    assert "Test Project" in messages[0].content
+    # No @mentions in user message = empty result
+    assert messages == []
 
 
 def test_resolve_runtime_mentions_order(test_data_structure: tuple[Path, Path, Path]) -> None:
-    """Test that AGENTS.md mentions come before user mentions."""
+    """Test resolving user mentions.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    The ancestor AGENTS.md chain is resolved separately during session creation.
+    """
     _, project_path, compiled_profile_dir = test_data_structure
     resolver = MentionResolver(compiled_profile_dir, project_path)
 
     user_message = "See @FEATURE.md"
     messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should have README.md (from AGENTS.md) first, then FEATURE.md (from user)
-    assert len(messages) == 2
-    assert "Test Project" in messages[0].content
-    assert "Feature X" in messages[1].content
+    # Should only include user @mentions
+    assert len(messages) == 1
+    assert "Feature X" in messages[0].content
 
 
 # --- Integration Test 1: Session Creation with Profile Mentions ---
@@ -336,7 +341,11 @@ async def test_session_creation_missing_mention_files_graceful(
 
 @pytest.mark.asyncio
 async def test_message_handling_resolves_runtime_mentions(test_data_structure: tuple[Path, Path, Path]) -> None:
-    """Test message handling resolves AGENTS.md and user mentions."""
+    """Test message handling resolves user mentions.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    The ancestor AGENTS.md chain is resolved separately during session creation.
+    """
     _, project_path, compiled_profile_dir = test_data_structure
 
     # Simulate send_message_for_execution logic from messages.py
@@ -347,10 +356,9 @@ async def test_message_handling_resolves_runtime_mentions(test_data_structure: t
     resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     runtime_context_messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should have AGENTS.md mentions + user message mentions
-    assert len(runtime_context_messages) == 2
-    assert "Test Project" in runtime_context_messages[0].content  # From AGENTS.md
-    assert "Feature X" in runtime_context_messages[1].content  # From user message
+    # Should only include user @mentions
+    assert len(runtime_context_messages) == 1
+    assert "Feature X" in runtime_context_messages[0].content
 
 
 @pytest.mark.asyncio
@@ -381,7 +389,11 @@ async def test_message_handling_missing_agents_md_graceful(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_message_handling_no_mentions_works_normally(test_data_structure: tuple[Path, Path, Path]) -> None:
-    """Test message handling without mentions works normally."""
+    """Test message handling without mentions works normally.
+
+    NOTE: resolve_runtime_mentions only resolves user @mentions.
+    With no @mentions in the message, it returns empty list.
+    """
     _, project_path, compiled_profile_dir = test_data_structure
 
     from lakehoused.services.mention_resolver import MentionResolver
@@ -391,9 +403,8 @@ async def test_message_handling_no_mentions_works_normally(test_data_structure: 
     resolver = MentionResolver(compiled_profile_dir=compiled_profile_dir, project_path=project_path)
     runtime_context_messages = resolver.resolve_runtime_mentions(user_message)
 
-    # Should only have AGENTS.md mentions
-    assert len(runtime_context_messages) == 1
-    assert "Test Project" in runtime_context_messages[0].content
+    # No @mentions in user message = empty result
+    assert runtime_context_messages == []
 
 
 # --- Integration Test 3: Execution Runner Context Injection ---
@@ -745,8 +756,10 @@ async def test_full_mention_resolution_flow(
         await mock_context.add_message({"role": ctx_msg.role, "content": ctx_msg.content})
 
     # Verify execution order
-    assert len(call_order) == 4  # 1 profile + 1 AGENTS.md (README) + 2 user mentions (FEATURE + README)
+    # NOTE: resolve_runtime_mentions now only returns user @mentions.
+    # The ancestor AGENTS.md chain is handled separately during session creation.
+    assert len(call_order) == 3  # 1 profile + FEATURE + README (from user message only)
     assert call_order[0] == "PROFILE"  # Profile context first
-    # Runtime context follows (AGENTS.md mentions + user mentions)
+    # Runtime context follows (user mentions only)
     assert "RUNTIME:README" in call_order[1:]
     assert "RUNTIME:FEATURE" in call_order[1:]

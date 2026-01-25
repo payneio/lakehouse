@@ -31,10 +31,12 @@ class MentionLoader:
     - Content deduplication (same content = one message, all paths credited)
     - Graceful skip on missing files (logs warning, continues)
 
-    Two @mention types:
-    1. @context-key:path - Profile context references
+    Three @mention types:
+    1. @namespace:path - Bundle namespace references (e.g., @foundation:context/file.md)
+       Resolves to: {source_base_paths[namespace]}/{path}
+    2. @context-key:path - Profile context references
        Resolves to: {compiled_profile_dir}/contexts/{context-key}/{path}
-    2. @path - Relative to amplified directory
+    3. @path - Relative to amplified directory
        Resolves to: {project_path}/{path}
     """
 
@@ -43,6 +45,7 @@ class MentionLoader:
         compiled_profile_dir: Path,
         project_path: Path,
         data_dir: Path | None = None,
+        source_base_paths: dict[str, Path] | None = None,
     ) -> None:
         """Initialize loader with resolution paths.
 
@@ -50,10 +53,13 @@ class MentionLoader:
             compiled_profile_dir: Path to compiled profile (for context resolution)
             project_path: Path to project directory (for relative resolution)
             data_dir: Path to data directory (for security validation). Defaults to project_path.parent if not provided.
+            source_base_paths: Dict mapping bundle namespace to base_path for @namespace:path resolution.
+                Enables @foundation:context/file.md to resolve to Foundation bundle's context directory.
         """
         self.compiled_profile_dir = compiled_profile_dir
         self.project_path = project_path
         self.data_dir = data_dir if data_dir is not None else project_path.parent
+        self.source_base_paths = source_base_paths or {}
 
     def load_mentions(
         self: "MentionLoader",
@@ -81,6 +87,29 @@ class MentionLoader:
            g. Add new nested mentions to queue
         3. Get deduplicated files
         4. Create ContextMessage for each unique file
+        """
+        messages, _ = self.load_mentions_with_paths(text, relative_to)
+        return messages
+
+    def load_mentions_with_paths(
+        self: "MentionLoader",
+        text: str,
+        relative_to: Path,
+    ) -> tuple[list[ContextMessage], set[Path]]:
+        """Load @mentions and return both messages and resolved paths.
+
+        Same as load_mentions() but also returns the set of resolved paths,
+        useful for deduplication when the same file might be loaded from
+        multiple sources (e.g., @mentions and ancestor AGENTS.md chain).
+
+        Args:
+            text: Text containing @mentions
+            relative_to: Base path for updating relative resolution context
+
+        Returns:
+            Tuple of (messages, resolved_paths):
+            - messages: List of ContextMessage objects
+            - resolved_paths: Set of all resolved file paths (for deduplication)
         """
         deduplicator = ContentDeduplicator()
         visited_paths: set[Path] = set()
@@ -126,7 +155,8 @@ class MentionLoader:
         unique_files = deduplicator.get_unique_files()
         logger.debug(f"Resolved {len(unique_files)} unique files from mentions")
 
-        return self._create_messages(unique_files, path_to_mention)
+        messages = self._create_messages(unique_files, path_to_mention)
+        return messages, visited_paths
 
     def _resolve_mention(
         self: "MentionLoader",
@@ -135,14 +165,13 @@ class MentionLoader:
     ) -> Path | None:
         """Resolve @mention to file path with context-aware resolution.
 
-        Two types:
-        1. @context-key:path → Context-aware resolution based on source file location
-        2. @path → {project_path}/{path} (with security validation)
-
-        For @context-key:path mentions:
-        - If source file is in behaviors/{behavior_id}/ → Try behavior context first
-        - Always fallback to session/contexts/ if not found
-        - Strip 'context/' prefix for backward compatibility
+        Three types (in priority order):
+        1. @namespace:path → Bundle namespace resolution (e.g., @foundation:context/file.md)
+           Resolves using source_base_paths if namespace is known
+        2. @context-key:path → Context-aware resolution based on source file location
+           If source file is in behaviors/{behavior_id}/ → Try behavior context first
+           Always fallback to session/contexts/ if not found
+        3. @path → {project_path}/{path} (with security validation)
 
         Args:
             mention: The @mention string to resolve
@@ -151,14 +180,28 @@ class MentionLoader:
         Returns:
             Resolved file path, or None on resolution failure (graceful skip)
         """
-        # Type 1: @context-key:path
+        # Type 1 & 2: @namespace:path or @context-key:path
         if ":" in mention[1:]:
             parts = mention[1:].split(":", 1)
             if len(parts) != 2:
-                logger.warning(f"Invalid context mention format: {mention}")
+                logger.warning(f"Invalid namespaced mention format: {mention}")
                 return None
 
-            context_key, path = parts
+            namespace, path_part = parts
+
+            # Type 1: Check bundle source_base_paths first (for @foundation:context/... style)
+            if namespace in self.source_base_paths:
+                resolved = self.source_base_paths[namespace] / path_part
+                if resolved.exists():
+                    logger.debug(f"Resolved bundle namespace mention {mention} → {resolved}")
+                    return resolved
+                logger.debug(f"Bundle namespace path not found: {resolved}")
+                # Don't return None yet - fall through to context-key resolution
+                # in case this is actually a context-key that matches a namespace
+
+            # Type 2: @context-key:path (fall through from namespace check)
+            # Reuse already-parsed parts: namespace becomes context_key, path_part becomes path
+            context_key, path = namespace, path_part
 
             # Determine if we're parsing a behavior file
             behavior_id = self._extract_behavior_id(relative_to)
@@ -201,7 +244,7 @@ class MentionLoader:
             logger.warning(f"Context file not found for {mention} (searched {len(search_paths)} locations)")
             return None
 
-        # Type 2: @path (relative to project_path)
+        # Type 3: @path (relative to project_path)
         path_str = mention.lstrip("@")
         resolved = (self.project_path / path_str).resolve()
 
