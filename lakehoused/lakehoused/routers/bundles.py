@@ -333,6 +333,9 @@ async def delete_bundle(name: str) -> dict[str, str]:
     _REGISTRY_BUNDLES.clear()
     _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
 
+    # Unregister from Foundation's registry (clears in-memory and persisted state)
+    bundle_manager.unregister_bundle(name)
+
     return {"message": f"Registry bundle removed: {name}"}
 
 

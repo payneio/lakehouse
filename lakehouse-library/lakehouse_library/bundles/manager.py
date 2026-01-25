@@ -1301,3 +1301,26 @@ Your custom assistant configuration.
             raise ValueError(f"Failed to fetch bundle {name}: {e}")
 
         return info
+
+    def unregister_bundle(self, name: str) -> bool:
+        """Unregister a bundle from Foundation's registry.
+
+        Removes the bundle from Foundation's in-memory registry and persists
+        the change. Does not delete cached files.
+
+        Args:
+            name: Bundle name to unregister.
+
+        Returns:
+            True if bundle was found and removed, False if not found.
+        """
+        # Remove from Foundation's registry
+        result = self._registry.unregister(name)
+        if result:
+            # Persist the change to disk
+            self._registry.save()
+            # Remove from our tracking
+            if name in self._bundle_info:
+                del self._bundle_info[name]
+            logger.info(f"Unregistered bundle: {name}")
+        return result
