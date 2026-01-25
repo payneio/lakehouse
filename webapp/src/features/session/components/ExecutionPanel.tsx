@@ -16,7 +16,7 @@ export function ExecutionPanel({ executionState, isOpen, onClose }: ExecutionPan
       {/* Desktop: Side panel */}
       <div
         className={cn(
-          'hidden md:flex fixed right-0 top-0 h-full w-96 bg-white border-l border-border shadow-lg flex-col z-40 transition-transform duration-300',
+          'hidden md:flex fixed right-0 top-0 h-full w-[32rem] bg-white border-l border-border shadow-lg flex-col z-40 transition-transform duration-300',
           isOpen ? 'translate-x-0' : 'translate-x-full'
         )}
       >
