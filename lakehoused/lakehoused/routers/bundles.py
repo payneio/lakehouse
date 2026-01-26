@@ -1,6 +1,9 @@
 """Bundle management API endpoints."""
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from fastapi import HTTPException
@@ -15,18 +18,44 @@ from lakehoused.models.bundles import RenameBundleRequest
 from lakehoused.models.bundles import ResolvedBundle
 from lakehoused.models.bundles import UpdateBundleRequest
 
+if TYPE_CHECKING:
+    from lakehouse_library.bundles import LakehouseBundleManager
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/bundles", tags=["bundles"])
 
+# Singleton bundle manager to preserve Foundation registry state across requests.
+# This ensures that after adding a bundle, subsequent views use the same
+# registry instance with all loaded bundle state (includes, namespace paths, etc.)
+_bundle_manager: LakehouseBundleManager | None = None
 
-def _get_bundle_manager():
-    """Get the bundle manager instance."""
-    from lakehouse_library.bundles import LakehouseBundleManager
 
-    from ..startup import get_registry_bundles
+def _get_bundle_manager() -> LakehouseBundleManager:
+    """Get the singleton bundle manager instance.
 
-    return LakehouseBundleManager(registry_bundles=get_registry_bundles())
+    Creates the manager on first call, reuses it for subsequent calls.
+    This preserves Foundation's BundleRegistry cache state across API requests,
+    which is necessary for proper include resolution after adding bundles.
+    """
+    global _bundle_manager
+    if _bundle_manager is None:
+        from lakehouse_library.bundles import LakehouseBundleManager
+
+        from ..startup import get_registry_bundles
+
+        _bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
+    return _bundle_manager
+
+
+def _reset_bundle_manager() -> None:
+    """Reset the singleton bundle manager.
+
+    Call this when the bundle registry has been modified externally
+    and needs to be reloaded from scratch.
+    """
+    global _bundle_manager
+    _bundle_manager = None
 
 
 async def _build_bundle_list_item(bundle_manager, info) -> BundleListItem:
@@ -301,6 +330,8 @@ async def delete_bundle(name: str) -> dict[str, str]:
     Raises:
         404: If bundle not found.
     """
+    from lakehoused.services.bundle_registry import BundleRegistryService
+
     bundle_manager = _get_bundle_manager()
 
     info = bundle_manager.get_bundle_info(name)
@@ -314,27 +345,13 @@ async def delete_bundle(name: str) -> dict[str, str]:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         return {"message": f"Bundle deleted: {name}"}
-    # Remove registry bundle from BUNDLES.txt
-    from lakehouse_library.storage.paths import get_bundles_dir
 
-    from lakehoused.startup import _REGISTRY_BUNDLES
-    from lakehoused.startup import remove_bundle_entry
-    from lakehoused.startup.bundle_sync import parse_bundles_file
-
-    bundles_dir = get_bundles_dir()
-    bundles_file = bundles_dir / "BUNDLES.txt"
-
+    # Remove registry bundle using the service
+    service = BundleRegistryService.get_instance()
     try:
-        remove_bundle_entry(bundles_file, name)
+        service.remove(name, bundle_manager)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-    # Refresh the registry cache
-    _REGISTRY_BUNDLES.clear()
-    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
-
-    # Unregister from Foundation's registry (clears in-memory and persisted state)
-    bundle_manager.unregister_bundle(name)
 
     return {"message": f"Registry bundle removed: {name}"}
 
@@ -356,40 +373,26 @@ async def add_registry_bundle(request: AddRegistryBundleRequest) -> dict[str, st
     Raises:
         400: If bundle name already exists, URL is invalid, or fetch fails.
     """
-    from lakehouse_library.storage.paths import get_bundles_dir
+    from lakehoused.services.bundle_registry import BundleRegistryService
 
-    from lakehoused.startup import add_bundle_entry
+    service = BundleRegistryService.get_instance()
+    bundle_manager = _get_bundle_manager()
 
-    bundles_dir = get_bundles_dir()
-    bundles_file = bundles_dir / "BUNDLES.txt"
-
-    # First add to BUNDLES.txt for persistence
+    # Add to BUNDLES.txt and register with Foundation
     try:
-        add_bundle_entry(bundles_file, request.name, request.git_url)
+        service.add(request.name, request.git_url, bundle_manager)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Refresh the registry cache
-    from lakehoused.startup import _REGISTRY_BUNDLES
-    from lakehoused.startup.bundle_sync import parse_bundles_file
-
-    _REGISTRY_BUNDLES.clear()
-    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
-
-    # Register with Foundation and fetch/cache immediately
-    bundle_manager = _get_bundle_manager()
+    # Fetch/cache the bundle immediately
     try:
         await bundle_manager.register_and_fetch_bundle(request.name, request.git_url)
     except ValueError as e:
-        # Fetch failed - remove from BUNDLES.txt to keep consistent
-        from lakehoused.startup import remove_bundle_entry
+        # Fetch failed - remove from registry to keep consistent
+        import contextlib
 
-        try:
-            remove_bundle_entry(bundles_file, request.name)
-            _REGISTRY_BUNDLES.clear()
-            _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
-        except Exception:
-            pass  # Best effort cleanup
+        with contextlib.suppress(Exception):
+            service.remove(request.name, bundle_manager)
         raise HTTPException(status_code=400, detail=str(e))
 
     return {"message": f"Added and cached registry bundle: {request.name}"}
@@ -408,23 +411,14 @@ async def remove_registry_bundle(name: str) -> dict[str, str]:
     Raises:
         404: If bundle not found in registry.
     """
-    from lakehouse_library.storage.paths import get_bundles_dir
+    from lakehoused.services.bundle_registry import BundleRegistryService
 
-    from lakehoused.startup import remove_bundle_entry
-
-    bundles_dir = get_bundles_dir()
-    bundles_file = bundles_dir / "BUNDLES.txt"
+    service = BundleRegistryService.get_instance()
+    bundle_manager = _get_bundle_manager()
 
     try:
-        remove_bundle_entry(bundles_file, name)
+        service.remove(name, bundle_manager)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-    # Refresh the registry cache
-    from lakehoused.startup import _REGISTRY_BUNDLES
-    from lakehoused.startup.bundle_sync import parse_bundles_file
-
-    _REGISTRY_BUNDLES.clear()
-    _REGISTRY_BUNDLES.update(parse_bundles_file(bundles_file))
 
     return {"message": f"Removed registry bundle: {name}"}

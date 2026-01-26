@@ -301,15 +301,13 @@ function BundleDetailDialogContent({
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {isLoading ? (
             <div className="py-8 text-center text-muted-foreground">Loading...</div>
           ) : loadError ? (
             <div className="py-8 text-center text-red-500">Failed to load bundle</div>
           ) : viewMode === 'details' && bundle ? (
-            <div className="h-full overflow-y-auto">
-              <BundleDetailContent bundle={bundle} />
-            </div>
+            <BundleDetailContent bundle={bundle} />
           ) : viewMode === 'source' && source ? (
             isEditable ? (
               <div className="h-full flex flex-col">

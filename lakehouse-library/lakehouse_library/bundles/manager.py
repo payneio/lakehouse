@@ -1141,10 +1141,15 @@ Your custom assistant configuration.
         if info.source != "user":
             raise ValueError(f"Cannot delete system bundle: {name}")
 
-        # Delete the file
+        # Delete the bundle
         if info.path.is_dir():
+            # Bundle is a directory
             shutil.rmtree(info.path)
+        elif info.path.name in ("bundle.md", "bundle.yaml"):
+            # Bundle file inside a directory - delete the whole directory
+            shutil.rmtree(info.path.parent)
         else:
+            # Legacy single-file bundle (e.g., basic.md)
             info.path.unlink()
 
         # Remove from tracking
