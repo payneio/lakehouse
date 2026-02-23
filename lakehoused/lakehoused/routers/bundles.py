@@ -19,7 +19,7 @@ from lakehoused.models.bundles import ResolvedBundle
 from lakehoused.models.bundles import UpdateBundleRequest
 
 if TYPE_CHECKING:
-    from lakehouse_library.bundles import LakehouseBundleManager
+    from lakehoused.bundles import LakehouseBundleManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def _get_bundle_manager() -> LakehouseBundleManager:
     """
     global _bundle_manager
     if _bundle_manager is None:
-        from lakehouse_library.bundles import LakehouseBundleManager
+        from lakehoused.bundles import LakehouseBundleManager
 
         from ..startup import get_registry_bundles
 

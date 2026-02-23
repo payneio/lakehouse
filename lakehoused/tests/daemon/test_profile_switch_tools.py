@@ -37,8 +37,8 @@ async def test_session_stream_manager_update_mount_plan(tmp_path) -> None:
 
     # Simulate creating a runner by directly setting it
     # (Normally happens on first message, but requires full session setup)
-    from lakehouse_library.execution.runner import ExecutionRunner
-    from lakehouse_library.sessions.manager import SessionManager
+    from lakehoused.execution.runner import ExecutionRunner
+    from lakehoused.sessions.manager import SessionManager
 
     session_manager = SessionManager(tmp_path)
 

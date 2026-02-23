@@ -13,10 +13,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from lakehouse_library.storage.paths import get_bundles_dir
+from lakehoused.storage.paths import get_bundles_dir
 
 if TYPE_CHECKING:
-    from lakehouse_library.bundles import LakehouseBundleManager
+    from lakehoused.bundles import LakehouseBundleManager
 
 logger = logging.getLogger(__name__)
 

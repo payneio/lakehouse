@@ -13,7 +13,7 @@ from pathlib import Path
 import click
 import psutil
 
-from lakehouse_library.storage.paths import get_log_dir
+from lakehoused.storage.paths import get_log_dir
 
 
 def find_lakehoused_source_dir() -> Path | None:

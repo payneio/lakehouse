@@ -60,7 +60,7 @@
       "request": "launch",
       "module": "pytest",
       "args": [
-        "--cov=lakehouse_library",
+        "--cov=lakehoused",
         "--cov=lakehoused",
         "--cov-report=term-missing",
         "--cov-report=html",

@@ -3,13 +3,6 @@
 This module defines request and response models for the REST API.
 """
 
-from lakehouse_library.models.sessions import SessionIndex
-from lakehouse_library.models.sessions import SessionIndexEntry
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionQuery
-from lakehouse_library.models.sessions import SessionStatus
-
 from .bundles import BundleDetails
 from .bundles import BundleListItem
 from .bundles import BundleSource
@@ -46,6 +39,12 @@ from .responses import SessionInfoResponse
 from .responses import SessionResponse
 from .responses import StatusResponse
 from .responses import TranscriptResponse
+from .sessions import SessionIndex
+from .sessions import SessionIndexEntry
+from .sessions import SessionMessage
+from .sessions import SessionMetadata
+from .sessions import SessionQuery
+from .sessions import SessionStatus
 
 __all__ = [
     # Bundle models

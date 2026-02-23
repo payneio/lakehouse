@@ -8,7 +8,7 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 
-from lakehouse_library.config.loader import load_config
+from lakehoused.config.settings import load_config
 from lakehoused.models.projects import AgentsContentResponse
 from lakehoused.models.projects import AgentsContentUpdate
 from lakehoused.models.projects import Project

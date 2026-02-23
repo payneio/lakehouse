@@ -11,9 +11,9 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
 from lakehoused.main import app
 from lakehoused.models.mount_plans import EmbeddedMount
 from lakehoused.models.mount_plans import MountPlan
@@ -156,7 +156,7 @@ def mock_project_service(mock_mount_plan: MountPlan):
             "lakehoused.services.project_service.ProjectService",
             return_value=mock_service
         ), patch(
-            "lakehouse_library.bundles.LakehouseBundleManager",
+            "lakehoused.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager
         ):
             yield

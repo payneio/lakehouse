@@ -14,8 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
 from lakehoused.services.mention_resolver import MentionResolver
 
 
@@ -456,7 +456,7 @@ async def test_execution_runner_injects_profile_context(
     mock_amplifier_session.initialize = AsyncMock()
 
     # Create ExecutionRunner
-    from lakehouse_library.execution.runner import ExecutionRunner
+    from lakehoused.execution.runner import ExecutionRunner
 
     mock_resolver_instance = Mock()
     mock_resolver_instance.async_resolve = Mock()
@@ -473,7 +473,7 @@ async def test_execution_runner_injects_profile_context(
 
     # Call _ensure_session to trigger context loading
     with patch("amplifier_core.AmplifierSession", return_value=mock_amplifier_session):
-        with patch("lakehouse_library.storage.paths.get_share_dir", return_value=tmp_path / "share"):
+        with patch("lakehoused.storage.paths.get_share_dir", return_value=tmp_path / "share"):
             await runner._ensure_session()
 
     # Simulate the profile context injection logic from execute_stream
@@ -525,7 +525,7 @@ async def test_execution_runner_injects_runtime_context(
     mock_amplifier_session.coordinator = mock_coordinator
 
     # Create ExecutionRunner
-    from lakehouse_library.execution.runner import ExecutionRunner
+    from lakehoused.execution.runner import ExecutionRunner
 
     mock_resolver_instance = Mock()
     mock_resolver_instance.async_resolve = Mock()
@@ -654,7 +654,7 @@ async def test_execution_runner_works_with_no_context(
     mock_amplifier_session.coordinator = mock_coordinator
 
     # Create runner
-    from lakehouse_library.execution.runner import ExecutionRunner
+    from lakehoused.execution.runner import ExecutionRunner
 
     mock_resolver_instance = Mock()
     mock_resolver_instance.async_resolve = Mock()

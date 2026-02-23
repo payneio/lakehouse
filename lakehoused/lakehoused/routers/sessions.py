@@ -17,13 +17,14 @@ from fastapi import APIRouter
 from fastapi import Body
 from fastapi import Depends
 from fastapi import HTTPException
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
-from lakehouse_library.sessions.manager import SessionManager as SessionStateService
-from lakehouse_library.storage import get_state_dir
 from pydantic import BaseModel
 from pydantic import Field as PydanticField
+
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
+from lakehoused.sessions.manager import SessionManager as SessionStateService
+from lakehoused.storage import get_state_dir
 
 from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
@@ -68,7 +69,7 @@ def _get_lakehouse_context() -> str:
         Lakehouse context string, or empty string if unavailable
     """
     try:
-        from lakehouse_library.storage import get_share_dir
+        from lakehoused.storage import get_share_dir
 
         share_dir = get_share_dir()
         lakehouse_context_file = share_dir / "lakehouse.md"
@@ -214,7 +215,7 @@ async def create_session(
         # Get data root from daemon config
         from pathlib import Path
 
-        from lakehouse_library.config.loader import load_config
+        from lakehoused.config.settings import load_config
 
         config = load_config()
         data_path = Path(config.data_path)
@@ -244,7 +245,7 @@ async def create_session(
         absolute_project_path = str((Path(data_path) / project_path).resolve())
 
         # Generate mount plan using bundle manager
-        from lakehouse_library.bundles import LakehouseBundleManager
+        from lakehoused.bundles import LakehouseBundleManager
 
         from ..startup import get_registry_bundles
 
@@ -354,7 +355,7 @@ def _clone_single_session(
     """
     import uuid
 
-    from lakehouse_library.config.loader import load_config
+    from lakehoused.config.settings import load_config
 
     state_dir = get_state_dir()
     source_session_dir = state_dir / "sessions" / source_session.session_id
@@ -381,7 +382,7 @@ def _clone_single_session(
         absolute_project_path = str(data_path.resolve())
 
     # Inject runtime configuration for new session
-    from lakehouse_library.bundles import LakehouseBundleManager
+    from lakehoused.bundles import LakehouseBundleManager
 
     from ..config.loader import load_secrets
     from ..startup import get_registry_bundles
@@ -1435,8 +1436,8 @@ async def change_session_bundle(
             )
 
         # 2. Generate new mount plan using bundle manager
-        from lakehouse_library.bundles import LakehouseBundleManager
-        from lakehouse_library.config.loader import load_config
+        from lakehoused.bundles import LakehouseBundleManager
+        from lakehoused.config.settings import load_config
 
         from ..startup import get_registry_bundles
 

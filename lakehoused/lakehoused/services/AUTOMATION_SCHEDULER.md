@@ -92,7 +92,7 @@ Clear scheduler and re-register all enabled automations.
 ## Dependencies
 
 - `apscheduler>=3.10.0` - Job scheduling library
-- `lakehouse_library` - Core automation and session management
+- `lakehoused` - Automation and session management
 
 ## Testing
 

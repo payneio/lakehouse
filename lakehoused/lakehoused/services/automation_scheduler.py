@@ -23,9 +23,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from lakehouse_library.automations.manager import AutomationManager
-from lakehouse_library.models.automations import Automation
-from lakehouse_library.sessions.manager import SessionManager
+
+from lakehoused.automations.manager import AutomationManager
+from lakehoused.models.automations import Automation
+from lakehoused.sessions.manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -373,7 +374,7 @@ class AutomationScheduler:
 
             # Create session in automation's project
             # Note: We need to load the project metadata to get the default bundle
-            from lakehouse_library.config.loader import load_config
+            from lakehoused.config.settings import load_config
 
             from ..services.project_service import ProjectService
 
@@ -394,7 +395,7 @@ class AutomationScheduler:
             absolute_project_path = str((data_path / automation.project_id).resolve())
 
             # Generate mount plan using bundle manager
-            from lakehouse_library.bundles import LakehouseBundleManager
+            from lakehoused.bundles import LakehouseBundleManager
 
             from ..config.loader import load_secrets
 
@@ -453,7 +454,7 @@ class AutomationScheduler:
                 )
 
             # Convert to library SessionMetadata for execution
-            from lakehouse_library.models.sessions import SessionMetadata as LibrarySessionMetadata
+            from lakehoused.models.sessions import SessionMetadata as LibrarySessionMetadata
 
             session_metadata = self.session_manager.get_session(session_id)
             if not session_metadata:

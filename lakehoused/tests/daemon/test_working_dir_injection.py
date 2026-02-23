@@ -8,7 +8,7 @@ Tests LakehouseBundleManager.inject_runtime_config which handles:
 
 from pathlib import Path
 
-from lakehouse_library.bundles import LakehouseBundleManager
+from lakehoused.bundles import LakehouseBundleManager
 
 
 def test_working_dir_injection_in_mount_plan(tmp_path: Path) -> None:

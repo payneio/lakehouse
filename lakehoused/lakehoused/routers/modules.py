@@ -28,7 +28,7 @@ def get_module_discovery_service() -> ModuleService:
     Returns:
         ModuleService instance
     """
-    from lakehouse_library.storage import get_share_dir
+    from lakehoused.storage import get_share_dir
 
     share_dir = get_share_dir()
     return ModuleService(share_dir=share_dir)

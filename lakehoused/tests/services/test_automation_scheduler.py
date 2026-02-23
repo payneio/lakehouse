@@ -8,9 +8,9 @@ from unittest.mock import patch
 import pytest
 from lakehoused.services.automation_scheduler import AutomationScheduler
 
-from lakehouse_library.automations.manager import AutomationManager
-from lakehouse_library.models.automations import ScheduleConfig
-from lakehouse_library.sessions.manager import SessionManager
+from lakehoused.automations.manager import AutomationManager
+from lakehoused.models.automations import ScheduleConfig
+from lakehoused.sessions.manager import SessionManager
 
 
 @pytest.fixture
@@ -215,8 +215,8 @@ class TestAutomationExecution:
         # Mock dependencies (using correct import paths from _execute_automation)
         with (
             patch("lakehoused.services.project_service.ProjectService") as mock_project_service,
-            patch("lakehouse_library.bundles.LakehouseBundleManager") as mock_bundle_manager,
-            patch("lakehouse_library.config.loader.load_config") as mock_config,
+            patch("lakehoused.bundles.LakehouseBundleManager") as mock_bundle_manager,
+            patch("lakehoused.config.loader.load_config") as mock_config,
             patch("lakehoused.services.session_stream_registry.get_stream_registry") as mock_registry,
             patch("lakehoused.services.mention_resolver.MentionResolver") as mock_resolver,
             patch("lakehoused.config.loader.load_secrets") as mock_secrets,

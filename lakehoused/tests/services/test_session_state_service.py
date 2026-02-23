@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
-from lakehouse_library.sessions.manager import SessionManager as SessionStateService
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
+from lakehoused.sessions.manager import SessionManager as SessionStateService
 from lakehoused.models.mount_plans import MountPlan
 from lakehoused.models.mount_plans import SessionConfig
 

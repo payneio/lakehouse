@@ -8,8 +8,8 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
 from lakehoused.main import app
 from lakehoused.routers.sessions import get_session_state_service
 import lakehoused.routers.sessions
@@ -141,10 +141,10 @@ def mock_project_service(mock_mount_plan: dict):
             "lakehoused.services.project_service.ProjectService",
             return_value=mock_service
         ), patch(
-            "lakehouse_library.bundles.LakehouseBundleManager",
+            "lakehoused.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager
         ), patch(
-            "lakehouse_library.storage.get_share_dir",
+            "lakehoused.storage.get_share_dir",
             return_value=share_dir
         ):
             yield
@@ -244,7 +244,7 @@ class TestSessionsAPI:
             mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
 
             monkeypatch.setattr(
-                "lakehouse_library.bundles.LakehouseBundleManager",
+                "lakehoused.bundles.LakehouseBundleManager",
                 lambda *args, **kwargs: mock_bundle_manager
             )
 
@@ -454,7 +454,7 @@ class TestSessionsAPI:
     def test_get_transcript_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test GET /api/v1/sessions/{session_id}/transcript returns messages."""
         # Setup mock to return messages
-        from lakehouse_library.models.sessions import SessionMessage
+        from lakehoused.models.sessions import SessionMessage
 
         mock_session_state_service.get_transcript.return_value = [
             SessionMessage(
@@ -609,7 +609,7 @@ class TestSessionsAPI:
             mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
 
             monkeypatch.setattr(
-                "lakehouse_library.bundles.LakehouseBundleManager",
+                "lakehoused.bundles.LakehouseBundleManager",
                 lambda *args, **kwargs: mock_bundle_manager
             )
 

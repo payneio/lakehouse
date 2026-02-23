@@ -164,7 +164,7 @@ curl -X POST http://localhost:8420/api/v1/sessions/{id}/execute \
 **Session created:**
 
 ```python
-from lakehouse_library.bundles import LakehouseBundleManager
+from lakehoused.bundles import LakehouseBundleManager
 
 manager = LakehouseBundleManager()
 mount_plan = await manager.generate_mount_plan(

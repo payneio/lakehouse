@@ -9,7 +9,6 @@ description = "Lakehouse daemon - HTTP API for the Lakehouse AI platform"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "lakehouse-library",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
@@ -18,6 +17,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "sse-starlette>=2.2.1",
     "amplifier-core",
+    "amplifier-foundation",
     "gitpython>=3.1.45",
     "fsspec>=2025.10.0",
     "claude-code-sdk>=0.0.25",
@@ -43,7 +43,7 @@ members = []
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
-lakehouse-library = { path = "../lakehouse-library", editable = true }
+amplifier-foundation = { path = "../related-projects/amplifier-foundation", editable = true }
 
 [dependency-groups]
 dev = [
@@ -89,6 +89,7 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
+    "--import-mode=importlib",
 ]
 asyncio_mode = "auto"
 markers = [

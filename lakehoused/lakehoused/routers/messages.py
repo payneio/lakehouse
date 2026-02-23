@@ -13,9 +13,9 @@ from fastapi import HTTPException
 from fastapi import Request
 from pydantic import BaseModel
 
-from lakehouse_library.execution.runner import ExecutionRunner
-from lakehouse_library.sessions.manager import SessionManager as SessionStateService
-from lakehouse_library.storage import get_state_dir
+from lakehoused.execution.runner import ExecutionRunner
+from lakehoused.sessions.manager import SessionManager as SessionStateService
+from lakehoused.storage import get_state_dir
 
 from ..models import MessageResponse
 from ..models import SendMessageRequest
@@ -128,8 +128,8 @@ async def send_message_for_execution(
         from datetime import UTC
         from datetime import datetime
 
-        from lakehouse_library.models.sessions import SessionMetadata as LibrarySessionMetadata
-        from lakehouse_library.storage import get_state_dir
+        from lakehoused.models.sessions import SessionMetadata as LibrarySessionMetadata
+        from lakehoused.storage import get_state_dir
 
         from ..services.session_stream_registry import get_stream_registry
 
@@ -138,8 +138,8 @@ async def send_message_for_execution(
         # Get config and paths
         from pathlib import Path
 
-        from lakehouse_library.bundles import LakehouseBundleManager
-        from lakehouse_library.config.loader import load_config
+        from lakehoused.bundles import LakehouseBundleManager
+        from lakehoused.config.settings import load_config
 
         from ..services.mention_resolver import MentionResolver
 

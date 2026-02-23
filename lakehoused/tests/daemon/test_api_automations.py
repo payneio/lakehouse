@@ -19,9 +19,9 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from lakehouse_library.models.automations import Automation
-from lakehouse_library.models.automations import ExecutionRecord
-from lakehouse_library.models.automations import ScheduleConfig
+from lakehoused.models.automations import Automation
+from lakehoused.models.automations import ExecutionRecord
+from lakehoused.models.automations import ScheduleConfig
 from lakehoused.main import app
 from lakehoused.routers.automations import get_automation_manager
 from lakehoused.routers.automations import get_automation_scheduler
@@ -133,7 +133,7 @@ def mock_project_exists(monkeypatch, tmp_path):
     test_project_dir.mkdir(parents=True, exist_ok=True)
 
     # Mock load_config to return config with our tmp_path as data_path
-    from lakehouse_library.config.settings import DaemonSettings
+    from lakehoused.config.settings import DaemonSettings
 
     mock_config = DaemonSettings(
         host="127.0.0.1",
@@ -143,9 +143,9 @@ def mock_project_exists(monkeypatch, tmp_path):
     )
 
     # Patch at the location where it's imported in the automations module
-    import lakehouse_library.config.loader
+    import lakehoused.config.loader
 
-    monkeypatch.setattr(lakehouse_library.config.loader, "load_config", lambda: mock_config)
+    monkeypatch.setattr(lakehoused.config.loader, "load_config", lambda: mock_config)
 
 
 @pytest.fixture

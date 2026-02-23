@@ -11,8 +11,8 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
 
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionStatus
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
 from lakehoused.routers.sessions import change_session_bundle
 
 
@@ -159,7 +159,7 @@ async def test_bundle_change_persists_mount_plan_to_disk(
     with (
         patch("lakehoused.routers.sessions.get_state_dir", return_value=mock_state_dir),
         patch(
-            "lakehouse_library.bundles.LakehouseBundleManager",
+            "lakehoused.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager,
         ),
     ):
@@ -213,7 +213,7 @@ async def test_bundle_change_handles_file_write_error(
         with (
             patch("lakehoused.routers.sessions.get_state_dir", return_value=mock_state_dir),
             patch(
-                "lakehouse_library.bundles.LakehouseBundleManager",
+                "lakehoused.bundles.LakehouseBundleManager",
                 return_value=mock_bundle_manager,
             ),
         ):
@@ -265,7 +265,7 @@ async def test_bundle_change_with_no_active_runner(
     with (
         patch("lakehoused.routers.sessions.get_state_dir", return_value=mock_state_dir),
         patch(
-            "lakehouse_library.bundles.LakehouseBundleManager",
+            "lakehoused.bundles.LakehouseBundleManager",
             return_value=mock_bundle_manager,
         ),
     ):

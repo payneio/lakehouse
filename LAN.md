@@ -785,7 +785,7 @@ Container must bind to `0.0.0.0` inside Docker as well.
 ### Component Documentation
 - [Amplifier Daemon README](./lakehoused/README.md) - Daemon architecture
 - [Webapp README](./webapp/README.md) - Frontend development guide
-- [Amplifier Library README](./lakehouse_library/README.md) - Core library docs
+- [Amplifier Daemon README](./lakehoused/lakehoused/README.md) - Daemon internals
 
 ### Configuration
 - `.lakehoused/config/daemon.yaml` - Daemon configuration reference

@@ -78,7 +78,7 @@ class TestMountPlansAPI:
     ) -> None:
         """Test POST /api/v1/mount-plans/generate returns 201 with valid response."""
         with (
-            patch("lakehouse_library.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
+            patch("lakehoused.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
             patch("lakehoused.config.loader.load_secrets") as mock_secrets,
         ):
             mock_secrets.return_value.api_keys = {}
@@ -105,7 +105,7 @@ class TestMountPlansAPI:
         mock_bundle_manager.generate_mount_plan = raise_not_found
 
         with (
-            patch("lakehouse_library.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
+            patch("lakehoused.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
             patch("lakehoused.config.loader.load_secrets") as mock_secrets,
         ):
             mock_secrets.return_value.api_keys = {}
@@ -129,7 +129,7 @@ class TestMountPlansAPI:
         mock_bundle_manager.generate_mount_plan = raise_value_error
 
         with (
-            patch("lakehouse_library.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
+            patch("lakehoused.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
             patch("lakehoused.config.loader.load_secrets") as mock_secrets,
         ):
             mock_secrets.return_value.api_keys = {}
@@ -153,7 +153,7 @@ class TestMountPlansAPI:
         mock_bundle_manager.generate_mount_plan = raise_runtime_error
 
         with (
-            patch("lakehouse_library.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
+            patch("lakehoused.bundles.LakehouseBundleManager", return_value=mock_bundle_manager),
             patch("lakehoused.config.loader.load_secrets") as mock_secrets,
         ):
             mock_secrets.return_value.api_keys = {}

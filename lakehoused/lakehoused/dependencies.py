@@ -4,7 +4,7 @@ These factories provide dependency injection for service instances,
 ensuring proper initialization and resource management.
 """
 
-from lakehouse_library.storage import get_share_dir
+from lakehoused.storage import get_share_dir
 
 from .services.module_service import ModuleService
 

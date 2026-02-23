@@ -14,8 +14,8 @@ from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse
-from lakehouse_library.config.loader import load_config
 
+from lakehoused.config.settings import load_config
 from lakehoused.models.files import DirectoryCreateRequest
 from lakehoused.models.files import DirectoryCreateResponse
 from lakehoused.models.files import DirectoryListResponse

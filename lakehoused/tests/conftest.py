@@ -139,7 +139,7 @@ def mock_storage_env(temp_storage_dir: Path, monkeypatch: pytest.MonkeyPatch) ->
 
     Example:
         >>> def test_with_isolated_storage(mock_storage_env):
-        ...     from lakehouse_library.storage.paths import get_root_dir
+        ...     from lakehoused.storage.paths import get_root_dir
         ...     root = get_root_dir()
         ...     assert root == mock_storage_env
     """
@@ -158,7 +158,7 @@ def session_manager(mock_storage_env: Path):
         ...     session = session_manager.create_session(session_id="test", bundle_name="default")
         ...     assert session.id is not None
     """
-    from lakehouse_library.sessions.manager import SessionManager
+    from lakehoused.sessions.manager import SessionManager
 
     # SessionManager expects a state directory and adds /sessions to it
     # To match what get_state_dir() returns, we need to pass state/ subdirectory

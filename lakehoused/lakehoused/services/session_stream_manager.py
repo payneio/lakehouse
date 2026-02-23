@@ -14,13 +14,13 @@ import logging
 from typing import TYPE_CHECKING
 from typing import Any
 
-from lakehouse_library.execution.runner import ExecutionRunner
+from lakehoused.execution.runner import ExecutionRunner
 
 from ..hooks import StreamingHookRegistry
 from ..streaming import EventQueueEmitter  # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
-    from lakehouse_library.models import Session
+    from lakehoused.models.sessions import SessionMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class SessionStreamManager:
 
         logger.info(f"Created SessionStreamManager for {session_id}")
 
-    async def get_runner(self: "SessionStreamManager", session: "Session") -> ExecutionRunner:
+    async def get_runner(self: "SessionStreamManager", session: "SessionMetadata") -> ExecutionRunner:
         """Get or create ExecutionRunner with streaming hooks.
 
         Args:
@@ -74,8 +74,8 @@ class SessionStreamManager:
         """
         if self._runner is None:
             # Import here to avoid circular dependency
-            from lakehouse_library.sessions.manager import SessionManager
-            from lakehouse_library.storage.paths import get_state_dir
+            from lakehoused.sessions.manager import SessionManager
+            from lakehoused.storage.paths import get_state_dir
 
             # Create session manager
             state_dir = get_state_dir()

@@ -48,7 +48,7 @@ async def generate_mount_plan(
     try:
         import uuid
 
-        from lakehouse_library.bundles import LakehouseBundleManager
+        from lakehoused.bundles import LakehouseBundleManager
 
         from ..config.loader import load_secrets
 

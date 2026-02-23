@@ -10,8 +10,8 @@ from datetime import datetime
 
 import pytest
 
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.sessions.manager import SessionManager
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.sessions.manager import SessionManager
 
 
 @pytest.mark.unit

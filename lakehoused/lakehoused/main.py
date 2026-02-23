@@ -10,7 +10,8 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from lakehouse_library.config.loader import load_config
+
+from lakehoused.config.settings import load_config
 
 from .config.loader import load_config as load_daemon_config
 from .routers import automations_router
@@ -96,7 +97,8 @@ async def lifespan(app: FastAPI):
     # Initialize module resolver (Foundation's BundleModuleResolver)
     try:
         from amplifier_foundation.modules.activator import ModuleActivator
-        from lakehouse_library.storage.paths import get_cache_dir
+
+        from lakehoused.storage.paths import get_cache_dir
 
         cache_dir = get_cache_dir()
         activator = ModuleActivator(cache_dir=cache_dir, install_deps=True)
@@ -117,9 +119,9 @@ async def lifespan(app: FastAPI):
     # Initialize automation scheduler
     scheduler = None
     try:
-        from lakehouse_library.automations.manager import AutomationManager
-        from lakehouse_library.sessions.manager import SessionManager
-        from lakehouse_library.storage import get_state_dir
+        from lakehoused.automations.manager import AutomationManager
+        from lakehoused.sessions.manager import SessionManager
+        from lakehoused.storage import get_state_dir
 
         from .services.automation_scheduler import AutomationScheduler
 

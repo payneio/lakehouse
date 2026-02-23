@@ -10,16 +10,16 @@ from datetime import datetime
 
 import pytest
 
-from lakehouse_library.models import Session
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.sessions import state
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.sessions import state
 
 
 @pytest.mark.unit
-class TestSessionState:
+class TestSessionMetadataState:
     """Test session state management functions."""
 
-    def test_add_message_creates_message(self, sample_session: Session) -> None:
+    def test_add_message_creates_message(self, sample_session: SessionMetadata) -> None:
         """Test add_message creates a SessionMessage object."""
         msg = state.add_message(sample_session, "user", "Hello, world!")
 
@@ -28,7 +28,7 @@ class TestSessionState:
         assert msg.content == "Hello, world!"
         assert msg.timestamp is not None
 
-    def test_add_message_sets_timestamp(self, sample_session: Session) -> None:
+    def test_add_message_sets_timestamp(self, sample_session: SessionMetadata) -> None:
         """Test add_message sets current timestamp."""
         before = datetime.now(UTC)
         msg = state.add_message(sample_session, "user", "Test")
@@ -36,13 +36,13 @@ class TestSessionState:
 
         assert before <= msg.timestamp <= after
 
-    def test_add_message_updates_message_count(self, sample_session: Session) -> None:
+    def test_add_message_updates_message_count(self, sample_session: SessionMetadata) -> None:
         """Test add_message updates session message count."""
         state.add_message(sample_session, "user", "Message 1")
         # Note: We can't check sample_session.message_count directly as it's not updated in-memory
         # The state service updates the persisted session.json file
 
-    def test_add_message_persists_transcript(self, sample_session: Session) -> None:
+    def test_add_message_persists_transcript(self, sample_session: SessionMetadata) -> None:
         """Test add_message saves transcript to storage."""
         state.add_message(sample_session, "user", "Test message")
 
@@ -50,7 +50,7 @@ class TestSessionState:
         transcript = state.get_transcript(sample_session.session_id)
         assert len(transcript) > 0
 
-    def test_add_multiple_messages(self, sample_session: Session) -> None:
+    def test_add_multiple_messages(self, sample_session: SessionMetadata) -> None:
         """Test adding multiple messages to session."""
         state.add_message(sample_session, "user", "Hello")
         state.add_message(sample_session, "assistant", "Hi there!")
@@ -62,12 +62,12 @@ class TestSessionState:
         assert transcript[1].content == "Hi there!"
         assert transcript[2].content == "How are you?"
 
-    def test_update_context_is_noop(self, sample_session: Session) -> None:
+    def test_update_context_is_noop(self, sample_session: SessionMetadata) -> None:
         """Test update_context is a no-op (context removed in new model)."""
         # This should not raise an error, just do nothing
         state.update_context(sample_session, {"new_key": "new_value"})
 
-    def test_get_transcript_returns_messages(self, sample_session: Session) -> None:
+    def test_get_transcript_returns_messages(self, sample_session: SessionMetadata) -> None:
         """Test get_transcript returns all messages in order."""
         state.add_message(sample_session, "user", "First")
         state.add_message(sample_session, "assistant", "Second")
@@ -81,7 +81,7 @@ class TestSessionState:
         assert transcript[1].content == "Second"
         assert transcript[2].content == "Third"
 
-    def test_get_transcript_empty_for_new_session(self, sample_session: Session) -> None:
+    def test_get_transcript_empty_for_new_session(self, sample_session: SessionMetadata) -> None:
         """Test get_transcript returns empty list for new session."""
         transcript = state.get_transcript(sample_session.session_id)
         assert transcript == []
@@ -92,7 +92,7 @@ class TestSessionState:
         transcript = state.get_transcript("nonexistent-session-id")
         assert transcript == []
 
-    def test_get_transcript_preserves_timestamps(self, sample_session: Session) -> None:
+    def test_get_transcript_preserves_timestamps(self, sample_session: SessionMetadata) -> None:
         """Test get_transcript preserves message timestamps."""
         from datetime import UTC
         from datetime import datetime
@@ -109,7 +109,7 @@ class TestSessionState:
         assert transcript[0].content == "Test"
         assert transcript[0].role == "user"
 
-    def test_message_roles(self, sample_session: Session) -> None:
+    def test_message_roles(self, sample_session: SessionMetadata) -> None:
         """Test different message roles work correctly."""
         state.add_message(sample_session, "user", "User message")
         state.add_message(sample_session, "assistant", "Assistant message")
@@ -121,7 +121,7 @@ class TestSessionState:
         assert transcript[1].role == "assistant"
         assert transcript[2].role == "system"
 
-    def test_transcript_persistence_across_loads(self, sample_session: Session, session_manager) -> None:
+    def test_transcript_persistence_across_loads(self, sample_session: SessionMetadata, session_manager) -> None:
         """Test transcript persists across session get operations."""
         # Add messages
         state.add_message(sample_session, "user", "Hello")

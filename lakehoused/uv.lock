@@ -1124,44 +1124,13 @@ wheels = [
 ]
 
 [[package]]
-name = "lakehouse-library"
-version = "0.1.0"
-source = { editable = "../lakehouse-library" }
-dependencies = [
-    { name = "amplifier-core" },
-    { name = "amplifier-foundation" },
-    { name = "gitpython" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core?branch=main" },
-    { name = "amplifier-foundation", editable = "../related-projects/amplifier-foundation" },
-    { name = "gitpython", specifier = ">=3.1.45" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
-    { name = "pyyaml", specifier = ">=6.0.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pyright", specifier = ">=1.1.407" },
-    { name = "pytest", specifier = ">=8.3.5" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "ruff", specifier = ">=0.11.10" },
-    { name = "setuptools", specifier = ">=80.9.0" },
-]
-
-[[package]]
 name = "lakehoused"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "amplifier-core" },
+    { name = "amplifier-foundation" },
     { name = "anthropic" },
     { name = "apscheduler" },
     { name = "bs4" },
@@ -1170,7 +1139,6 @@ dependencies = [
     { name = "fastapi" },
     { name = "fsspec" },
     { name = "gitpython" },
-    { name = "lakehouse-library" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1199,6 +1167,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "amplifier-core", git = "https://github.com/microsoft/amplifier-core?branch=main" },
+    { name = "amplifier-foundation", editable = "../related-projects/amplifier-foundation" },
     { name = "anthropic", specifier = ">=0.75.0" },
     { name = "apscheduler", specifier = ">=3.10.0" },
     { name = "bs4", specifier = ">=0.0.2" },
@@ -1207,7 +1176,6 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fsspec", specifier = ">=2025.10.0" },
     { name = "gitpython", specifier = ">=3.1.45" },
-    { name = "lakehouse-library", editable = "../lakehouse-library" },
     { name = "psutil", specifier = ">=5.9.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },

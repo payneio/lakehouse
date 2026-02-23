@@ -6,12 +6,12 @@ from datetime import datetime
 import pytest
 from pydantic import ValidationError
 
-from lakehouse_library.models.sessions import SessionIndex
-from lakehouse_library.models.sessions import SessionIndexEntry
-from lakehouse_library.models.sessions import SessionMessage
-from lakehouse_library.models.sessions import SessionMetadata
-from lakehouse_library.models.sessions import SessionQuery
-from lakehouse_library.models.sessions import SessionStatus
+from lakehoused.models.sessions import SessionIndex
+from lakehoused.models.sessions import SessionIndexEntry
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionQuery
+from lakehoused.models.sessions import SessionStatus
 
 
 class TestSessionStatus:

@@ -15,12 +15,7 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
    - Always-running daemon enabling reactive and scheduled workflows
    - See @lakehoused/README.md for details
 
-2. **lakehouse_library/** - Amplifier Library
-   - Python library providing higher-level abstractions over Microsoft's Amplifier Core
-   - Business logic layer between daemon transport and Amplifier Core execution
-   - See @lakehouse_library/README.md for architecture details
-
-3. **webapp/** - React Web Application
+2. **webapp/** - React Web Application
    - Modern React + TypeScript UI for interacting with the daemon
    - Tech stack: React 19, TypeScript, Vite, TanStack Query, Tailwind CSS
    - See @webapp/README.md for development details
