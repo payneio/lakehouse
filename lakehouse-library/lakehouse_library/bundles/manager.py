@@ -24,6 +24,14 @@ from lakehouse_library.storage.paths import get_home_dir
 
 logger = logging.getLogger(__name__)
 
+# Default provider module sources for auto-injection into provider-agnostic bundles.
+# Mirrors the CLI's DEFAULT_PROVIDER_SOURCES - when a bundle defines no providers,
+# these are used to inject providers based on configured API keys from secrets.yaml.
+DEFAULT_PROVIDER_SOURCES: dict[str, str] = {
+    "provider-anthropic": "git+https://github.com/microsoft/amplifier-module-provider-anthropic@main",
+    "provider-openai": "git+https://github.com/microsoft/amplifier-module-provider-openai@main",
+}
+
 
 @dataclass
 class BundleInfo:
@@ -252,6 +260,7 @@ class LakehouseBundleManager:
         project_path: str,
         *,
         api_key: str | None = None,
+        api_keys: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Generate a complete mount plan with runtime config injected.
 
@@ -259,12 +268,15 @@ class LakehouseBundleManager:
         1. Loads the bundle from registry or URI
         2. Converts to mount plan dict
         3. Injects runtime config (working_dir, allowed_write_paths, etc.)
+        4. Auto-injects providers for provider-agnostic bundles
 
         Args:
             bundle_ref: Bundle name or URI.
             session_id: Session ID for logging and state.
             project_path: Absolute path to the project directory.
-            api_key: Optional API key for providers.
+            api_key: Optional single API key for providers (legacy).
+            api_keys: Optional per-provider API keys dict (e.g., {"provider-anthropic": "sk-..."}).
+                       When provided and the bundle has no providers, auto-injects providers.
 
         Returns:
             Mount plan dict ready for ExecutionRunner/AmplifierSession.
@@ -281,6 +293,7 @@ class LakehouseBundleManager:
             session_id=session_id,
             project_path=project_path,
             api_key=api_key,
+            api_keys=api_keys,
         )
 
         return mount_plan
@@ -291,6 +304,7 @@ class LakehouseBundleManager:
         session_id: str,
         project_path: str,
         api_key: str | None = None,
+        api_keys: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Inject runtime configuration into mount plan.
 
@@ -299,12 +313,14 @@ class LakehouseBundleManager:
         - allowed_write_paths for filesystem security
         - session_log_template for logging
         - api_key for providers
+        - Auto-injected providers for provider-agnostic bundles
 
         Args:
             mount_plan: Mount plan dict to modify.
             session_id: Session ID.
             project_path: Absolute path to project directory.
-            api_key: Optional API key.
+            api_key: Optional single API key (legacy).
+            api_keys: Optional per-provider API keys dict.
 
         Returns:
             Modified mount plan dict.
@@ -345,15 +361,19 @@ class LakehouseBundleManager:
                         self._home_dir / "state" / "sessions" / "{session_id}" / "events.jsonl"
                     )
 
-        # Inject config into providers
-        if "providers" in mount_plan:
+        # Inject config into existing providers
+        if "providers" in mount_plan and mount_plan["providers"]:
             for provider in mount_plan["providers"]:
                 if "config" not in provider:
                     provider["config"] = {}
 
-                # Inject API key if provided
-                if api_key and "api_key" not in provider["config"]:
-                    provider["config"]["api_key"] = api_key
+                # Inject API key from per-provider keys or single key
+                if "api_key" not in provider["config"]:
+                    provider_id = provider.get("module", "") or provider.get("id", "")
+                    if api_keys and provider_id in api_keys:
+                        provider["config"]["api_key"] = api_keys[provider_id]
+                    elif api_key:
+                        provider["config"]["api_key"] = api_key
 
                 # Enable debug logging for raw request/response events
                 # This allows hooks-logging to capture llm:request:raw and llm:response:raw
@@ -361,6 +381,27 @@ class LakehouseBundleManager:
                     provider["config"]["debug"] = True
                 if "raw_debug" not in provider["config"]:
                     provider["config"]["raw_debug"] = True
+
+        # Auto-inject providers for provider-agnostic bundles (e.g., foundation, amplifier-dev)
+        # This mirrors the CLI's approach: bundles define mechanism (tools, agents, context),
+        # the app layer provides policy (which provider to use).
+        elif api_keys:
+            mount_plan["providers"] = []
+            for provider_id, key in api_keys.items():
+                source = DEFAULT_PROVIDER_SOURCES.get(provider_id)
+                if source and key:
+                    mount_plan["providers"].append(
+                        {
+                            "module": provider_id,
+                            "source": source,
+                            "config": {
+                                "api_key": key,
+                                "debug": True,
+                                "raw_debug": True,
+                            },
+                        }
+                    )
+                    logger.info(f"Auto-injected provider {provider_id} for provider-agnostic bundle")
 
         return mount_plan
 

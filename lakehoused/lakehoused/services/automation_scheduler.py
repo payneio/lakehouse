@@ -23,7 +23,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-
 from lakehouse_library.automations.manager import AutomationManager
 from lakehouse_library.models.automations import Automation
 from lakehouse_library.sessions.manager import SessionManager
@@ -403,13 +402,12 @@ class AutomationScheduler:
 
             # Load secrets for API key injection
             secrets = load_secrets()
-            api_key = next(iter(secrets.api_keys.values()), None) if secrets.api_keys else None
 
             mount_plan = await bundle_manager.generate_mount_plan(
                 bundle_ref=bundle_name,
                 session_id=session_id,
                 project_path=absolute_project_path,
-                api_key=api_key,
+                api_keys=secrets.api_keys if secrets.api_keys else None,
             )
 
             # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)

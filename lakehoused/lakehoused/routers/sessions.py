@@ -93,10 +93,10 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_
     # 3. Inject API keys for providers from secrets.yaml
     # This allows users to configure API keys via UI without modifying profiles
     # Priority: profile config > secrets.yaml > environment variables (handled by provider)
-    if "providers" in mount_plan:
-        from ..config.loader import load_secrets
+    from ..config.loader import load_secrets
 
-        secrets = load_secrets()
+    secrets = load_secrets()
+    if "providers" in mount_plan and mount_plan.get("providers"):
         if secrets.api_keys:
             for provider in mount_plan["providers"]:
                 if "config" not in provider:
@@ -109,6 +109,26 @@ def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_
                     if api_key:
                         provider["config"]["api_key"] = api_key
                         logger.debug(f"Injected API key for provider: {provider_id}")
+    elif secrets.api_keys:
+        # Auto-inject providers for provider-agnostic bundles (e.g., cloned from foundation)
+        from lakehouse_library.bundles.manager import DEFAULT_PROVIDER_SOURCES
+
+        mount_plan["providers"] = []
+        for provider_id, key in secrets.api_keys.items():
+            source = DEFAULT_PROVIDER_SOURCES.get(provider_id)
+            if source and key:
+                mount_plan["providers"].append(
+                    {
+                        "module": provider_id,
+                        "source": source,
+                        "config": {
+                            "api_key": key,
+                            "debug": True,
+                            "raw_debug": True,
+                        },
+                    }
+                )
+                logger.info(f"Auto-injected provider {provider_id} for provider-agnostic bundle (clone)")
 
 
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
@@ -337,14 +357,12 @@ async def create_session(
         from ..config.loader import load_secrets
 
         secrets = load_secrets()
-        # Use first available API key (simplified - could be enhanced per-provider)
-        api_key = next(iter(secrets.api_keys.values()), None) if secrets.api_keys else None
 
         mount_plan = await bundle_manager.generate_mount_plan(
             bundle_ref=bundle_name,
             session_id=session_id,
             project_path=absolute_project_path,
-            api_key=api_key,
+            api_keys=secrets.api_keys if secrets.api_keys else None,
         )
 
         # Resolve bundle instruction mentions (from mount_plan instruction field)
@@ -1522,14 +1540,13 @@ async def change_session_bundle(
         from ..config.loader import load_secrets
 
         secrets = load_secrets()
-        api_key = next(iter(secrets.api_keys.values()), None) if secrets.api_keys else None
 
         try:
             new_mount_plan = await bundle_manager.generate_mount_plan(
                 bundle_ref=bundle_name,
                 session_id=session_id,
                 project_path=str(absolute_project_path),
-                api_key=api_key,
+                api_keys=secrets.api_keys if secrets.api_keys else None,
             )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Invalid bundle '{bundle_name}': {e}")
