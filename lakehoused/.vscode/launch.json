@@ -7,7 +7,7 @@
       "request": "launch",
       "module": "lakehoused",
       "console": "integratedTerminal",
-      "justMyCode": false,
+      "justMyCode": true,
       "env": {
         "LAKEHOUSED_LOG_LEVEL": "debug",
         "LAKEHOUSED_PORT": "8420"
