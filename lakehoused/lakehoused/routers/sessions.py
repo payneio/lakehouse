@@ -33,104 +33,6 @@ from ..services.global_events import GlobalEventService
 logger = logging.getLogger(__name__)
 
 
-def _inject_runtime_config(mount_plan: dict[str, Any], session_id: str, project_path: str) -> None:
-    """Inject runtime configuration into mount plan.
-
-    Modifies mount_plan in-place to add runtime-specific configuration that
-    cannot be known at profile compilation time:
-    - working_dir for tools (derived from project_path)
-    - allowed_write_paths for tool-filesystem (derived from project_path)
-    - session_log_template for hooks-logging (points to lakehoused session dir)
-    - api_key for providers (from secrets.yaml)
-
-    Args:
-        mount_plan: Mount plan to modify (modified in-place)
-        session_id: Session identifier for path templates
-        project_path: Absolute path to project directory
-    """
-    # 1. Inject working_dir into tool configs
-    # This ensures tools resolve relative paths against the session's working directory
-    if "tools" in mount_plan:
-        for tool in mount_plan["tools"]:
-            if "config" not in tool:
-                tool["config"] = {}
-            # Only set if not explicitly configured in profile
-            if "working_dir" not in tool["config"]:
-                tool["config"]["working_dir"] = project_path
-
-            # 1b. Inject allowed_write_paths for tool-filesystem if not explicitly set
-            # tool-filesystem defaults to ["."] which resolves against daemon CWD, not working_dir
-            # This ensures write operations are allowed within the session's working directory
-            tool_module = tool.get("module", "") or tool.get("id", "")
-            is_filesystem_tool = "tool-filesystem" in tool_module or "filesystem" in tool.get("source", "")
-            if is_filesystem_tool and "allowed_write_paths" not in tool["config"]:
-                tool["config"]["allowed_write_paths"] = [project_path]
-
-    # 2. Inject session_log_template for hooks-logging
-    # This ensures events.jsonl is written to lakehoused's session directory
-    # instead of the default ~/.amplifier/projects/... path
-    state_dir = get_state_dir()
-    session_log_path = str(state_dir / "sessions" / "{session_id}" / "events.jsonl")
-
-    if "hooks" in mount_plan:
-        for hook in mount_plan["hooks"]:
-            # Mount plans use "module" key, but some may use "id"
-            hook_id = hook.get("module", "") or hook.get("id", "")
-            # Match hooks-logging/hook-logging by module/id or by checking the source
-            # Note: Module name changed from hooks-logging (plural) to hook-logging (singular)
-            # in the Foundation bundle system, so we check for both
-            source = hook.get("source", "")
-            is_logging_hook = (
-                hook_id in ("hooks-logging", "hook-logging") or "hooks-logging" in source or "hook-logging" in source
-            )
-            if is_logging_hook:
-                if "config" not in hook:
-                    hook["config"] = {}
-                # Always override to ensure logs go to lakehoused session dir
-                hook["config"]["session_log_template"] = session_log_path
-                logger.debug(f"Injected session_log_template for hooks-logging: {session_log_path}")
-
-    # 3. Inject API keys for providers from secrets.yaml
-    # This allows users to configure API keys via UI without modifying profiles
-    # Priority: profile config > secrets.yaml > environment variables (handled by provider)
-    from ..config.loader import load_secrets
-
-    secrets = load_secrets()
-    if "providers" in mount_plan and mount_plan.get("providers"):
-        if secrets.api_keys:
-            for provider in mount_plan["providers"]:
-                if "config" not in provider:
-                    provider["config"] = {}
-                # Only inject if not already set in profile
-                if "api_key" not in provider["config"]:
-                    # Try module name first (e.g., "provider-anthropic")
-                    provider_id = provider.get("module", "") or provider.get("id", "")
-                    api_key = secrets.api_keys.get(provider_id)
-                    if api_key:
-                        provider["config"]["api_key"] = api_key
-                        logger.debug(f"Injected API key for provider: {provider_id}")
-    elif secrets.api_keys:
-        # Auto-inject providers for provider-agnostic bundles (e.g., cloned from foundation)
-        from lakehouse_library.bundles.manager import DEFAULT_PROVIDER_SOURCES
-
-        mount_plan["providers"] = []
-        for provider_id, key in secrets.api_keys.items():
-            source = DEFAULT_PROVIDER_SOURCES.get(provider_id)
-            if source and key:
-                mount_plan["providers"].append(
-                    {
-                        "module": provider_id,
-                        "source": source,
-                        "config": {
-                            "api_key": key,
-                            "debug": True,
-                            "raw_debug": True,
-                        },
-                    }
-                )
-                logger.info(f"Auto-injected provider {provider_id} for provider-agnostic bundle (clone)")
-
-
 router = APIRouter(prefix="/api/v1/sessions", tags=["sessions"])
 
 
@@ -479,7 +381,19 @@ def _clone_single_session(
         absolute_project_path = str(data_path.resolve())
 
     # Inject runtime configuration for new session
-    _inject_runtime_config(source_mount_plan, new_session_id, absolute_project_path)
+    from lakehouse_library.bundles import LakehouseBundleManager
+
+    from ..config.loader import load_secrets
+    from ..startup import get_registry_bundles
+
+    secrets = load_secrets()
+    bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
+    bundle_manager.inject_runtime_config(
+        mount_plan=source_mount_plan,
+        session_id=new_session_id,
+        project_path=absolute_project_path,
+        api_keys=secrets.api_keys if secrets.api_keys else None,
+    )
 
     # Create new session with cloned mount plan
     session_service.create_session(

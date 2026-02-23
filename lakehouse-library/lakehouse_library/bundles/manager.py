@@ -288,7 +288,7 @@ class LakehouseBundleManager:
         mount_plan = self.bundle_to_mount_plan(bundle)
 
         # Inject runtime configuration
-        mount_plan = self._inject_runtime_config(
+        mount_plan = self.inject_runtime_config(
             mount_plan=mount_plan,
             session_id=session_id,
             project_path=project_path,
@@ -298,7 +298,7 @@ class LakehouseBundleManager:
 
         return mount_plan
 
-    def _inject_runtime_config(
+    def inject_runtime_config(
         self,
         mount_plan: dict[str, Any],
         session_id: str,
@@ -311,7 +311,7 @@ class LakehouseBundleManager:
         Adds session-specific config that can't be known at bundle authoring time:
         - working_dir for tools
         - allowed_write_paths for filesystem security
-        - session_log_template for logging
+        - session_log_template for logging hooks
         - api_key for providers
         - Auto-injected providers for provider-agnostic bundles
 
@@ -346,16 +346,21 @@ class LakehouseBundleManager:
         # Inject into hooks
         if "hooks" in mount_plan:
             for hook in mount_plan["hooks"]:
-                if "config" not in hook:
-                    hook["config"] = {}
-
                 # Set session_log_template for logging hooks
                 # Always override with lakehouse-specific path (bundles may have different paths)
+                # Note: Module name changed from hooks-logging (plural) to hook-logging (singular)
+                # in the Foundation bundle system, so we check for both
                 hook_module = hook.get("module", "") or hook.get("id", "")
                 hook_source = hook.get("source", "")
-                is_logging_hook = "logging" in hook_module or "logging" in hook_source
+                is_logging_hook = (
+                    hook_module in ("hooks-logging", "hook-logging")
+                    or "hooks-logging" in hook_source
+                    or "hook-logging" in hook_source
+                )
 
                 if is_logging_hook:
+                    if "config" not in hook:
+                        hook["config"] = {}
                     # Use {session_id} placeholder - Foundation replaces at runtime
                     hook["config"]["session_log_template"] = str(
                         self._home_dir / "state" / "sessions" / "{session_id}" / "events.jsonl"

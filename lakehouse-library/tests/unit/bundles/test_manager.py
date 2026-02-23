@@ -203,7 +203,7 @@ tools:
 
 
 class TestRuntimeConfigInjection:
-    """Tests for _inject_runtime_config method."""
+    """Tests for inject_runtime_config method."""
 
     def test_inject_working_dir_to_all_tools(self, tmp_path: Path) -> None:
         """working_dir is injected into all tools."""
@@ -215,7 +215,7 @@ class TestRuntimeConfigInjection:
             ]
         }
 
-        result = manager._inject_runtime_config(
+        result = manager.inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
             project_path="/test/path",
@@ -234,7 +234,7 @@ class TestRuntimeConfigInjection:
             ]
         }
 
-        result = manager._inject_runtime_config(
+        result = manager.inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
             project_path="/test/path",
@@ -255,7 +255,7 @@ class TestRuntimeConfigInjection:
             ]
         }
 
-        result = manager._inject_runtime_config(
+        result = manager.inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
             project_path="/test/path",
@@ -273,7 +273,7 @@ class TestRuntimeConfigInjection:
             ]
         }
 
-        result = manager._inject_runtime_config(
+        result = manager.inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
             project_path="/test/path",
@@ -290,7 +290,7 @@ class TestRuntimeConfigInjection:
             ]
         }
 
-        result = manager._inject_runtime_config(
+        result = manager.inject_runtime_config(
             mount_plan=mount_plan,
             session_id="sess-123",
             project_path="/test/path",
