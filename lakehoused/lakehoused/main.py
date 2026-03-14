@@ -84,6 +84,7 @@ async def lifespan(app: FastAPI):
         # Don't fail startup, just log the error
 
     # Handle cache updates based on startup configuration
+    daemon_config = None
     try:
         from .config.loader import load_config as load_daemon_config
         from .startup import handle_startup_updates
