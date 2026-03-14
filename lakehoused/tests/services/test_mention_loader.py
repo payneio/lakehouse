@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from lakehoused.services.mention_loader import MentionLoader
 
 
@@ -307,13 +306,13 @@ class TestMentionLoader:
         assert "🎉" in messages[0].content
 
     def test_relative_to_parameter_used_correctly(self, loader: MentionLoader) -> None:
-        """relative_to parameter is used for context (though not affecting resolution in current impl)."""
-        # This test verifies the parameter exists and doesn't cause errors
-        # The actual relative path resolution happens via project_path
-        text = "See @docs/README.md"
-        different_relative = loader.project_path / "docs"
+        """relative_to parameter is used for resolving @path mentions."""
+        # When relative_to is set to the docs directory, @README.md resolves
+        # relative to that directory (docs/README.md), not project root
+        docs_dir = loader.project_path / "docs"
+        text = "See @README.md"  # Should resolve to docs/README.md
 
-        messages = loader.load_mentions(text, relative_to=different_relative)
+        messages = loader.load_mentions(text, relative_to=docs_dir)
 
         assert len(messages) == 1
         assert "Welcome to the project" in messages[0].content

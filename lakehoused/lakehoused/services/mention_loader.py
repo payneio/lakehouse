@@ -244,9 +244,9 @@ class MentionLoader:
             logger.warning(f"Context file not found for {mention} (searched {len(search_paths)} locations)")
             return None
 
-        # Type 3: @path (relative to project_path)
+        # Type 3: @path (relative to provided base path)
         path_str = mention.lstrip("@")
-        resolved = (self.project_path / path_str).resolve()
+        resolved = (relative_to / path_str).resolve()
 
         # Security: Prevent path traversal outside data_dir
         try:

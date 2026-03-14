@@ -1,9 +1,9 @@
 """Tests for MentionResolver service."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 from lakehoused.services.mention_resolver import MentionResolver
-from lakehoused.models.context_messages import ContextMessage
 
 
 @pytest.fixture
@@ -197,3 +197,183 @@ def test_resolve_profile_instructions_with_paths(test_dirs: tuple[Path, Path]) -
     resolved_path = list(resolved_paths)[0]
     assert resolved_path.exists()
     assert resolved_path.name == "context.md"
+
+
+class TestAncestorAgentsMdChainResolution:
+    """Tests for @mention resolution in ancestor AGENTS.md files.
+
+    These tests verify that @mentions in ancestor AGENTS.md files resolve
+    relative to their own directory (the "project root" for that amplified dir),
+    NOT relative to the session's project_path.
+
+    Example scenario:
+    - Session starts in /data/repos/lakehouse (has .amplified/)
+    - Ancestor at /data (has .amplified/)
+    - /data/.amplified/AGENTS.md contains @.amplified/castle.md
+    - Should resolve to /data/.amplified/castle.md (NOT /data/repos/lakehouse/.amplified/castle.md)
+    """
+
+    def test_ancestor_agents_md_mentions_resolve_relative_to_ancestor(self, tmp_path: Path) -> None:
+        """@mentions in ancestor AGENTS.md resolve relative to that ancestor's directory."""
+        # Setup: Simulate /data/repos/lakehouse scenario
+        data_dir = tmp_path / "data"
+        project_path = data_dir / "repos" / "lakehouse"
+        project_path.mkdir(parents=True)
+
+        # Create project's .amplified/AGENTS.md
+        project_amplified = project_path / ".amplified"
+        project_amplified.mkdir()
+        (project_amplified / "AGENTS.md").write_text("# Project Instructions\n\nProject-specific guidance.")
+
+        # Create ancestor's .amplified/ at /data level
+        data_amplified = data_dir / ".amplified"
+        data_amplified.mkdir()
+
+        # Ancestor AGENTS.md mentions a file relative to /data
+        (data_amplified / "AGENTS.md").write_text("# Data-level Instructions\n\nSee @.amplified/castle.md for details.")
+
+        # The castle.md file exists at /data/.amplified/castle.md
+        (data_amplified / "castle.md").write_text("# Castle Configuration\n\nThis is the castle config.")
+
+        # Create resolver with session in project_path
+        resolver = MentionResolver(
+            compiled_profile_dir=project_path,  # Doesn't matter for this test
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+
+        # Resolve the ancestor chain
+        messages = resolver.resolve_agents_md_chain()
+
+        # Should have messages from both AGENTS.md files
+        # Plus the resolved @.amplified/castle.md from ancestor
+        all_content = "\n".join(msg.content for msg in messages)
+
+        # Verify ancestor AGENTS.md content is included
+        assert "Data-level Instructions" in all_content
+
+        # Verify project AGENTS.md content is included
+        assert "Project Instructions" in all_content
+
+        # KEY TEST: The @.amplified/castle.md should have resolved to /data/.amplified/castle.md
+        assert "Castle Configuration" in all_content, (
+            "@.amplified/castle.md in ancestor AGENTS.md should resolve relative to /data, "
+            "not relative to project_path (/data/repos/lakehouse)"
+        )
+
+    def test_nested_mentions_in_ancestor_files_resolve_relative_to_ancestor(self, tmp_path: Path) -> None:
+        """Nested @mentions in files loaded from ancestor AGENTS.md also resolve relative to ancestor."""
+        # Setup
+        data_dir = tmp_path / "data"
+        project_path = data_dir / "repos" / "lakehouse"
+        project_path.mkdir(parents=True)
+
+        # Create project's .amplified/
+        (project_path / ".amplified").mkdir()
+        (project_path / ".amplified" / "AGENTS.md").write_text("# Project")
+
+        # Create ancestor structure at /data
+        data_amplified = data_dir / ".amplified"
+        data_amplified.mkdir()
+
+        # Ancestor AGENTS.md mentions castle.md
+        (data_amplified / "AGENTS.md").write_text("See @.amplified/castle.md")
+
+        # castle.md in turn mentions another file relative to /data
+        (data_amplified / "castle.md").write_text("# Castle\n\nSee @working/whiteboard.md for notes.")
+
+        # Create the working/whiteboard.md at /data level
+        working_dir = data_dir / "working"
+        working_dir.mkdir()
+        (working_dir / "whiteboard.md").write_text("# Whiteboard\n\nActive notes here.")
+
+        resolver = MentionResolver(
+            compiled_profile_dir=project_path,
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+
+        messages = resolver.resolve_agents_md_chain()
+        all_content = "\n".join(msg.content for msg in messages)
+
+        # All three files should be loaded:
+        # 1. /data/.amplified/AGENTS.md
+        # 2. /data/.amplified/castle.md (via @.amplified/castle.md)
+        # 3. /data/working/whiteboard.md (via @working/whiteboard.md in castle.md)
+        assert "Castle" in all_content
+        assert "Active notes here" in all_content, (
+            "Nested @working/whiteboard.md in castle.md should resolve relative to /data"
+        )
+
+    def test_mentions_dont_cross_resolve_to_wrong_project(self, tmp_path: Path) -> None:
+        """Ensure mentions don't accidentally resolve to session project when ancestor is intended."""
+        # This tests the bug scenario directly
+        data_dir = tmp_path / "data"
+        project_path = data_dir / "repos" / "lakehouse"
+        project_path.mkdir(parents=True)
+
+        # Create DIFFERENT castle.md files at both levels
+        project_amplified = project_path / ".amplified"
+        project_amplified.mkdir()
+        (project_amplified / "AGENTS.md").write_text("# Project")
+        (project_amplified / "castle.md").write_text("WRONG - this is the project castle")
+
+        data_amplified = data_dir / ".amplified"
+        data_amplified.mkdir()
+        (data_amplified / "AGENTS.md").write_text("See @.amplified/castle.md")
+        (data_amplified / "castle.md").write_text("CORRECT - this is the data castle")
+
+        resolver = MentionResolver(
+            compiled_profile_dir=project_path,
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+
+        messages = resolver.resolve_agents_md_chain()
+        all_content = "\n".join(msg.content for msg in messages)
+
+        # Should get the CORRECT castle from /data/.amplified/, not the WRONG one from project
+        assert "CORRECT - this is the data castle" in all_content
+        # The project's castle.md should NOT be loaded via the ancestor's @mention
+        # (it might be loaded if project AGENTS.md mentioned it, but it doesn't)
+        assert "WRONG - this is the project castle" not in all_content
+
+    def test_each_ancestor_resolves_relative_to_its_own_directory(self, tmp_path: Path) -> None:
+        """Multiple ancestors each resolve their @mentions relative to their own directory."""
+        # Setup: /data/projects/myproject with ancestors at /data and /data/projects
+        data_dir = tmp_path / "data"
+        projects_dir = data_dir / "projects"
+        project_path = projects_dir / "myproject"
+        project_path.mkdir(parents=True)
+
+        # /data/.amplified/AGENTS.md mentions @config/data-config.md
+        data_amplified = data_dir / ".amplified"
+        data_amplified.mkdir()
+        (data_amplified / "AGENTS.md").write_text("See @config/data-config.md")
+        (data_dir / "config").mkdir()
+        (data_dir / "config" / "data-config.md").write_text("DATA LEVEL CONFIG")
+
+        # /data/projects/AGENTS.md mentions @config/projects-config.md
+        (projects_dir / "AGENTS.md").write_text("See @config/projects-config.md")
+        (projects_dir / "config").mkdir()
+        (projects_dir / "config" / "projects-config.md").write_text("PROJECTS LEVEL CONFIG")
+
+        # /data/projects/myproject/.amplified/AGENTS.md mentions @config/project-config.md
+        (project_path / ".amplified").mkdir()
+        (project_path / ".amplified" / "AGENTS.md").write_text("See @config/project-config.md")
+        (project_path / "config").mkdir()
+        (project_path / "config" / "project-config.md").write_text("PROJECT LEVEL CONFIG")
+
+        resolver = MentionResolver(
+            compiled_profile_dir=project_path,
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+
+        messages = resolver.resolve_agents_md_chain()
+        all_content = "\n".join(msg.content for msg in messages)
+
+        # All three config files should be loaded, each from its correct level
+        assert "DATA LEVEL CONFIG" in all_content
+        assert "PROJECTS LEVEL CONFIG" in all_content
+        assert "PROJECT LEVEL CONFIG" in all_content
