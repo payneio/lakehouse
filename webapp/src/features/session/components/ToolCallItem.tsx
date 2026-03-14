@@ -5,6 +5,30 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/component
 import { cn } from '@/lib/utils';
 import type { ToolCall } from '../types/execution';
 
+// Extract a short preview string for known tool types (shown on the collapsed row)
+export function getToolPreview(tool: ToolCall): string | null {
+  if (!tool.arguments) return null;
+  switch (tool.name) {
+    case 'bash':
+      return tool.arguments.command ? String(tool.arguments.command) : null;
+    case 'read_file':
+      return tool.arguments.file_path ? String(tool.arguments.file_path) : null;
+    case 'write_file':
+    case 'edit_file':
+      return tool.arguments.file_path ? String(tool.arguments.file_path) : null;
+    case 'grep':
+      return tool.arguments.pattern ? String(tool.arguments.pattern) : null;
+    case 'glob':
+      return tool.arguments.pattern ? String(tool.arguments.pattern) : null;
+    case 'web_fetch':
+      return tool.arguments.url ? String(tool.arguments.url) : null;
+    case 'delegate':
+      return tool.arguments.agent ? String(tool.arguments.agent) : null;
+    default:
+      return null;
+  }
+}
+
 interface ToolCallItemProps {
   tool: ToolCall;
 }
@@ -93,7 +117,15 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <span className={cn('flex-shrink-0', status.color)}>{status.icon}</span>
-              <span className="font-medium truncate">{tool.name}</span>
+              <span className="font-medium flex-shrink-0">{tool.name}</span>
+              {(() => {
+                const preview = getToolPreview(tool);
+                return preview ? (
+                  <span className="text-muted-foreground truncate text-xs font-mono">
+                    {preview}
+                  </span>
+                ) : null;
+              })()}
               {tool.isSubAgent && tool.subAgentName && (
                 <span className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
                   {tool.subAgentName}

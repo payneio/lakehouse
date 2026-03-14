@@ -3,7 +3,7 @@ import { Brain, CheckCircle, AlertCircle, Loader2, Clock, ChevronRight } from 'l
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { Turn, ToolCall, ThinkingBlock } from '../types/execution';
-import { ToolCallItem } from './ToolCallItem';
+import { ToolCallItem, getToolPreview } from './ToolCallItem';
 
 interface InlineTurnSummaryProps {
   turn: Turn;
@@ -130,7 +130,12 @@ export function InlineTurnSummary({ turn, turnNumber }: InlineTurnSummaryProps) 
               {/* Active tool name or summary */}
               <span className="text-muted-foreground truncate flex-1">
                 {isActive && activeToolRunning ? (
-                  <>Calling <span className="font-medium text-foreground">{activeToolName.name}</span>...</>
+                  <>Calling <span className="font-medium text-foreground">{activeToolName.name}</span>{(() => {
+                    const preview = getToolPreview(activeToolName);
+                    return preview ? (
+                      <span className="font-mono text-foreground/60 ml-1 truncate">{preview}</span>
+                    ) : null;
+                  })()}...</>
                 ) : isActive && toolCount === 0 ? (
                   'Working...'
                 ) : (
