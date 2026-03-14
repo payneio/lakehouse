@@ -190,6 +190,14 @@ export function ProjectsPage() {
                 </div>
                 <div className="flex gap-1 sm:gap-2 flex-wrap justify-end">
                   <button
+                    onClick={() => setShowCreateDialog(true)}
+                    className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 border rounded-md hover:bg-accent text-sm"
+                    title="Add child project"
+                  >
+                    <Plus className="h-4 w-4 sm:hidden" />
+                    <span className="hidden sm:inline">Add Project</span>
+                  </button>
+                  <button
                     onClick={handleEdit}
                     className="flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 border rounded-md hover:bg-accent text-sm"
                     title="Edit"
@@ -312,6 +320,7 @@ export function ProjectsPage() {
         onSubmit={handleCreateProject}
         isLoading={createProject.isPending}
         error={createError || undefined}
+        initialPath={selectedPath}
       />
 
       <EditProjectDialog

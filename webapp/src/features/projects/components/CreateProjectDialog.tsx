@@ -18,6 +18,7 @@ interface CreateProjectDialogProps {
   onSubmit: (data: ProjectCreate) => void;
   isLoading?: boolean;
   error?: string;
+  initialPath?: string;
 }
 
 export function CreateProjectDialog({
@@ -26,6 +27,7 @@ export function CreateProjectDialog({
   onSubmit,
   isLoading = false,
   error,
+  initialPath = "",
 }: CreateProjectDialogProps) {
   const { data: bundles = [] } = useQuery({
     queryKey: ["bundles"],
@@ -89,7 +91,7 @@ export function CreateProjectDialog({
   const handleClose = () => {
     if (!isLoading) {
       setFormData({
-        relative_path: "",
+        relative_path: initialPath,
         default_bundle: "",
         name: "",
         description: "",
@@ -117,7 +119,7 @@ export function CreateProjectDialog({
               Directory Path <span className="text-destructive">*</span>
             </label>
             <ProjectBrowser
-              initialPath=""
+              initialPath={initialPath}
               onSelect={(path) => {
                 setFormData({ ...formData, relative_path: path });
                 setValidationError(null);

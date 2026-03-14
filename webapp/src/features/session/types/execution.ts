@@ -41,20 +41,9 @@ export interface Turn {
   endTime?: number;
 }
 
-export interface SessionMetrics {
-  totalTools: number;
-  totalThinking: number;
-  avgToolDuration: number;
-  longestTool?: {
-    name: string;
-    duration: number;
-  };
-}
-
 export interface ExecutionState {
   turns: Turn[];
   currentTurn: Turn | null;
-  metrics: SessionMetrics;
 }
 
 export interface CurrentActivity {

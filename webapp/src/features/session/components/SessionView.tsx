@@ -8,17 +8,15 @@ import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, Copy, FileText, FolderOpen, Play, RefreshCw } from "lucide-react";
+import { ArrowLeft, Copy, FileText, FolderOpen, Play, RefreshCw } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router";
 import { useExecutionState } from "../hooks/useExecutionState";
 import { useSession } from "../hooks/useSession";
 import { ApprovalDialog } from "./ApprovalDialog";
-import { ExecutionPanel } from "./ExecutionPanel";
 import { MessageInput } from "./MessageInput";
 import { MessageList } from "./MessageList";
 import { SessionLogDialog } from "./SessionLogDialog";
-import { ToolCallDisplay } from "./ToolCallDisplay";
 
 interface MessageEventData {
   role?: "user" | "assistant";
@@ -42,7 +40,6 @@ export function SessionView() {
   );
   const [isSending, setIsSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string>("");
-  const [executionPanelOpen, setExecutionPanelOpen] = React.useState(false);
   const [logDialogOpen, setLogDialogOpen] = React.useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = React.useState(false);
 
@@ -463,14 +460,6 @@ export function SessionView() {
                   <span className="hidden md:inline">{cloneMutation.isPending ? "Cloning..." : "Clone"}</span>
                 </button>
                 <button
-                  onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
-                  className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-                  title="Toggle execution trace"
-                >
-                  <Activity className="h-4 w-4" />
-                  <span className="hidden md:inline">Trace</span>
-                </button>
-                <button
                   onClick={() => setLogDialogOpen(true)}
                   className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
                   title="View session events log"
@@ -503,17 +492,11 @@ export function SessionView() {
         currentTurnThinking={
           executionState.getState().currentTurn?.thinking || []
         }
+        turns={executionState.getState().turns}
+        currentTurn={executionState.getState().currentTurn}
         onDeleteLast={handleDeleteLast}
         canDeleteLast={!isSending && allMessages.length > 0}
       />
-
-      {/* Tool call display */}
-      <div className="px-4">
-        <ToolCallDisplay
-          sessionId={sessionId || ""}
-          eventStream={eventStream}
-        />
-      </div>
 
       {/* Input */}
       <MessageInput
@@ -526,13 +509,6 @@ export function SessionView() {
 
       {/* Approval dialog */}
       <ApprovalDialog sessionId={sessionId || ""} />
-
-      {/* Execution Panel */}
-      <ExecutionPanel
-        executionState={executionState.getState()}
-        isOpen={executionPanelOpen}
-        onClose={() => setExecutionPanelOpen(false)}
-      />
 
       {/* Session Log Dialog */}
       <SessionLogDialog
