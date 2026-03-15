@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
 from lakehoused.main import app
 from lakehoused.routers.projects import get_service
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 from lakehoused.services.project_service import ProjectService
 
 
@@ -246,7 +246,7 @@ class TestProjectsAPI:
         assert "successfully" in data["message"].lower()
 
         # Verify file was written
-        agents_file = mock_service.root / "test_project" / ".amplified" / "AGENTS.md"
+        agents_file = mock_service.root / "test_project" / PROJECT_MARKER_DIR / "AGENTS.md"
         assert agents_file.exists()
         content = agents_file.read_text()
         assert "Test Instructions" in content
@@ -269,7 +269,7 @@ class TestProjectsAPI:
         assert response.json()["success"] is True
 
         # Verify content was written correctly
-        agents_file = mock_service.root / "large_content" / ".amplified" / "AGENTS.md"
+        agents_file = mock_service.root / "large_content" / PROJECT_MARKER_DIR / "AGENTS.md"
         content = agents_file.read_text()
         assert len(content) > 1000
         assert content.startswith("# Large Test File")
@@ -368,7 +368,7 @@ class TestProjectsAPI:
         assert response.status_code == 200
 
         # Read file and verify newline was added
-        agents_file = mock_service.root / "newline_test" / ".amplified" / "AGENTS.md"
+        agents_file = mock_service.root / "newline_test" / PROJECT_MARKER_DIR / "AGENTS.md"
         content = agents_file.read_text()
         assert content.endswith("\n"), "File should end with newline"
         assert content.strip() == content_no_newline.strip()
@@ -387,7 +387,7 @@ class TestProjectsAPI:
         assert response.status_code == 200
 
         # Check that no temporary files exist
-        project_path = mock_service.root / "atomic_test" / ".amplified"
+        project_path = mock_service.root / "atomic_test" / PROJECT_MARKER_DIR
         tmp_files = list(project_path.glob("*.tmp"))
         assert len(tmp_files) == 0, "No temporary files should remain after write"
 
@@ -421,7 +421,7 @@ And some markdown: **bold** _italic_ `code`
         assert response.status_code == 200
 
         # Verify content was preserved correctly
-        agents_file = mock_service.root / "special_chars" / ".amplified" / "AGENTS.md"
+        agents_file = mock_service.root / "special_chars" / PROJECT_MARKER_DIR / "AGENTS.md"
         content = agents_file.read_text()
         assert "你好" in content
         assert "🚀" in content
@@ -445,7 +445,7 @@ And some markdown: **bold** _italic_ `code`
         assert response.json()["success"] is True
 
         # Verify file was written to correct location
-        agents_file = mock_service.root / "project" / "with" / "slash" / ".amplified" / "AGENTS.md"
+        agents_file = mock_service.root / "project" / "with" / "slash" / PROJECT_MARKER_DIR / "AGENTS.md"
         assert agents_file.exists()
         content = agents_file.read_text()
         assert "URL Encoded Path Test" in content
@@ -478,7 +478,7 @@ And some markdown: **bold** _italic_ `code`
         )
 
         # Verify marker exists
-        marker_path = mock_service.root / "to_delete_marker" / ".amplified"
+        marker_path = mock_service.root / "to_delete_marker" / PROJECT_MARKER_DIR
         assert marker_path.exists()
 
         # Delete with marker removal

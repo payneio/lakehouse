@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from lakehoused.models.projects import ProjectCreate
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 from lakehoused.services.project_service import ProjectService
 
 
@@ -55,7 +55,7 @@ class TestStartupInitialization:
         assert "default_bundle" in root_dir.metadata
 
         # Verify marker exists
-        marker_path = test_root / ".amplified"
+        marker_path = test_root / PROJECT_MARKER_DIR
         assert marker_path.exists()
         assert marker_path.is_dir()
 
@@ -143,9 +143,9 @@ class TestStartupInitialization:
             pytest.fail("Startup logic should have detected existing amplified root")
 
     def test_startup_handles_corrupted_root(self, service: ProjectService, test_root: Path) -> None:
-        """Test startup handles case where .amplified exists but is corrupted."""
+        """Test startup handles case where project marker exists but is corrupted."""
         # Create corrupted marker (directory exists but no metadata)
-        marker_path = test_root / ".amplified"
+        marker_path = test_root / PROJECT_MARKER_DIR
         marker_path.mkdir()
 
         # Startup check should report as amplified (marker exists)
@@ -159,7 +159,7 @@ class TestStartupInitialization:
         # (This is a design decision - currently it would log warning)
 
     def test_startup_creates_marker_directory(self, service: ProjectService, test_root: Path) -> None:
-        """Test that startup creates .amplified marker directory structure."""
+        """Test that startup creates project marker directory structure."""
         # Simulate startup
         if not service.is_project("."):
             service.create(
@@ -172,7 +172,7 @@ class TestStartupInitialization:
             )
 
         # Verify directory structure
-        marker_path = test_root / ".amplified"
+        marker_path = test_root / PROJECT_MARKER_DIR
         assert marker_path.exists()
         assert marker_path.is_dir()
 

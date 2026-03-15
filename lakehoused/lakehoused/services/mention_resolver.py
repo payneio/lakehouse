@@ -14,6 +14,7 @@ from pathlib import Path
 
 from lakehoused.models.context_messages import ContextMessage
 from lakehoused.services.mention_loader import MentionLoader
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 from lakehoused.utils.mentions import has_mentions
 
 logger = logging.getLogger(__name__)
@@ -129,7 +130,7 @@ class MentionResolver:
         """Resolve AGENTS.md from all ancestors up to stop_at (default: data_dir).
 
         Traverses from project_path up to stop_at, collecting AGENTS.md files.
-        Checks {dir}/AGENTS.md and {dir}/.amplified/AGENTS.md at each level.
+        Checks {dir}/AGENTS.md and {dir}/{PROJECT_MARKER_DIR}/AGENTS.md at each level.
         Returns messages with ancestors first (most general), project last (most specific).
 
         Args:
@@ -148,10 +149,10 @@ class MentionResolver:
         while True:
             # Check for AGENTS.md in multiple locations (priority order)
             # 1. {dir}/AGENTS.md - direct file
-            # 2. {dir}/.amplified/AGENTS.md - in .amplified subdirectory
+            # 2. {dir}/{PROJECT_MARKER_DIR}/AGENTS.md - in project marker subdirectory
             agents_md_locations = [
                 current / "AGENTS.md",
-                current / ".amplified" / "AGENTS.md",
+                current / PROJECT_MARKER_DIR / "AGENTS.md",
             ]
 
             for agents_md in agents_md_locations:

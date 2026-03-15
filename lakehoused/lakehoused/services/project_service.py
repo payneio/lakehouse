@@ -15,12 +15,15 @@ from lakehoused.models.projects import ProjectUpdate
 
 logger = logging.getLogger(__name__)
 
+PROJECT_MARKER_DIR = ".lakehouse"
+"""Name of the marker directory that identifies a directory as a lakehouse project."""
+
 
 class ProjectService:
     """Service for managing projects.
 
     Handles discovery, registration, and metadata management for directories
-    containing .amplified markers.
+    containing project marker directories.
 
     Security-critical: All paths are validated to prevent directory traversal.
     """
@@ -71,24 +74,24 @@ class ProjectService:
     def _find_parent_project(self, relative_path: str) -> Path | None:
         """Find nearest parent project.
 
-        Walks up directory tree to find parent with .amplified marker.
+        Walks up directory tree to find parent with project marker.
         """
         path = Path(relative_path)
 
         for parent in path.parents:
             if str(parent) == ".":
-                root_marker = self.root / ".amplified"
+                root_marker = self.root / PROJECT_MARKER_DIR
                 if root_marker.exists() and root_marker.is_dir():
                     return self.root
                 return None
 
             parent_abs = self.root / parent
-            parent_marker = parent_abs / ".amplified"
+            parent_marker = parent_abs / PROJECT_MARKER_DIR
 
             if parent_marker.exists() and parent_marker.is_dir():
                 return parent_abs
 
-        root_marker = self.root / ".amplified"
+        root_marker = self.root / PROJECT_MARKER_DIR
         if root_marker.exists() and root_marker.is_dir():
             return self.root
 
@@ -109,7 +112,7 @@ class ProjectService:
 
         Side Effects:
             - Creates target directory if missing
-            - Creates .amplified marker directory if create_marker=True
+            - Creates project marker directory if create_marker=True
             - Writes metadata.json with default_bundle
         """
         dir_path = self._validate_and_resolve_path(create_req.relative_path)
@@ -243,12 +246,12 @@ class ProjectService:
             List of Project instances
 
         Implementation:
-            Uses Path.rglob(".amplified") to find all markers,
+            Uses Path.rglob() to find all project markers,
             respects max_scan_depth to prevent runaway scans.
         """
         projects: list[Project] = []
 
-        for marker_path in self.root.rglob(".amplified"):
+        for marker_path in self.root.rglob(PROJECT_MARKER_DIR):
             # Depth check (prevent excessive scanning)
             try:
                 depth = len(marker_path.relative_to(self.root).parts)
@@ -394,7 +397,7 @@ class ProjectService:
 
         Args:
             relative_path: Path relative to root
-            remove_marker: If True, remove .amplified directory
+            remove_marker: If True, remove project marker directory
 
         Returns:
             True if directory was a project and unregistered, False otherwise
@@ -404,7 +407,7 @@ class ProjectService:
             OSError: If marker removal fails
 
         Side Effects:
-            Removes .amplified directory if remove_marker=True
+            Removes project marker directory if remove_marker=True
         """
         try:
             # Validate and resolve path
@@ -438,7 +441,7 @@ class ProjectService:
             relative_path: Path relative to root
 
         Returns:
-            True if directory contains .amplified marker, False otherwise
+            True if directory contains project marker, False otherwise
 
         Raises:
             ValueError: If path is invalid
@@ -496,15 +499,15 @@ class ProjectService:
         return full_path
 
     def _get_marker_path(self, dir_path: Path) -> Path:
-        """Get .amplified directory path.
+        """Get project marker directory path.
 
         Args:
             dir_path: Absolute directory path
 
         Returns:
-            Path to .amplified directory
+            Path to project marker directory
         """
-        return dir_path / ".amplified"
+        return dir_path / PROJECT_MARKER_DIR
 
     def _get_metadata_path(self, dir_path: Path) -> Path:
         """Get metadata.json path.
@@ -518,7 +521,7 @@ class ProjectService:
         return self._get_marker_path(dir_path) / "metadata.json"
 
     def _read_agents_file(self, dir_path: Path) -> str | None:
-        """Read AGENTS.md from .amplified directory.
+        """Read AGENTS.md from project marker directory.
 
         Args:
             dir_path: Absolute directory path
@@ -576,7 +579,7 @@ class ProjectService:
         """
         metadata_path = self._get_metadata_path(dir_path)
 
-        # Ensure .amplified directory exists
+        # Ensure project marker directory exists
         metadata_path.parent.mkdir(exist_ok=True)
 
         # Write to tmp file
@@ -609,7 +612,7 @@ class ProjectService:
         """
         agents_path = self._get_marker_path(dir_path) / "AGENTS.md"
 
-        # Ensure .amplified directory exists
+        # Ensure project marker directory exists
         agents_path.parent.mkdir(exist_ok=True)
 
         # Ensure content ends with newline

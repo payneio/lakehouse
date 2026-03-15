@@ -17,17 +17,17 @@ The following locations contain all lakehouse instance data and can be configure
 - LAKEHOUSED_SHARE_DIR: Directory for shared files. Default: LAKEHOUSED_HOME/share
 - LAKEHOUSED_CACHE_DIR: Directory for cache files. Default: LAKEHOUSED_HOME/cache
 
-## Projects (amplified directories)
+## Projects
 
-Sessions can be started in any directory of your lakehouse. When amplified, a directory is known as a "project".
+Sessions can be started in any directory of your lakehouse. When a directory contains a `.lakehouse` marker directory, it is known as a "project".
 
-You are in a project right now. Your `amplified_dir` is the projects' directory you are operating in and is a path relative to your lakehouse data root. The absolute path to your amplified_dir is provided as configuration to file, bash, and other tools that require working directories.
+You are in a project right now. Your project directory is the directory you are operating in and is a path relative to your lakehouse data root. The absolute path to your project directory is provided as configuration to file, bash, and other tools that require working directories.
 
 IMPORTANT!!! If the user asks you to modify files, unless they specify otherwise, they are talking about modifying files RELATIVE TO THIS PROJECT. So, if you use the bash or file tools you should specify an absolute path that is within this project directory when you all the tool.
 
 ## Project files
 
-Your session will always be associated with an "amplified directory" which you can think of as your working directory. There may be an @.amplified/AGENTS.md file, and, if so, it will be accessible and loaded into your context. This is known as your "Project Instructions" file and it can reference other files in the project using "at-mentions" relative to the project directory.
+Your session will always be associated with a project directory which you can think of as your working directory. There may be an @.lakehouse/AGENTS.md file, and, if so, it will be accessible and loaded into your context. This is known as your "Project Instructions" file and it can reference other files in the project using "at-mentions" relative to the project directory.
 
 ## ⚠️ IMPORTANT: Use These Files to Guide Your Behavior
 
@@ -41,8 +41,8 @@ If they are not loaded into your context, then they do not exist and you should 
 
 You may also use these files to store important information about the project or instructions on how to complete tasks as you are instructed by the user or discover through collaboration with the user.
 
-- If an `.amplified/AGENTS.md` file exists, you should modify that file.
-- If it does not exist, but an `.amplified/` directory exists, you should create an AGENTS.md file in that directory.
+- If a `.lakehouse/AGENTS.md` file exists, you should modify that file.
+- If it does not exist, but a `.lakehouse/` directory exists, you should create an AGENTS.md file in that directory.
 
 ## Automations
 

@@ -46,7 +46,7 @@ class SessionMetadata(CamelCaseModel):
     name: str | None = Field(default=None, description="User-defined session name (optional, max 200 chars)")
     parent_session_id: str | None = Field(default=None, description="Parent session ID for sub-sessions")
     project_path: str = Field(
-        default=".", description="Relative path to project directory (immutable anchor for .amplified/ config)"
+        default=".", description="Relative path to project directory (immutable anchor for project config)"
     )
     status: SessionStatus = Field(description="Current session status")
     created_at: datetime = Field(description="Session creation timestamp")

@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from lakehoused.models.projects import ProjectCreate
 from lakehoused.models.projects import ProjectUpdate
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 from lakehoused.services.project_service import ProjectService
 
 
@@ -101,8 +101,8 @@ class TestProjectService:
 
         # Verify filesystem
         assert (test_root / "test_project").exists()
-        assert (test_root / "test_project" / ".amplified").exists()
-        assert (test_root / "test_project" / ".amplified" / "metadata.json").exists()
+        assert (test_root / "test_project" / PROJECT_MARKER_DIR).exists()
+        assert (test_root / "test_project" / PROJECT_MARKER_DIR / "metadata.json").exists()
 
     def test_create_with_explicit_profile(self, service: ProjectService) -> None:
         """Test creating directory with explicit default_bundle."""
@@ -143,8 +143,8 @@ class TestProjectService:
         result1 = service.create(create_req1)
 
         assert result1 is not None
-        assert (test_root / "with_marker" / ".amplified").exists()
-        assert (test_root / "with_marker" / ".amplified" / "metadata.json").exists()
+        assert (test_root / "with_marker" / PROJECT_MARKER_DIR).exists()
+        assert (test_root / "with_marker" / PROJECT_MARKER_DIR / "metadata.json").exists()
 
     def test_create_already_exists_raises_error(self, service: ProjectService, test_root: Path) -> None:
         """Test that creating already-project raises ValueError."""
@@ -180,7 +180,7 @@ class TestProjectService:
         assert result is None
 
     def test_get_non_amplified_returns_none(self, service: ProjectService, test_root: Path) -> None:
-        """Test that getting directory without .amplified marker returns None."""
+        """Test that getting directory without project marker returns None."""
         # Create directory without amplified marker
         non_amplified = test_root / "regular_dir"
         non_amplified.mkdir()
@@ -242,12 +242,12 @@ class TestProjectService:
         assert result is None
 
     def test_delete_removes_marker(self, service: ProjectService, test_root: Path) -> None:
-        """Test that delete removes .amplified marker."""
+        """Test that delete removes project marker."""
         # Create directory
         create_req = ProjectCreate(relative_path="to_delete")
         service.create(create_req)
 
-        marker_path = test_root / "to_delete" / ".amplified"
+        marker_path = test_root / "to_delete" / PROJECT_MARKER_DIR
         assert marker_path.exists()
 
         # Delete with marker removal
@@ -262,7 +262,7 @@ class TestProjectService:
         create_req = ProjectCreate(relative_path="to_keep_marker")
         service.create(create_req)
 
-        marker_path = test_root / "to_keep_marker" / ".amplified"
+        marker_path = test_root / "to_keep_marker" / PROJECT_MARKER_DIR
         assert marker_path.exists()
 
         # Delete without marker removal (default)
@@ -419,7 +419,7 @@ class TestProjectService:
         service.create(create_req)
 
         # Corrupt metadata file
-        metadata_path = test_root / "corrupted" / ".amplified" / "metadata.json"
+        metadata_path = test_root / "corrupted" / PROJECT_MARKER_DIR / "metadata.json"
         metadata_path.write_text("{ invalid json }")
 
         # Attempt to get - should return None due to JSON error
@@ -430,7 +430,7 @@ class TestProjectService:
     def test_missing_default_bundle_in_metadata(self, service: ProjectService, test_root: Path) -> None:
         """Test handling of project missing default_bundle."""
         # Create directory manually without default_bundle
-        marker_path = test_root / "no_profile" / ".amplified"
+        marker_path = test_root / "no_profile" / PROJECT_MARKER_DIR
         marker_path.mkdir(parents=True)
 
         metadata_path = marker_path / "metadata.json"
@@ -493,13 +493,13 @@ class TestProjectService:
         assert result3.metadata["version"] == 2
 
     def test_list_all_ignores_non_directory_markers(self, service: ProjectService, test_root: Path) -> None:
-        """Test that list_all ignores .amplified files (not directories)."""
+        """Test that list_all ignores project marker files (not directories)."""
         # Create valid project
         create_req = ProjectCreate(relative_path="valid")
         service.create(create_req)
 
-        # Create .amplified as file (invalid)
-        invalid_marker = test_root / "invalid" / ".amplified"
+        # Create project marker as file (invalid)
+        invalid_marker = test_root / "invalid" / PROJECT_MARKER_DIR
         invalid_marker.parent.mkdir()
         invalid_marker.touch()  # Create as file, not directory
 
@@ -554,7 +554,7 @@ class TestProjectService:
         create_req = ProjectCreate(relative_path="atomic")
         service.create(create_req)
 
-        metadata_path = test_root / "atomic" / ".amplified" / "metadata.json"
+        metadata_path = test_root / "atomic" / PROJECT_MARKER_DIR / "metadata.json"
         tmp_path = metadata_path.with_suffix(".tmp")
 
         # Update metadata
@@ -577,7 +577,7 @@ class TestProjectService:
         service.create(create_req)
 
         # Add AGENTS.md file
-        agents_path = test_root / "with_agents" / ".amplified" / "AGENTS.md"
+        agents_path = test_root / "with_agents" / PROJECT_MARKER_DIR / "AGENTS.md"
         agents_content = "# Test AGENTS.md\n\nThis is test content."
         agents_path.write_text(agents_content, encoding="utf-8")
 
@@ -599,16 +599,14 @@ class TestProjectService:
         assert result is not None
         assert result.agents_content is None
 
-    def test_agents_content_none_on_read_error(
-        self, service: ProjectService, test_root: Path
-    ) -> None:
+    def test_agents_content_none_on_read_error(self, service: ProjectService, test_root: Path) -> None:
         """Test that agents_content is None when AGENTS.md read fails."""
         # Create directory
         create_req = ProjectCreate(relative_path="broken_agents")
         service.create(create_req)
 
         # Create AGENTS.md with no read permissions
-        agents_path = test_root / "broken_agents" / ".amplified" / "AGENTS.md"
+        agents_path = test_root / "broken_agents" / PROJECT_MARKER_DIR / "AGENTS.md"
         agents_path.write_text("content", encoding="utf-8")
         agents_path.chmod(0o000)  # No permissions
 

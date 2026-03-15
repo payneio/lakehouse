@@ -37,7 +37,7 @@ async def create_project(
 ) -> Project:
     """Create/register a new project.
 
-    Creates directory structure and .amplified marker if requested.
+    Creates directory structure and project marker if requested.
     Resolves default_bundle using inheritance if not provided.
 
     Args:
@@ -97,7 +97,7 @@ async def list_projects(
 ) -> ProjectList:
     """List all projects within LAKEHOUSED_DATA_PATH.
 
-    Discovers projects by walking filesystem to find .amplified markers.
+    Discovers projects by walking filesystem to find project markers.
 
     Returns:
         List of all projects with metadata
@@ -292,7 +292,7 @@ async def delete_project(
 
     Args:
         relative_path: Path relative to LAKEHOUSED_DATA_PATH
-        remove_marker: If True, also delete .amplified directory from filesystem
+        remove_marker: If True, also delete project marker directory from filesystem
         service: Injected service instance
 
     Raises:

@@ -343,7 +343,7 @@ export function ProjectsPage() {
           <div className="space-y-4">
             <p>Are you sure you want to delete this directory?</p>
             <p className="text-sm text-muted-foreground">
-              This will remove the amplified marker file. The directory itself
+              This will remove the lakehouse marker directory. The directory itself
               will not be deleted.
             </p>
           </div>

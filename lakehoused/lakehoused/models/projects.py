@@ -8,7 +8,7 @@ from pydantic import field_validator
 
 class Project(BaseModel):
     """
-    Represents a directory within LAKEHOUSED_DATA_PATH containing .amplified marker.
+    Represents a directory within LAKEHOUSED_DATA_PATH containing a project marker.
 
     Contract:
     - relative_path: Path relative to LAKEHOUSED_DATA_PATH
@@ -55,7 +55,7 @@ class ProjectCreate(BaseModel):
     relative_path: str
     default_bundle: str | None = None
     metadata: dict | None = None
-    create_marker: bool = Field(default=True, description="Create .amplified if missing")
+    create_marker: bool = Field(default=True, description="Create project marker directory if missing")
 
 
 class ProjectUpdate(BaseModel):

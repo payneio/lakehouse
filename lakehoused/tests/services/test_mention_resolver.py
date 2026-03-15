@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from lakehoused.services.mention_resolver import MentionResolver
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 
 
 @pytest.fixture
@@ -155,7 +156,7 @@ def test_resolve_agents_md_chain_deduplication(tmp_path: Path) -> None:
     project_path.mkdir(parents=True)
 
     # Create project AGENTS.md
-    project_agents = project_path / ".amplified" / "AGENTS.md"
+    project_agents = project_path / PROJECT_MARKER_DIR / "AGENTS.md"
     project_agents.parent.mkdir(parents=True)
     project_agents.write_text("Project-specific instructions")
 
@@ -207,10 +208,10 @@ class TestAncestorAgentsMdChainResolution:
     NOT relative to the session's project_path.
 
     Example scenario:
-    - Session starts in /data/repos/lakehouse (has .amplified/)
-    - Ancestor at /data (has .amplified/)
-    - /data/.amplified/AGENTS.md contains @.amplified/castle.md
-    - Should resolve to /data/.amplified/castle.md (NOT /data/repos/lakehouse/.amplified/castle.md)
+    - Session starts in /data/repos/lakehouse (has .lakehouse/)
+    - Ancestor at /data (has .lakehouse/)
+    - /data/.lakehouse/AGENTS.md contains @.lakehouse/castle.md
+    - Should resolve to /data/.lakehouse/castle.md (NOT /data/repos/lakehouse/.lakehouse/castle.md)
     """
 
     def test_ancestor_agents_md_mentions_resolve_relative_to_ancestor(self, tmp_path: Path) -> None:
@@ -220,19 +221,19 @@ class TestAncestorAgentsMdChainResolution:
         project_path = data_dir / "repos" / "lakehouse"
         project_path.mkdir(parents=True)
 
-        # Create project's .amplified/AGENTS.md
-        project_amplified = project_path / ".amplified"
+        # Create project's .lakehouse/AGENTS.md
+        project_amplified = project_path / PROJECT_MARKER_DIR
         project_amplified.mkdir()
         (project_amplified / "AGENTS.md").write_text("# Project Instructions\n\nProject-specific guidance.")
 
-        # Create ancestor's .amplified/ at /data level
-        data_amplified = data_dir / ".amplified"
+        # Create ancestor's .lakehouse/ at /data level
+        data_amplified = data_dir / PROJECT_MARKER_DIR
         data_amplified.mkdir()
 
         # Ancestor AGENTS.md mentions a file relative to /data
-        (data_amplified / "AGENTS.md").write_text("# Data-level Instructions\n\nSee @.amplified/castle.md for details.")
+        (data_amplified / "AGENTS.md").write_text("# Data-level Instructions\n\nSee @.lakehouse/castle.md for details.")
 
-        # The castle.md file exists at /data/.amplified/castle.md
+        # The castle.md file exists at /data/.lakehouse/castle.md
         (data_amplified / "castle.md").write_text("# Castle Configuration\n\nThis is the castle config.")
 
         # Create resolver with session in project_path
@@ -246,7 +247,7 @@ class TestAncestorAgentsMdChainResolution:
         messages = resolver.resolve_agents_md_chain()
 
         # Should have messages from both AGENTS.md files
-        # Plus the resolved @.amplified/castle.md from ancestor
+        # Plus the resolved @.lakehouse/castle.md from ancestor
         all_content = "\n".join(msg.content for msg in messages)
 
         # Verify ancestor AGENTS.md content is included
@@ -255,9 +256,9 @@ class TestAncestorAgentsMdChainResolution:
         # Verify project AGENTS.md content is included
         assert "Project Instructions" in all_content
 
-        # KEY TEST: The @.amplified/castle.md should have resolved to /data/.amplified/castle.md
+        # KEY TEST: The @.lakehouse/castle.md should have resolved to /data/.lakehouse/castle.md
         assert "Castle Configuration" in all_content, (
-            "@.amplified/castle.md in ancestor AGENTS.md should resolve relative to /data, "
+            "@.lakehouse/castle.md in ancestor AGENTS.md should resolve relative to /data, "
             "not relative to project_path (/data/repos/lakehouse)"
         )
 
@@ -268,16 +269,16 @@ class TestAncestorAgentsMdChainResolution:
         project_path = data_dir / "repos" / "lakehouse"
         project_path.mkdir(parents=True)
 
-        # Create project's .amplified/
-        (project_path / ".amplified").mkdir()
-        (project_path / ".amplified" / "AGENTS.md").write_text("# Project")
+        # Create project's .lakehouse/
+        (project_path / PROJECT_MARKER_DIR).mkdir()
+        (project_path / PROJECT_MARKER_DIR / "AGENTS.md").write_text("# Project")
 
         # Create ancestor structure at /data
-        data_amplified = data_dir / ".amplified"
+        data_amplified = data_dir / PROJECT_MARKER_DIR
         data_amplified.mkdir()
 
         # Ancestor AGENTS.md mentions castle.md
-        (data_amplified / "AGENTS.md").write_text("See @.amplified/castle.md")
+        (data_amplified / "AGENTS.md").write_text("See @.lakehouse/castle.md")
 
         # castle.md in turn mentions another file relative to /data
         (data_amplified / "castle.md").write_text("# Castle\n\nSee @working/whiteboard.md for notes.")
@@ -297,8 +298,8 @@ class TestAncestorAgentsMdChainResolution:
         all_content = "\n".join(msg.content for msg in messages)
 
         # All three files should be loaded:
-        # 1. /data/.amplified/AGENTS.md
-        # 2. /data/.amplified/castle.md (via @.amplified/castle.md)
+        # 1. /data/.lakehouse/AGENTS.md
+        # 2. /data/.lakehouse/castle.md (via @.lakehouse/castle.md)
         # 3. /data/working/whiteboard.md (via @working/whiteboard.md in castle.md)
         assert "Castle" in all_content
         assert "Active notes here" in all_content, (
@@ -313,14 +314,14 @@ class TestAncestorAgentsMdChainResolution:
         project_path.mkdir(parents=True)
 
         # Create DIFFERENT castle.md files at both levels
-        project_amplified = project_path / ".amplified"
+        project_amplified = project_path / PROJECT_MARKER_DIR
         project_amplified.mkdir()
         (project_amplified / "AGENTS.md").write_text("# Project")
         (project_amplified / "castle.md").write_text("WRONG - this is the project castle")
 
-        data_amplified = data_dir / ".amplified"
+        data_amplified = data_dir / PROJECT_MARKER_DIR
         data_amplified.mkdir()
-        (data_amplified / "AGENTS.md").write_text("See @.amplified/castle.md")
+        (data_amplified / "AGENTS.md").write_text("See @.lakehouse/castle.md")
         (data_amplified / "castle.md").write_text("CORRECT - this is the data castle")
 
         resolver = MentionResolver(
@@ -332,7 +333,7 @@ class TestAncestorAgentsMdChainResolution:
         messages = resolver.resolve_agents_md_chain()
         all_content = "\n".join(msg.content for msg in messages)
 
-        # Should get the CORRECT castle from /data/.amplified/, not the WRONG one from project
+        # Should get the CORRECT castle from /data/.lakehouse/, not the WRONG one from project
         assert "CORRECT - this is the data castle" in all_content
         # The project's castle.md should NOT be loaded via the ancestor's @mention
         # (it might be loaded if project AGENTS.md mentioned it, but it doesn't)
@@ -346,8 +347,8 @@ class TestAncestorAgentsMdChainResolution:
         project_path = projects_dir / "myproject"
         project_path.mkdir(parents=True)
 
-        # /data/.amplified/AGENTS.md mentions @config/data-config.md
-        data_amplified = data_dir / ".amplified"
+        # /data/.lakehouse/AGENTS.md mentions @config/data-config.md
+        data_amplified = data_dir / PROJECT_MARKER_DIR
         data_amplified.mkdir()
         (data_amplified / "AGENTS.md").write_text("See @config/data-config.md")
         (data_dir / "config").mkdir()
@@ -358,9 +359,9 @@ class TestAncestorAgentsMdChainResolution:
         (projects_dir / "config").mkdir()
         (projects_dir / "config" / "projects-config.md").write_text("PROJECTS LEVEL CONFIG")
 
-        # /data/projects/myproject/.amplified/AGENTS.md mentions @config/project-config.md
-        (project_path / ".amplified").mkdir()
-        (project_path / ".amplified" / "AGENTS.md").write_text("See @config/project-config.md")
+        # /data/projects/myproject/.lakehouse/AGENTS.md mentions @config/project-config.md
+        (project_path / PROJECT_MARKER_DIR).mkdir()
+        (project_path / PROJECT_MARKER_DIR / "AGENTS.md").write_text("See @config/project-config.md")
         (project_path / "config").mkdir()
         (project_path / "config" / "project-config.md").write_text("PROJECT LEVEL CONFIG")
 

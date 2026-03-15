@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
-from lakehoused.services.automation_scheduler import AutomationScheduler
-
 from lakehoused.automations.manager import AutomationManager
 from lakehoused.models.automations import ScheduleConfig
+from lakehoused.services.automation_scheduler import AutomationScheduler
+from lakehoused.services.project_service import PROJECT_MARKER_DIR
 from lakehoused.sessions.manager import SessionManager
 
 
@@ -195,13 +195,11 @@ class TestAutomationExecution:
         tmp_path: Path,
     ) -> None:
         """Test automation execution creates session and sends message."""
-        # Create amplified directory structure
+        # Create project marker directory structure
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
-        (project_dir / ".amplified").mkdir()
-        (project_dir / ".amplified" / "metadata.json").write_text(
-            '{"default_bundle": "foundation/foundation"}'
-        )
+        (project_dir / PROJECT_MARKER_DIR).mkdir()
+        (project_dir / PROJECT_MARKER_DIR / "metadata.json").write_text('{"default_bundle": "foundation/foundation"}')
 
         # Create automation
         automation = automation_manager.create_automation(
