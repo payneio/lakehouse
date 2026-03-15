@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, Circle, AlertCircle, Loader2, Zap, ExternalLink } from 'lucide-react';
+import { CheckCircle, Circle, AlertCircle, Loader2, Zap, ExternalLink, ListTodo } from 'lucide-react';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { ToolCall } from '../types/execution';
@@ -29,6 +29,88 @@ export function getToolPreview(tool: ToolCall): string | null {
   }
 }
 
+// ---- Todo tool: structured display ----
+
+interface TodoItem {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  activeForm?: string;
+}
+
+/** Pull the todos array from result (authoritative) or arguments (fallback). */
+function parseTodos(tool: ToolCall): TodoItem[] {
+  // Try result first — it reflects the actual state after the operation
+  let source: unknown = tool.result;
+  if (typeof source === 'string') {
+    try { source = JSON.parse(source); } catch { source = null; }
+  }
+  if (source && typeof source === 'object' && 'todos' in (source as Record<string, unknown>)) {
+    const arr = (source as Record<string, unknown>).todos;
+    if (Array.isArray(arr)) return arr as TodoItem[];
+  }
+
+  // Fall back to arguments (the request payload)
+  if (tool.arguments?.todos && Array.isArray(tool.arguments.todos)) {
+    return tool.arguments.todos as TodoItem[];
+  }
+  return [];
+}
+
+function TodoToolDisplay({ tool }: { tool: ToolCall }) {
+  const todos = React.useMemo(() => parseTodos(tool), [tool]);
+
+  if (todos.length === 0) return null;
+
+  const counts = React.useMemo(() => {
+    let done = 0, active = 0, pending = 0;
+    for (const t of todos) {
+      if (t.status === 'completed') done++;
+      else if (t.status === 'in_progress') active++;
+      else pending++;
+    }
+    return { done, active, pending, total: todos.length };
+  }, [todos]);
+
+  return (
+    <div className="border-l-2 border-gray-200 dark:border-gray-700 pl-3 py-2">
+      {/* Compact header */}
+      <div className="flex items-center gap-2 mb-1.5 text-xs text-muted-foreground">
+        <ListTodo className="h-3.5 w-3.5 flex-shrink-0" />
+        <span>
+          {counts.done}/{counts.total} done
+        </span>
+      </div>
+
+      {/* Todo items */}
+      <div className="space-y-1">
+        {todos.map((item, i) => (
+          <div key={i} className="flex items-start gap-2 text-sm">
+            {item.status === 'completed' ? (
+              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            ) : item.status === 'in_progress' ? (
+              <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin flex-shrink-0 mt-0.5" />
+            ) : (
+              <Circle className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+            )}
+            <span
+              className={cn(
+                item.status === 'completed' && 'text-muted-foreground line-through',
+                item.status === 'in_progress' && 'text-foreground font-medium',
+              )}
+            >
+              {item.status === 'in_progress' && item.activeForm
+                ? item.activeForm
+                : item.content}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---- Generic tool call display ----
+
 interface ToolCallItemProps {
   tool: ToolCall;
 }
@@ -46,6 +128,11 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
       duration: tool.duration
     });
   }, [tool]);
+
+  // Todo tool gets its own structured display
+  if (tool.name === 'todo') {
+    return <TodoToolDisplay tool={tool} />;
+  }
 
   // Status icon and color
   const getStatusDisplay = () => {
