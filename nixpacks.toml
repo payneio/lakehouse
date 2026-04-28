@@ -1,22 +1,19 @@
 # Nixpacks build config for combined Python backend + React frontend
-# Explicitly declare providers since auto-detection can't handle the monorepo layout
+# Use Python provider for detection, then override phases for monorepo build
 
-providers = []
+providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "python311", "gcc"]
+nixPkgs = ["...", "nodejs_22"]
 
 [phases.install]
-dependsOn = ["setup"]
 cmds = [
     "npm install -g pnpm",
-    "pip install --upgrade pip setuptools wheel",
     "cd webapp && pnpm install --frozen-lockfile",
     "cd lakehoused && pip install .",
 ]
 
 [phases.build]
-dependsOn = ["install"]
 cmds = [
     "cd webapp && npx vite build",
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
