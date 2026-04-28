@@ -16,7 +16,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     "pyyaml>=6.0.2",
     "sse-starlette>=2.2.1",
-    "amplifier-core",
+    "amplifier-core>=1.4.1",
     "amplifier-foundation",
     "gitpython>=3.1.45",
     "fsspec>=2025.10.0",
@@ -45,7 +45,6 @@ lakehoused = ["webapp_dist/**/*"]
 members = []
 
 [tool.uv.sources]
-amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
 amplifier-foundation = { git = "https://github.com/microsoft/amplifier-foundation", branch = "main" }
 
 [dependency-groups]
