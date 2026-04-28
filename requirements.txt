@@ -1,1 +1,1 @@
-# Marker for Nixpacks detection - actual deps in lakehoused/pyproject.toml
+
