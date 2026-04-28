@@ -1,0 +1,20 @@
+[phases.setup]
+nixPkgs = ["nodejs_22", "python311", "coreutils"]
+aptPkgs = ["..."]
+
+[phases.frontend]
+dependsOn = ["setup"]
+cmds = [
+    "npm install -g pnpm",
+    "cd webapp && pnpm install --frozen-lockfile && npx vite build",
+]
+
+[phases.backend]
+dependsOn = ["frontend"]
+cmds = [
+    "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
+    "cd lakehoused && pip install .",
+]
+
+[start]
+cmd = "cd lakehoused && uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"

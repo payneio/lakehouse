@@ -114,3 +114,4 @@ lakehoused/.lakehoused/share/profiles
 /working/foreman-demo-using-multi-context-workflow-orchestrator
 /working/profile-compilation-demo
 
+lakehoused/lakehoused/webapp_dist/

@@ -9,7 +9,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from lakehoused.config.settings import load_config
 
@@ -196,22 +199,6 @@ app.include_router(status_router)
 app.include_router(stream_router)
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint.
-
-    Returns:
-        Welcome message with API information
-    """
-    return {
-        "name": "lakehoused",
-        "version": "0.1.0",
-        "description": "REST API daemon for amplifier-core",
-        "docs": "/docs",
-        "openapi": "/openapi.json",
-    }
-
-
 @app.get("/api/info")
 async def info() -> dict[str, str | int]:
     """Get daemon and webapp location info.
@@ -235,3 +222,27 @@ async def info() -> dict[str, str | int]:
         "webapp_path": webapp_path,
         "webapp_url": webapp_url,
     }
+
+
+# --- Static file serving for bundled SPA ---
+# When webapp_dist/ exists (production/Nixpacks build), serve the frontend
+# from FastAPI. In dev mode (no webapp_dist/), this is skipped entirely.
+_webapp_dist = Path(__file__).parent / "webapp_dist"
+if not _webapp_dist.exists():
+    # Also check relative to working directory (Nixpacks layout)
+    _webapp_dist = Path("webapp_dist")
+
+if _webapp_dist.exists() and _webapp_dist.is_dir():
+    logger.info("Serving bundled webapp from %s", _webapp_dist)
+
+    # Serve static assets (JS, CSS, images) directly
+    app.mount("/assets", StaticFiles(directory=_webapp_dist / "assets"), name="static-assets")
+
+    # Catch-all: serve index.html for all non-API routes (SPA client-side routing)
+    @app.get("/{path:path}")
+    async def serve_spa(request: Request, path: str) -> FileResponse:
+        """Serve the SPA index.html for all non-API routes."""
+        file_path = _webapp_dist / path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_webapp_dist / "index.html")

@@ -37,13 +37,16 @@ lakehoused = "lakehoused.__main__:main"
 [tool.setuptools.packages.find]
 include = ["lakehoused*"]
 
+[tool.setuptools.package-data]
+lakehoused = ["webapp_dist/**/*"]
+
 [tool.uv.workspace]
 # Add all projects in the workspace
 members = []
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
-amplifier-foundation = { path = "../related-projects/amplifier-foundation", editable = true }
+amplifier-foundation = { git = "https://github.com/microsoft/amplifier-foundation", branch = "main" }
 
 [dependency-groups]
 dev = [
