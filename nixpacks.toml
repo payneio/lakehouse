@@ -1,5 +1,4 @@
 # Nixpacks build config for combined Python backend + React frontend
-# Use Python provider for detection, then override phases for monorepo build
 
 providers = ["python"]
 
@@ -8,8 +7,7 @@ nixPkgs = ["...", "nodejs_22"]
 
 [phases.install]
 cmds = [
-    "npm install -g pnpm",
-    "cd webapp && pnpm install --frozen-lockfile",
+    "npm install -g pnpm && cd webapp && pnpm install --frozen-lockfile",
     "cd lakehoused && pip install .",
 ]
 
