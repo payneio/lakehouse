@@ -9,8 +9,8 @@ nixPkgs = ["...", "nodejs_22"]
 cmds = [
     "...",
     "cd webapp && npx pnpm install --frozen-lockfile",
-    "/opt/venv/bin/pip install 'amplifier-core @ git+https://github.com/microsoft/amplifier-core@main' 'amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@main'",
-    "cd lakehoused && /opt/venv/bin/pip install .",
+    "/opt/venv/bin/pip install uv",
+    "cd lakehoused && /opt/venv/bin/uv pip install --python /opt/venv/bin/python .",
 ]
 
 [phases.build]
