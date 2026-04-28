@@ -7,7 +7,7 @@ nixPkgs = ["...", "nodejs_22"]
 
 [phases.install]
 cmds = [
-    "npm install -g pnpm && cd webapp && pnpm install --frozen-lockfile",
+    "cd webapp && npx pnpm install --frozen-lockfile",
     "cd lakehoused && pip install .",
 ]
 
