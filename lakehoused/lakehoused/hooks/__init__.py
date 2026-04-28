@@ -28,15 +28,16 @@ DEFAULT_STREAMING_HOOKS = {
 __all__ = ["StreamingHookRegistry", "DEFAULT_STREAMING_HOOKS"]
 
 
-class StreamingHookRegistry(HookRegistry):
+class StreamingHookRegistry:
     """Decorator that wraps an existing HookRegistry to add SSE streaming.
 
     Uses the decorator pattern to preserve the wrapped registry's state
     (including _defaults like session_id, parent_id) while adding streaming
     capability. All method calls delegate to the wrapped registry.
 
-    NOTE: Inherits from HookRegistry for isinstance() compatibility but
-    does NOT call super().__init__() - we delegate to _wrapped instead.
+    NOTE: Does not inherit from HookRegistry because the Rust-backed
+    RustHookRegistry does not support Python subclassing. Uses composition
+    and delegates all calls to _wrapped instead.
 
     Example:
         # Wrap an existing registry (preserves its _defaults)
