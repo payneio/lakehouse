@@ -1,20 +1,26 @@
-[phases.setup]
-nixPkgs = ["nodejs_22", "python311", "coreutils"]
-aptPkgs = ["..."]
+# Nixpacks build config for combined Python backend + React frontend
+# Explicitly declare providers since auto-detection can't handle the monorepo layout
 
-[phases.frontend]
+providers = []
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "python311", "gcc"]
+
+[phases.install]
 dependsOn = ["setup"]
 cmds = [
     "npm install -g pnpm",
-    "cd webapp && pnpm install --frozen-lockfile && npx vite build",
-]
-
-[phases.backend]
-dependsOn = ["frontend"]
-cmds = [
-    "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
+    "pip install --upgrade pip setuptools wheel",
+    "cd webapp && pnpm install --frozen-lockfile",
     "cd lakehoused && pip install .",
 ]
 
+[phases.build]
+dependsOn = ["install"]
+cmds = [
+    "cd webapp && npx vite build",
+    "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
+]
+
 [start]
-cmd = "cd lakehoused && uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
+cmd = "uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
