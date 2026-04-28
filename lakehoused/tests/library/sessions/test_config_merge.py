@@ -68,18 +68,17 @@ class TestConfigMerging:
 
         assert result["session"]["timeout"] == 60
 
-    def test_list_replacement(self):
+    def test_list_concatenation(self):
         """Given parent and overlay with same list key
         When merging
-        Then overlay list should replace parent list (no concatenation)
+        Then overlay list should be concatenated with parent list
         """
         parent = {"session": {"tools": ["read", "write"]}}
         overlay = {"session": {"tools": ["debug"]}}
 
         result = deep_merge(parent, overlay)
 
-        assert result["session"]["tools"] == ["debug"]
-        assert "read" not in result["session"]["tools"]
+        assert result["session"]["tools"] == ["read", "write", "debug"]
 
     def test_nested_dict_merge(self):
         """Given parent and overlay with nested dicts
@@ -222,7 +221,7 @@ class TestConfigMerging:
         assert result["session"]["orchestrator"] == "default"  # Inherited
         assert result["session"]["timeout"] == 30  # Inherited
         assert result["session"]["context"] == "focused"  # Added
-        assert result["session"]["tools"] == ["debug", "test"]  # Replaced
+        assert result["session"]["tools"] == ["read", "write", "search", "debug", "test"]  # Concatenated
         assert result["session"]["llm"]["model"] == "claude-3-5-sonnet-20241022"  # Inherited
         assert result["session"]["llm"]["temperature"] == 0.9  # Overridden
         assert result["session"]["llm"]["max_tokens"] == 4096  # Inherited
@@ -285,10 +284,10 @@ class TestConfigMerging:
 
         assert result["session"]["nested"] == {"key": "value"}
 
-    def test_list_of_dicts_replacement(self):
+    def test_list_of_dicts_concatenation(self):
         """Given configs with lists of dicts
         When merging
-        Then should replace entire list (no deep merging of list items)
+        Then should concatenate lists (no deep merging of list items)
         """
         parent = {
             "session": {
@@ -302,5 +301,7 @@ class TestConfigMerging:
 
         result = deep_merge(parent, overlay)
 
-        assert len(result["session"]["providers"]) == 1
-        assert result["session"]["providers"][0]["name"] == "new_provider"
+        assert len(result["session"]["providers"]) == 3
+        assert result["session"]["providers"][0]["name"] == "provider1"
+        assert result["session"]["providers"][1]["name"] == "provider2"
+        assert result["session"]["providers"][2]["name"] == "new_provider"

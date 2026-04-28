@@ -12,7 +12,9 @@ from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from lakehoused.config.settings import load_config
 
@@ -240,8 +242,14 @@ if _webapp_dist.exists() and _webapp_dist.is_dir():
 
     # Catch-all: serve index.html for all non-API routes (SPA client-side routing)
     @app.get("/{path:path}")
-    async def serve_spa(request: Request, path: str) -> FileResponse:
-        """Serve the SPA index.html for all non-API routes."""
+    async def serve_spa(request: Request, path: str) -> Response:
+        """Serve the SPA index.html for all non-API routes.
+
+        Skips /api/ paths so unmatched API requests return proper 404s
+        instead of the SPA HTML.
+        """
+        if path.startswith("api/"):
+            return JSONResponse(status_code=404, content={"detail": f"Not found: /{path}"})
         file_path = _webapp_dist / path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)

@@ -234,9 +234,9 @@ class TestBehaviorInstructionLoading:
 
     def test_behavior_instructions_with_at_mentions(self, temp_profile_dir, temp_project_path):
         """Test that at-mentions in behavior instructions are resolved."""
-        # Create files to be mentioned
-        (temp_project_path / "file1.md").write_text("File 1 content")
-        (temp_project_path / "file2.md").write_text("File 2 content")
+        # Create files to be mentioned in the profile dir (where mentions resolve)
+        (temp_profile_dir / "file1.md").write_text("File 1 content")
+        (temp_profile_dir / "file2.md").write_text("File 2 content")
 
         # Create profile with mention
         profile_instructions = "Profile with @file1.md"

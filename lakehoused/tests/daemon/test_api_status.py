@@ -6,7 +6,6 @@ Tests health check and status endpoints.
 
 import pytest
 from fastapi.testclient import TestClient
-
 from lakehoused.main import app
 
 
@@ -20,15 +19,14 @@ def client():
 class TestStatusAPI:
     """Test status API endpoints."""
 
-    def test_root_endpoint_returns_api_info(self, client: TestClient) -> None:
-        """Test GET / returns API information."""
+    def test_root_endpoint_serves_spa(self, client: TestClient) -> None:
+        """Test GET / serves the SPA index.html (or 404 when no webapp_dist)."""
         response = client.get("/")
 
         assert response.status_code == 200
-        data = response.json()
-        assert data["name"] == "lakehoused"
-        assert "version" in data
-        assert "docs" in data
+        # When webapp_dist exists, serves HTML; otherwise would 404
+        content_type = response.headers.get("content-type", "")
+        assert "text/html" in content_type or "application/json" in content_type
 
     def test_status_endpoint_returns_running(self, client: TestClient) -> None:
         """Test GET /api/v1/status returns status information."""

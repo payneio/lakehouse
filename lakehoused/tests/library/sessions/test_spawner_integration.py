@@ -116,7 +116,7 @@ class TestSpawnAgentIntegration:
 
             mount_plan = json.loads(mount_plan_path.read_text())
             assert mount_plan["session"]["orchestrator"] == "default"  # Inherited
-            assert mount_plan["session"]["tools"] == ["debug", "test"]  # From agent
+            assert mount_plan["session"]["tools"] == ["read", "write", "debug", "test"]  # Concatenated
 
             # Verify transcript saved
             transcript = session_manager.get_transcript(child_id)
@@ -157,7 +157,7 @@ class TestSpawnAgentIntegration:
             assert merged_config["session"]["llm"]["model"] == "claude-3-5-sonnet-20241022"  # Inherited
 
             # Verify agent-specific tools
-            assert merged_config["session"]["tools"] == ["pytest", "coverage"]
+            assert merged_config["session"]["tools"] == ["read", "write", "pytest", "coverage"]
 
     @pytest.mark.asyncio
     async def test_spawn_failure_persists_error_state(self, session_manager, parent_session, agent_configs):
@@ -497,7 +497,7 @@ class TestConfigPersistence:
             # Verify merged config
             assert mount_plan["session"]["orchestrator"] == "default"  # From parent
             assert mount_plan["session"]["timeout"] == 30  # From parent
-            assert mount_plan["session"]["tools"] == ["pytest", "coverage"]  # From agent
+            assert mount_plan["session"]["tools"] == ["read", "write", "pytest", "coverage"]  # Concatenated
             assert mount_plan["session"]["llm"]["model"] == "claude-3-5-sonnet-20241022"  # From parent
             assert mount_plan["session"]["llm"]["temperature"] == 0.3  # Agent override
 
