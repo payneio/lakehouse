@@ -7,8 +7,9 @@ nixPkgs = ["...", "nodejs_22"]
 
 [phases.install]
 cmds = [
+    "...",
     "cd webapp && npx pnpm install --frozen-lockfile",
-    "cd lakehoused && pip install .",
+    "cd lakehoused && /opt/venv/bin/pip install .",
 ]
 
 [phases.build]
@@ -18,4 +19,4 @@ cmds = [
 ]
 
 [start]
-cmd = "uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
+cmd = "/opt/venv/bin/uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
