@@ -120,7 +120,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"Initialized BundleModuleResolver with cache_dir={cache_dir}")
     except Exception as e:
         logger.error(f"Failed to initialize module resolver: {e}")
-        # Don't fail startup, just log the error
+        resolver = None  # Ensure resolver is always bound
 
     # Initialize automation scheduler
     scheduler = None
@@ -265,6 +265,7 @@ if _webapp_dist is not None:
         """
         if path.startswith("api/"):
             return JSONResponse(status_code=404, content={"detail": f"Not found: /{path}"})
+        assert _webapp_dist is not None  # guarded by outer if
         file_path = _webapp_dist / path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)

@@ -207,13 +207,6 @@ async def send_message_for_execution(
             {"timestamp": datetime.now(UTC).isoformat()},
         )
 
-        # Also emit through hooks system for ExecutionTraceHook
-        if manager.hook_registry:
-            await manager.hook_registry.emit(
-                "assistant_message:start",
-                {"user_message": message_request.content, "timestamp": datetime.now(UTC).isoformat()},
-            )
-
         # Execute in background task - don't block response
         async def execute_and_emit():
             try:
@@ -236,13 +229,6 @@ async def send_message_for_execution(
                             "timestamp": datetime.now(UTC).isoformat(),
                         },
                     )
-
-                    # Also emit through hooks system for ExecutionTraceHook
-                    if manager.hook_registry:
-                        await manager.hook_registry.emit(
-                            "assistant_message:complete",
-                            {"content": full_response, "timestamp": datetime.now(UTC).isoformat()},
-                        )
 
                     # Mark session as unread so user sees badge when viewing another session
                     # Only mark unread if:

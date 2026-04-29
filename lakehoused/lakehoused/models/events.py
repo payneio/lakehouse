@@ -22,27 +22,24 @@ class GlobalEvent(BaseModel):
 class SessionCreatedEvent(GlobalEvent):
     """Emitted when new session is created."""
 
-    event_type: Literal["session:created"] = "session:created"
+    event_type: Literal["session:created"] = "session:created"  # type: ignore[assignment]
     session_id: str
-    session_name: str | None
-    project_id: str | None  # Optional - sessions can exist without a project
-    is_unread: bool
-    created_by: Literal["user", "automation"]
+    session_name: str | None = None
+    is_unread: bool = False
+    created_by: Literal["user", "automation"] = "user"
 
 
 class SessionUpdatedEvent(GlobalEvent):
     """Emitted when session metadata changes."""
 
-    event_type: Literal["session:updated"] = "session:updated"
+    event_type: Literal["session:updated"] = "session:updated"  # type: ignore[assignment]
     session_id: str
-    project_id: str | None  # Optional - sessions can exist without a project
-    fields_changed: list[str]
+    fields_changed: list[str] = Field(default_factory=list)
 
 
 class AutomationTriggeredEvent(GlobalEvent):
     """Emitted when automation executes."""
 
-    event_type: Literal["automation:triggered"] = "automation:triggered"
+    event_type: Literal["automation:triggered"] = "automation:triggered"  # type: ignore[assignment]
     automation_id: str
     automation_name: str
-    project_id: str
