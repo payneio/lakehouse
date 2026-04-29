@@ -38,9 +38,4 @@ export const deleteProject = (
     { method: 'DELETE' }
   );
 
-// Backward compatibility aliases
-export const listDirectories = listProjects;
-export const getDirectory = getProject;
-export const createDirectory = createProject;
-export const updateDirectory = updateProject;
-export const deleteDirectory = deleteProject;
+
