@@ -40,30 +40,56 @@ def get_secrets_path() -> Path:
 
 
 def load_secrets(secrets_path: Path | None = None) -> Secrets:
-    """Load secrets from file.
+    """Load secrets from file, with environment variable fallback.
+
+    Resolution order:
+    1. secrets.yaml file (explicit configuration)
+    2. Environment variables (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
+
+    This ensures API keys work in container deployments where env vars
+    are set but no secrets.yaml file exists.
 
     Args:
         secrets_path: Optional path to secrets file. If None, uses default location.
 
     Returns:
-        Loaded secrets (empty if file doesn't exist)
+        Loaded secrets (may include env var fallbacks)
     """
+    import os
+
     from .models import Secrets
 
     if secrets_path is None:
         secrets_path = get_secrets_path()
 
+    secrets: Secrets
     if secrets_path.exists():
         logger.info(f"Loading secrets from {secrets_path}")
         try:
-            return Secrets.load_from_file(secrets_path)
+            secrets = Secrets.load_from_file(secrets_path)
         except Exception as e:
             logger.error(f"Failed to load secrets from {secrets_path}: {e}")
             logger.info("Using empty secrets")
-            return Secrets.get_default()
+            secrets = Secrets.get_default()
     else:
         logger.debug(f"No secrets file found at {secrets_path}")
-        return Secrets.get_default()
+        secrets = Secrets.get_default()
+
+    # Fall back to environment variables for any missing provider keys
+    env_key_map = {
+        "provider-anthropic": "ANTHROPIC_API_KEY",
+        "provider-openai": "OPENAI_API_KEY",
+        "provider-azure": "AZURE_OPENAI_API_KEY",
+        "provider-google": "GOOGLE_API_KEY",
+    }
+    for provider_name, env_var in env_key_map.items():
+        if provider_name not in secrets.api_keys:
+            value = os.environ.get(env_var)
+            if value:
+                secrets.api_keys[provider_name] = value
+                logger.info(f"Loaded {provider_name} API key from ${env_var}")
+
+    return secrets
 
 
 def save_secrets(secrets: Secrets, secrets_path: Path | None = None) -> None:
