@@ -79,7 +79,7 @@ function JsonValue({
   }
 
   if (type === "string") {
-    return <JsonString value={value} maxTextLength={maxTextLength} />;
+    return <JsonString value={value as string} maxTextLength={maxTextLength} />;
   }
 
   if (Array.isArray(value)) {

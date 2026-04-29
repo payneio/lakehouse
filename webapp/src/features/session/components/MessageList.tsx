@@ -22,7 +22,7 @@ interface MessageListProps {
 export function MessageList({
   messages,
   streamingContent,
-  currentActivity,
+  currentActivity: _currentActivity,
   currentTurnThinking = [],
   turns = [],
   currentTurn = null,
