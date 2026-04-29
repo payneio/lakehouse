@@ -12,7 +12,7 @@
 # append ours" rather than replacing them entirely.
 
 [phases.setup]
-nixPkgs = ["...", "uv"]
+nixPkgs = ["...", "uv", "nodejs_22"]
 aptPkgs = ["...", "git"]
 
 [phases.install]
