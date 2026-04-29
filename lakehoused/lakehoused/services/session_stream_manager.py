@@ -2,7 +2,7 @@
 
 Manages streaming infrastructure for a single session including:
 - EventQueueEmitter for multi-subscriber events
-- StreamingHookRegistry for hook events
+- Hook handler registration for SSE streaming of hook events
 - ExecutionRunner lifecycle
 
 Note: Execution trace persistence is handled by hooks-logging (amplifier_core)
@@ -14,9 +14,11 @@ import logging
 from typing import TYPE_CHECKING
 from typing import Any
 
+from amplifier_core.hooks import HookResult
+
 from lakehoused.execution.runner import ExecutionRunner
 
-from ..hooks import StreamingHookRegistry
+from ..hooks import DEFAULT_STREAMING_HOOKS
 from ..streaming import EventQueueEmitter  # type: ignore[attr-defined]
 
 if TYPE_CHECKING:
@@ -50,8 +52,8 @@ class SessionStreamManager:
 
         # Create streaming infrastructure
         self.emitter = EventQueueEmitter()
-        # StreamingHookRegistry created in mount_hooks() to wrap the session's registry
-        self.hook_registry: StreamingHookRegistry | None = None
+        # Track unregister functions from hook registration
+        self._hook_unregisters: list = []
 
         # ExecutionRunner (created on-demand)
         self._runner: ExecutionRunner | None = None
@@ -109,30 +111,43 @@ class SessionStreamManager:
         return self._runner
 
     async def mount_hooks(self: "SessionStreamManager", runner: ExecutionRunner) -> None:
-        """Mount streaming hooks to runner's coordinator.
+        """Register a streaming hook handler on the existing registry.
 
-        Wraps the session's existing HookRegistry with StreamingHookRegistry
-        to add SSE streaming while preserving the registry's state (including
-        _defaults like session_id and parent_id set by amplifier_core).
+        RustCoordinator.hooks is read-only, so we can't replace the hooks object.
+        Instead, we register a catch-all hook handler on the existing HookRegistry
+        that forwards relevant events to SSE. This is the proper amplifier-core
+        pattern — hooks observe lifecycle events without needing to replace the registry.
 
         Args:
             runner: ExecutionRunner to mount hooks on
         """
         if runner._session is not None:
-            # Wrap the existing HookRegistry with our StreamingHookRegistry
-            # This preserves _defaults (session_id, parent_id) set by amplifier_core
-            existing_registry = runner._session.coordinator.hooks
-            self.hook_registry = StreamingHookRegistry(
-                wrapped=existing_registry,
-                sse_emitter=self.emitter,
-                stream_events=None,  # Use defaults
-            )
+            hooks = runner._session.coordinator.hooks
+            emitter = self.emitter
+            stream_events = DEFAULT_STREAMING_HOOKS
 
-            # Replace with wrapped registry
-            runner._session.coordinator.mount_points["hooks"] = self.hook_registry
-            runner._session.coordinator.hooks = self.hook_registry
+            async def sse_streaming_hook(event: str, data: dict) -> HookResult:
+                """Forward hook events to SSE subscribers."""
+                if emitter and event in stream_events:
+                    try:
+                        await emitter.emit(
+                            event_type=f"hook:{event}",
+                            data={
+                                "hook_event": event,
+                                "hook_data": data,
+                                "phase": "start",
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to emit SSE event for hook {event}: {e}")
+                return HookResult()
 
-            logger.info(f"Mounted StreamingHookRegistry (wrapping existing registry) for session {self.session_id}")
+            # Register our streaming handler for each event we care about
+            for event_name in stream_events:
+                unregister = hooks.on(event_name, sse_streaming_hook)
+                self._hook_unregisters.append(unregister)
+
+            logger.info(f"Registered SSE streaming hook handler for session {self.session_id}")
 
     def subscribe(self: "SessionStreamManager") -> asyncio.Queue:
         """Create new SSE subscriber queue.
