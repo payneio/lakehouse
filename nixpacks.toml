@@ -3,35 +3,33 @@
 # Coolify base_directory is "/" (repo root), so all paths are relative
 # to the repo root. The Python app is in lakehoused/, webapp in webapp/.
 #
-# Key issue: uv is available during the build/install phase (auto-detected
-# from uv.lock) but is NOT carried into the runtime image by default.
-# The app needs uv at runtime because amplifier_foundation's ModuleActivator
-# calls `uv pip install` to lazy-activate orchestrator/tool modules.
-#
 # The "..." syntax means "keep the provider's auto-detected values and
-# append ours" rather than replacing them entirely.
-#
-# IMPORTANT: Each cmds entry becomes a separate Dockerfile RUN layer.
-# Global npm installs in one RUN aren't visible in the next RUN's PATH.
-# Use npx to invoke pnpm without relying on global install PATH.
+# append ours." We use it for setup (to keep auto-detected nix packages)
+# but NOT for install/build (we need to fully control those).
 
 [phases.setup]
 nixPkgs = ["...", "uv", "nodejs_22"]
 
 [phases.install]
+# Replace auto-detected install entirely (no "...") because the
+# auto-detected install runs `pip install -r requirements.txt` from the
+# repo root, which doesn't install the actual lakehoused package.
 cmds = [
-    "...",
-    # Frontend: use npx to run pnpm (avoids PATH issues between RUN layers)
+    # Python: install lakehoused and all dependencies via uv from the
+    # lakehoused/ subdirectory where pyproject.toml + uv.lock live
+    "cd lakehoused && uv venv /opt/venv && VIRTUAL_ENV=/opt/venv uv pip install '.'",
+    # Frontend: install pnpm and webapp dependencies
     "cd webapp && npx --yes pnpm install --frozen-lockfile",
 ]
+paths = ["/opt/venv/bin"]
 
 [phases.build]
 cmds = [
-    "...",
-    # Build the frontend SPA and copy into lakehoused package
+    # Build the frontend SPA
     "cd webapp && npx --yes pnpm run build",
+    # Copy built assets into lakehoused package for serving
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
 ]
 
 [start]
-cmd = "cd lakehoused && uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
+cmd = "/opt/venv/bin/uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
