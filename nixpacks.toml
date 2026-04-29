@@ -10,6 +10,10 @@
 #
 # The "..." syntax means "keep the provider's auto-detected values and
 # append ours" rather than replacing them entirely.
+#
+# IMPORTANT: Each cmds entry becomes a separate Dockerfile RUN layer.
+# Global npm installs in one RUN aren't visible in the next RUN's PATH.
+# Use npx to invoke pnpm without relying on global install PATH.
 
 [phases.setup]
 nixPkgs = ["...", "uv", "nodejs_22"]
@@ -17,17 +21,15 @@ nixPkgs = ["...", "uv", "nodejs_22"]
 [phases.install]
 cmds = [
     "...",
-    # Frontend: install pnpm and webapp deps in one RUN layer
-    # (each cmd becomes a separate Dockerfile RUN, so npm -g install
-    # isn't visible in the next RUN's PATH)
-    "npm install -g pnpm && cd webapp && pnpm install --frozen-lockfile",
+    # Frontend: use npx to run pnpm (avoids PATH issues between RUN layers)
+    "cd webapp && npx --yes pnpm install --frozen-lockfile",
 ]
 
 [phases.build]
 cmds = [
     "...",
     # Build the frontend SPA and copy into lakehoused package
-    "cd webapp && npx pnpm run build",
+    "cd webapp && npx --yes pnpm run build",
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
 ]
 
