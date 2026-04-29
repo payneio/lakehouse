@@ -1,23 +1,35 @@
-# Nixpacks build config for combined Python backend + React frontend
-
-providers = ["python"]
+# Nixpacks build configuration for Coolify deployment.
+#
+# Coolify base_directory is "/" (repo root), so all paths are relative
+# to the repo root. The Python app is in lakehoused/, webapp in webapp/.
+#
+# Key issue: uv is available during the build/install phase (auto-detected
+# from uv.lock) but is NOT carried into the runtime image by default.
+# The app needs uv at runtime because amplifier_foundation's ModuleActivator
+# calls `uv pip install` to lazy-activate orchestrator/tool modules.
+#
+# The "..." syntax means "keep the provider's auto-detected values and
+# append ours" rather than replacing them entirely.
 
 [phases.setup]
-nixPkgs = ["...", "nodejs_22"]
+nixPkgs = ["...", "uv"]
+aptPkgs = ["...", "git"]
 
 [phases.install]
 cmds = [
     "...",
-    "cd webapp && npx pnpm install --frozen-lockfile",
-    "/opt/venv/bin/pip install 'amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@main'",
-    "cd lakehoused && /opt/venv/bin/pip install .",
+    # Frontend: install pnpm and webapp dependencies
+    "npm install -g pnpm",
+    "cd webapp && pnpm install --frozen-lockfile",
 ]
 
 [phases.build]
 cmds = [
-    "cd webapp && npx vite build",
+    "...",
+    # Build the frontend SPA and copy into lakehoused package
+    "cd webapp && pnpm run build",
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
 ]
 
 [start]
-cmd = "/opt/venv/bin/uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
+cmd = "cd lakehoused && uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
