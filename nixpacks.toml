@@ -26,7 +26,8 @@ paths = ["/opt/venv/bin"]
 [phases.build]
 cmds = [
     # Build the frontend SPA
-    "cd webapp && npx --yes pnpm run build",
+    # Run vite build directly, skipping tsc type-check to avoid OOM on build server
+    "cd webapp && npx --yes vite build",
     # Copy built assets into lakehoused package for serving
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
 ]
