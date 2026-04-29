@@ -17,16 +17,17 @@ nixPkgs = ["...", "uv", "nodejs_22"]
 [phases.install]
 cmds = [
     "...",
-    # Frontend: install pnpm and webapp dependencies
-    "npm install -g pnpm",
-    "cd webapp && pnpm install --frozen-lockfile",
+    # Frontend: install pnpm and webapp deps in one RUN layer
+    # (each cmd becomes a separate Dockerfile RUN, so npm -g install
+    # isn't visible in the next RUN's PATH)
+    "npm install -g pnpm && cd webapp && pnpm install --frozen-lockfile",
 ]
 
 [phases.build]
 cmds = [
     "...",
     # Build the frontend SPA and copy into lakehoused package
-    "cd webapp && pnpm run build",
+    "cd webapp && npx pnpm run build",
     "cp -r webapp/dist lakehoused/lakehoused/webapp_dist",
 ]
 
