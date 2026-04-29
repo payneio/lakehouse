@@ -229,12 +229,27 @@ async def info() -> dict[str, str | int]:
 # --- Static file serving for bundled SPA ---
 # When webapp_dist/ exists (production/Nixpacks build), serve the frontend
 # from FastAPI. In dev mode (no webapp_dist/), this is skipped entirely.
-_webapp_dist = Path(__file__).parent / "webapp_dist"
-if not _webapp_dist.exists():
-    # Also check relative to working directory (Nixpacks layout)
-    _webapp_dist = Path("webapp_dist")
+#
+# Search order:
+#   1. Next to installed package (pip install with package-data)
+#   2. Relative to working directory (simple deploys)
+#   3. Source tree layout (Nixpacks: vite build runs AFTER pip install,
+#      so webapp_dist lands in the source tree, not the installed package)
+_webapp_dist_candidates = [
+    Path(__file__).parent / "webapp_dist",
+    Path("webapp_dist"),
+    Path(__file__).resolve().parent / "webapp_dist",
+]
+# In Nixpacks, the source tree lives under /app/ and the install step copies
+# the package to /opt/venv/..., but vite build writes to /app/lakehoused/lakehoused/webapp_dist.
+# If NIXPACKS=1 or the /app/ source tree exists, check there too.
+_nixpacks_source = Path("/app/lakehoused/lakehoused/webapp_dist")
+if _nixpacks_source not in _webapp_dist_candidates:
+    _webapp_dist_candidates.append(_nixpacks_source)
 
-if _webapp_dist.exists() and _webapp_dist.is_dir():
+_webapp_dist = next((p for p in _webapp_dist_candidates if p.exists() and p.is_dir()), None)
+
+if _webapp_dist is not None:
     logger.info("Serving bundled webapp from %s", _webapp_dist)
 
     # Serve static assets (JS, CSS, images) directly
