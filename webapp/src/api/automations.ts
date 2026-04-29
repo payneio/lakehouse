@@ -55,7 +55,7 @@ export interface ExecutionHistory {
   total: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8420";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 /**
  * Encode project ID for URL path.
