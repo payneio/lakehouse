@@ -5,22 +5,16 @@
 # The app needs uv at runtime because amplifier_foundation's ModuleActivator
 # calls `uv pip install` to lazy-activate orchestrator/tool modules.
 #
-# The [phases.setup] nixPkgs persist into the runtime image, so listing uv
-# here ensures it's available when the app starts.
-#
-# NOTE: Coolify base directory is set to "lakehoused/" so Nixpacks runs
-# with lakehoused/ as the working directory. The webapp source is at
-# ../webapp/ (repo root level).
+# The "..." syntax means "keep the provider's auto-detected packages, and
+# add ours on top." Without it, our list would replace the defaults entirely.
 
 [phases.setup]
-nixPkgs = ["python312", "nodejs_22", "uv"]
-aptPkgs = ["git"]
+nixPkgs = ["...", "uv"]
+aptPkgs = ["...", "git"]
 
 [phases.install]
 cmds = [
-    # Python: create venv and install lakehoused + dependencies
-    "uv venv /opt/venv",
-    "VIRTUAL_ENV=/opt/venv uv pip install '.'",
+    "...",
     # Frontend: install pnpm and webapp dependencies
     "npm install -g pnpm",
     "cd ../webapp && pnpm install --frozen-lockfile",
@@ -28,11 +22,11 @@ cmds = [
 
 [phases.build]
 cmds = [
-    # Build the frontend SPA
+    "...",
+    # Build the frontend SPA and copy into lakehoused package
     "cd ../webapp && pnpm run build",
-    # Copy built assets into lakehoused package for serving
     "cp -r ../webapp/dist lakehoused/webapp_dist",
 ]
 
 [start]
-cmd = "/opt/venv/bin/uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
+cmd = "uvicorn lakehoused.main:app --host 0.0.0.0 --port 8000"
