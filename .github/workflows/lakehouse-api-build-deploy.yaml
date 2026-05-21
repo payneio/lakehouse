@@ -1,0 +1,145 @@
+name: lakehouse API - Build and Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'amplifierd/**'
+      - 'amplifier_library/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/lakehouse-api-build-deploy.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write       # OIDC for azure/login
+  contents: read
+  attestations: write   # build provenance attestation
+  packages: write       # for OCI artifact push (provenance)
+
+env:
+  WEBAPP_NAME: lakehouse-api
+  RESOURCE_GROUP: ao-lakehouse-rg
+  ACR_NAME: amplifieronlinecr
+  IMAGE_REPO: amplifieronlinecr.azurecr.io/lakehouse-api
+
+jobs:
+  build:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-tag: ${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          # Build context is the REPO ROOT (not amplifierd/, not backend/).
+          # The Dockerfile copies both amplifier_library/ and amplifierd/
+          # because amplifier_library is a sibling editable dep of amplifierd.
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_REPO }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_REPO }}:buildcache,mode=max
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_REPO }}:${{ github.sha }}
+          format: table
+          # Report HIGH/CRITICAL but don't block deploys until baseline is triaged.
+          # Flip exit-code to 1 once known issues are tracked/suppressed.
+          exit-code: '0'
+          severity: CRITICAL,HIGH
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REPO }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  deploy:
+    name: Deploy to Azure Web App
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Point Web App at new image tag
+        run: |
+          az webapp config container set \
+            --name "${{ env.WEBAPP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --container-image-name "${{ env.IMAGE_REPO }}:${{ needs.build.outputs.image-tag }}"
+
+      - name: Restart Web App
+        run: |
+          az webapp restart \
+            --name "${{ env.WEBAPP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}"
+
+      - name: Resolve backend hostname
+        id: host
+        run: |
+          FQDN=$(az webapp show \
+            --name "${{ env.WEBAPP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query defaultHostName -o tsv)
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
+          echo "Backend FQDN: https://$FQDN"
+
+      - name: Wait for backend to come up
+        run: |
+          FQDN="${{ steps.host.outputs.fqdn }}"
+          # amplifierd exposes a JSON root at /, not /health. Poll until 200.
+          for i in $(seq 1 30); do
+            if curl --silent --fail --max-time 10 "https://$FQDN/" > /dev/null; then
+              echo "Backend healthy after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "Attempt $i: not ready yet, sleeping 10s..."
+            sleep 10
+          done
+          echo "::error::Backend did not respond on / within 5 minutes"
+          # Tail the container log so the failure is actionable
+          az webapp log tail \
+            --name "${{ env.WEBAPP_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --provider docker \
+            --timeout 30 || true
+          exit 1
