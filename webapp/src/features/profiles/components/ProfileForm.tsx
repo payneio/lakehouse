@@ -516,8 +516,8 @@ interface SingleModuleSectionProps {
   onClear: () => void;
   isConfigExpanded: boolean;
   onToggleConfig: () => void;
-  showSelector: { section: string | null };
-  setShowSelector: (state: { section: string | null }) => void;
+  showSelector: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null };
+  setShowSelector: (state: { section: 'providers' | 'behaviors' | 'orchestrator' | 'context' | null }) => void;
   componentRefs?: ComponentRefsResponse;
   loadingRefs: boolean;
 }
@@ -534,7 +534,7 @@ function SingleModuleSection({
   componentRefs,
   loadingRefs,
 }: SingleModuleSectionProps) {
-  const sectionKey = title.toLowerCase().replace(' ', '_');
+  const sectionKey = title.toLowerCase().replace(' ', '_') as 'providers' | 'behaviors' | 'orchestrator' | 'context';
   const isShowingSelector = showSelector.section === sectionKey;
 
   const getComponentsForSection = () => {

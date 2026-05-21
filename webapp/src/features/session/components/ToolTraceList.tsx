@@ -1,4 +1,4 @@
-import React from 'react';
+import {} from 'react';
 import type { ToolCall } from '../types/execution';
 import { ToolCallItem } from './ToolCallItem';
 

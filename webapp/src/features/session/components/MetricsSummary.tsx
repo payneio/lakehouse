@@ -1,4 +1,4 @@
-import React from 'react';
+import {} from 'react';
 import { Wrench, Clock, Brain, Trophy } from 'lucide-react';
 import type { SessionMetrics } from '../types/execution';
 

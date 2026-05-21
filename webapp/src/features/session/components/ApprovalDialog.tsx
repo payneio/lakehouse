@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useEventStream } from '@/hooks/useEventStream';
 import { BASE_URL } from '@/api/client';
 
@@ -19,12 +19,14 @@ export function ApprovalDialog({ sessionId }: ApprovalDialogProps) {
   const eventStream = useEventStream({ sessionId });
 
   useEffect(() => {
-    return eventStream.on('hook:approval:required', (data) => {
+    return eventStream.on('hook:approval:required', (data: unknown) => {
+      const d = data as Record<string, unknown>;
+      const hookData = d.hook_data as Record<string, unknown> | undefined;
       setPrompt({
-        approval_id: data.approval_id || data.hook_data?.approval_id,
-        prompt: data.prompt || data.hook_data?.approval_prompt || 'Approval required',
-        options: data.options || data.hook_data?.approval_options || ['Allow', 'Deny'],
-        timeout: data.timeout || data.hook_data?.approval_timeout,
+        approval_id: (d.approval_id as string) || (hookData?.approval_id as string),
+        prompt: (d.prompt as string) || (hookData?.approval_prompt as string) || 'Approval required',
+        options: (d.options as string[]) || (hookData?.approval_options as string[]) || ['Allow', 'Deny'],
+        timeout: (d.timeout as number) || (hookData?.approval_timeout as number),
       });
     });
   }, [eventStream]);

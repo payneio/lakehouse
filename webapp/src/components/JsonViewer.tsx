@@ -68,17 +68,15 @@ function JsonValue({
     return <span className="text-gray-500">undefined</span>;
   }
 
-  const type = typeof value;
-
-  if (type === "boolean") {
+  if (typeof value === "boolean") {
     return <span className="text-purple-400">{value.toString()}</span>;
   }
 
-  if (type === "number") {
+  if (typeof value === "number") {
     return <span className="text-cyan-400">{value.toString()}</span>;
   }
 
-  if (type === "string") {
+  if (typeof value === "string") {
     return <JsonString value={value} maxTextLength={maxTextLength} />;
   }
 
@@ -96,7 +94,7 @@ function JsonValue({
     );
   }
 
-  if (type === "object") {
+  if (typeof value === "object") {
     return (
       <JsonObject
         value={value as Record<string, JsonValue>}

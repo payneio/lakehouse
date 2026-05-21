@@ -20,12 +20,13 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   const [streamingMessage, setStreamingMessage] = useState<Message | null>(null);
 
   useEffect(() => {
-    return eventStream.on('user_message', (data) => {
+    return eventStream.on('user_message', (data: unknown) => {
+      const d = data as Record<string, unknown>;
       const msg: Message = {
         id: `msg-${Date.now()}-user`,
         role: 'user',
-        content: data.content,
-        timestamp: data.timestamp || new Date().toISOString(),
+        content: d.content as string,
+        timestamp: (d.timestamp as string) || new Date().toISOString(),
         status: 'complete',
       };
       setMessages((prev) => [...prev, msg]);
@@ -33,20 +34,21 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   }, [eventStream]);
 
   useEffect(() => {
-    return eventStream.on('content', (data) => {
+    return eventStream.on('content', (data: unknown) => {
+      const d = data as Record<string, unknown>;
       setStreamingMessage((prev) => {
         if (!prev) {
           return {
             id: `msg-${Date.now()}-assistant`,
             role: 'assistant',
-            content: data.content || '',
+            content: (d.content as string) || '',
             timestamp: new Date().toISOString(),
             status: 'streaming',
           };
         } else {
           return {
             ...prev,
-            content: prev.content + (data.content || ''),
+            content: prev.content + ((d.content as string) || ''),
           };
         }
       });
@@ -67,7 +69,8 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   }, [eventStream, streamingMessage, onComplete]);
 
   useEffect(() => {
-    return eventStream.on('error', (data) => {
+    return eventStream.on('error', (data: unknown) => {
+      const d = data as Record<string, unknown>;
       if (streamingMessage) {
         setMessages((prev) => [
           ...prev,
@@ -75,7 +78,7 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
         ]);
         setStreamingMessage(null);
       }
-      console.error('Stream error:', data.error);
+      console.error('Stream error:', d.error);
     });
   }, [eventStream, streamingMessage]);
 

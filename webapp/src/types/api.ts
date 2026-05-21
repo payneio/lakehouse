@@ -16,6 +16,7 @@ export interface Profile {
   sourceType: 'local' | 'registry';
   registryId?: string;
   sourceUri?: string;
+  collectionId?: string;
   isActive: boolean;
   schemaVersion?: number;
   baseProfile?: string;
