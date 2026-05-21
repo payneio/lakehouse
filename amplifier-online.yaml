@@ -1,0 +1,52 @@
+# Amplifier Online - Azure Web App (Linux container) + Static Web App
+# Stack docs: https://github.com/payneio/amplifier-online/blob/main/docs/stacks/web-app-awa.md
+#
+# Validate:  amplifier-online up --dry-run
+# Deploy:    amplifier-online up
+
+name: lakehouse
+stack: web-app-awa
+
+# ------------------------------------------------------------------
+# Backend: amplifierd FastAPI daemon (Linux container on Azure Web App)
+# ------------------------------------------------------------------
+# Image MUST be pre-built and pushed to the platform ACR before `up`.
+# Build context is the repo root because amplifier_library is a
+# sibling editable dep of amplifierd:
+#
+#   az acr login --name amplifieronlinecr
+#   docker build -t amplifieronlinecr.azurecr.io/lakehouse-api:latest .
+#   docker push amplifieronlinecr.azurecr.io/lakehouse-api:latest
+backend:
+  image: amplifieronlinecr.azurecr.io/lakehouse-api:latest
+  port: 8421   # must match Dockerfile EXPOSE and AMPLIFIERD_DAEMON_PORT
+
+# ------------------------------------------------------------------
+# Frontend: Vite React SPA on Azure Static Web Apps
+# ------------------------------------------------------------------
+# SWA's Oryx build runs install + build_command from app_location.
+# protect_assets: true puts EasyAuth (EntraID) in front of the SPA on day one.
+frontend:
+  type: static-web-app
+  repo: https://github.com/payneio/lakehouse
+  branch: main
+  app_location: "/webapp"
+  output_location: "dist"
+  build_command: "pnpm install --frozen-lockfile && pnpm run build"
+  protect_assets: true
+
+# ------------------------------------------------------------------
+# Optional managed Azure resources
+# ------------------------------------------------------------------
+# Lakehouse stores state as files under $AMPLIFIERD_HOME, not in a
+# database, so none of these are needed. Persistent state lives on
+# the App Service /home mount (see Dockerfile + DEPLOYMENT notes).
+resources:
+  postgres:
+    enabled: false
+  cosmos:
+    enabled: false
+  redis:
+    enabled: false
+  storage:
+    enabled: false   # NOTE: this is blob storage, not a file mount
