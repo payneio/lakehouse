@@ -22,7 +22,6 @@ interface MessageListProps {
 export function MessageList({
   messages,
   streamingContent,
-  currentActivity: _currentActivity,
   currentTurnThinking = [],
   turns = [],
   currentTurn = null,

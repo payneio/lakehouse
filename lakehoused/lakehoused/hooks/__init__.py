@@ -151,7 +151,7 @@ class StreamingHookRegistry:
     @property
     def _handlers(self):
         """Expose wrapped registry's handlers for compatibility."""
-        return self._wrapped._handlers
+        return getattr(self._wrapped, "_handlers", {})
 
     @property
     def _defaults(self):

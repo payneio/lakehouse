@@ -4,30 +4,7 @@ import { CheckCircle, Circle, AlertCircle, Loader2, Zap, ExternalLink, ListTodo 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { ToolCall } from '../types/execution';
-
-// Extract a short preview string for known tool types (shown on the collapsed row)
-export function getToolPreview(tool: ToolCall): string | null {
-  if (!tool.arguments) return null;
-  switch (tool.name) {
-    case 'bash':
-      return tool.arguments.command ? String(tool.arguments.command) : null;
-    case 'read_file':
-      return tool.arguments.file_path ? String(tool.arguments.file_path) : null;
-    case 'write_file':
-    case 'edit_file':
-      return tool.arguments.file_path ? String(tool.arguments.file_path) : null;
-    case 'grep':
-      return tool.arguments.pattern ? String(tool.arguments.pattern) : null;
-    case 'glob':
-      return tool.arguments.pattern ? String(tool.arguments.pattern) : null;
-    case 'web_fetch':
-      return tool.arguments.url ? String(tool.arguments.url) : null;
-    case 'delegate':
-      return tool.arguments.agent ? String(tool.arguments.agent) : null;
-    default:
-      return null;
-  }
-}
+import { getToolPreview } from './toolPreview';
 
 // ---- Todo tool: structured display ----
 
@@ -56,10 +33,21 @@ function parseTodos(tool: ToolCall): TodoItem[] {
   return [];
 }
 
+// Format arguments for display
+function formatArguments(args?: Record<string, unknown>): string {
+  if (!args) return 'None';
+  return JSON.stringify(args, null, 2);
+}
+
+// Format result for display
+function formatResult(result?: unknown): string {
+  if (result === undefined) return 'Pending...';
+  if (typeof result === 'string') return result;
+  return JSON.stringify(result, null, 2);
+}
+
 function TodoToolDisplay({ tool }: { tool: ToolCall }) {
   const todos = React.useMemo(() => parseTodos(tool), [tool]);
-
-  if (todos.length === 0) return null;
 
   const counts = React.useMemo(() => {
     let done = 0, active = 0, pending = 0;
@@ -70,6 +58,8 @@ function TodoToolDisplay({ tool }: { tool: ToolCall }) {
     }
     return { done, active, pending, total: todos.length };
   }, [todos]);
+
+  if (todos.length === 0) return null;
 
   return (
     <div className="border-l-2 border-gray-200 dark:border-gray-700 pl-3 py-2">
@@ -129,6 +119,14 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
     });
   }, [tool]);
 
+  // Get first line of result for summary.
+  // Computed before any early return so hooks run in a stable order.
+  const resultSummary = React.useMemo(() => {
+    const formatted = formatResult(tool.result);
+    const firstLine = formatted.split('\n')[0];
+    return firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
+  }, [tool.result]);
+
   // Todo tool gets its own structured display
   if (tool.name === 'todo') {
     return <TodoToolDisplay tool={tool} />;
@@ -174,26 +172,6 @@ export function ToolCallItem({ tool }: ToolCallItemProps) {
 
   const status = getStatusDisplay();
   const durationText = tool.duration ? `${(tool.duration / 1000).toFixed(1)}s` : '...';
-
-  // Format arguments for display
-  const formatArguments = (args?: Record<string, unknown>) => {
-    if (!args) return 'None';
-    return JSON.stringify(args, null, 2);
-  };
-
-  // Format result for display
-  const formatResult = (result?: unknown) => {
-    if (result === undefined) return 'Pending...';
-    if (typeof result === 'string') return result;
-    return JSON.stringify(result, null, 2);
-  };
-
-  // Get first line of result for summary
-  const resultSummary = React.useMemo(() => {
-    const formatted = formatResult(tool.result);
-    const firstLine = formatted.split('\n')[0];
-    return firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
-  }, [tool.result]);
 
   const hasFullResult = formatResult(tool.result).length > resultSummary.length;
 

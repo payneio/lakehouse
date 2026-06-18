@@ -3,7 +3,8 @@ import { Brain, CheckCircle, AlertCircle, Loader2, Clock, ChevronRight } from 'l
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import type { Turn, ToolCall, ThinkingBlock } from '../types/execution';
-import { ToolCallItem, getToolPreview } from './ToolCallItem';
+import { ToolCallItem } from './ToolCallItem';
+import { getToolPreview } from './toolPreview';
 
 interface InlineTurnSummaryProps {
   turn: Turn;

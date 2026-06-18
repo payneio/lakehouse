@@ -107,6 +107,19 @@ def _setup_amplifier_mocks() -> None:
 _setup_amplifier_mocks()
 
 
+@pytest.fixture(autouse=True)
+def disable_auth_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable the password login gate for all tests.
+
+    The gate reads the developer's ~/.lakehoused/config/secrets.yaml. Without
+    this, anyone who has configured ``auth_password`` locally would see every
+    API test fail with 401. Forcing the gate off keeps the suite deterministic
+    and independent of local machine config. Auth-specific tests re-enable it
+    by patching ``lakehoused.auth.get_auth_password`` themselves.
+    """
+    monkeypatch.setattr("lakehoused.auth.get_auth_password", lambda: None)
+
+
 @pytest.fixture
 def temp_storage_dir() -> Generator[Path, None, None]:
     """Create temporary storage directory for tests.

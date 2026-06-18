@@ -198,11 +198,7 @@ async def password_gate(request: Request, call_next):
         return await call_next(request)
 
     # Always allow auth endpoints, health checks, and CORS preflight requests.
-    if (
-        request.method == "OPTIONS"
-        or path in _AUTH_EXEMPT_PATHS
-        or path.startswith(_AUTH_EXEMPT_PREFIXES)
-    ):
+    if request.method == "OPTIONS" or path in _AUTH_EXEMPT_PATHS or path.startswith(_AUTH_EXEMPT_PREFIXES):
         return await call_next(request)
 
     # No password configured -> gate disabled, pass everything through.
