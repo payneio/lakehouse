@@ -1,6 +1,5 @@
-import { BASE_URL } from "@/api/client";
 import { listBundles } from "@/api/bundles";
-import { cancelExecution, changeBundle, cloneSession, deleteLastMessage } from "@/api/sessions";
+import { cancelExecution, changeBundle, cloneSession, deleteLastMessage, sendMessage } from "@/api/sessions";
 import { FileBrowserPanel } from "@/components/FileBrowserPanel";
 import { SessionNameEdit } from "@/features/projects/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
@@ -282,18 +281,7 @@ export function SessionView() {
     try {
       // POST to send-message (triggers execution, returns immediately)
       // All events come via persistent /stream connection
-      const response = await fetch(
-        `${BASE_URL}/api/v1/sessions/${sessionId}/send-message`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: message }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Send message failed: ${response.status}`);
-      }
+      await sendMessage(sessionId, message);
 
       // Execution triggered in background
       // All events (user_message_saved, content, assistant_message_complete) come via /stream

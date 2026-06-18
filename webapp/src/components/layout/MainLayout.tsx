@@ -3,10 +3,14 @@ import { ProjectTreeSidebar } from "@/features/projects/components/ProjectTreeSi
 import { cn } from "@/lib/utils";
 import { FolderOpen, Home, Package, X } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
+import { useGlobalEvents } from "@/hooks/useGlobalEvents";
 import { MobileMenuProvider, useMobileMenu } from "./MobileMenuContext";
 
 function MainLayoutContent() {
   const { isOpen, close } = useMobileMenu();
+
+  // Subscribe to global events once the authenticated layout is mounted.
+  useGlobalEvents();
 
   return (
     <div className="flex h-screen">

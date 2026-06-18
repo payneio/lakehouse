@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useEventStream } from './useEventStream';
+import { sendMessage as sendMessageApi } from '@/api/sessions';
 
 export interface Message {
   id: string;
@@ -85,15 +86,7 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   const sendMessage = useCallback(
     async (content: string) => {
       try {
-        const response = await fetch(`/api/v1/sessions/${sessionId}/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send message');
-        }
+        await sendMessageApi(sessionId, content);
       } catch (error) {
         console.error('Error sending message:', error);
         throw error;

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BASE_URL } from '@/api/client';
+import { withToken } from '@/api/token';
 
 /**
  * Global event stream hook that subscribes to system-wide events.
@@ -20,7 +21,7 @@ export function useGlobalEvents() {
 
   useEffect(() => {
     function createEventSource() {
-      const eventSource = new EventSource(`${BASE_URL}/api/v1/events`);
+      const eventSource = new EventSource(withToken(`${BASE_URL}/api/v1/events`));
       eventSourceRef.current = eventSource;
       return eventSource;
     }

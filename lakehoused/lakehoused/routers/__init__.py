@@ -3,6 +3,7 @@
 This module contains FastAPI routers for all API endpoints.
 """
 
+from .auth import router as auth_router
 from .automations import router as automations_router
 from .bundles import router as bundles_router
 from .events import router as events_router
@@ -17,6 +18,7 @@ from .status import router as status_router
 from .stream import router as stream_router
 
 __all__ = [
+    "auth_router",
     "automations_router",
     "bundles_router",
     "events_router",

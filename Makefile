@@ -1,5 +1,5 @@
 .PHONY: help dev test lint typecheck check build clean install
-.PHONY: daemon-dev daemon-test daemon-lint daemon-typecheck daemon-check daemon-install daemon-clean
+.PHONY: daemon-dev daemon-test daemon-lint daemon-typecheck daemon-check daemon-build daemon-install daemon-clean
 .PHONY: webapp-dev webapp-test webapp-lint webapp-typecheck webapp-check webapp-build webapp-install webapp-clean
 .PHONY: notebooks-install notebooks-run notebooks-clean
 
@@ -13,7 +13,7 @@ help:
 	@echo "  lint        - Lint and format all code"
 	@echo "  typecheck   - Type check all code"
 	@echo "  check       - Full validation (lint + typecheck + test)"
-	@echo "  build       - Build production artifacts"
+	@echo "  build       - Build production artifacts (bundles webapp into daemon)"
 	@echo "  clean       - Clean all build artifacts"
 	@echo "  install     - Install all dependencies"
 	@echo ""
@@ -23,6 +23,7 @@ help:
 	@echo "  daemon-lint      - Lint daemon code"
 	@echo "  daemon-typecheck - Type check daemon code"
 	@echo "  daemon-check     - Daemon validation (lint + typecheck + test)"
+	@echo "  daemon-build     - Build webapp and bundle it into the daemon served path"
 	@echo "  daemon-install   - Install daemon dependencies"
 	@echo "  daemon-clean     - Clean daemon build artifacts"
 	@echo ""
@@ -66,7 +67,7 @@ typecheck: daemon-typecheck webapp-typecheck
 check: lint typecheck test
 	@echo "All validation checks passed"
 
-build: webapp-build
+build: daemon-build
 	@echo "All build artifacts created"
 
 clean: daemon-clean webapp-clean notebooks-clean
@@ -100,12 +101,22 @@ daemon-typecheck:
 daemon-check: daemon-lint daemon-typecheck daemon-test
 	@echo "Daemon validation complete"
 
+# Bundle the webapp into the daemon's served path. The daemon serves the SPA
+# from lakehoused/lakehoused/webapp_dist (see lakehoused/main.py), so this is
+# the daemon's build artifact. Depends on webapp-build (vite -> webapp/dist).
+daemon-build: webapp-build
+	@echo "Bundling webapp into daemon served path..."
+	rm -rf lakehoused/lakehoused/webapp_dist
+	cp -r webapp/dist lakehoused/lakehoused/webapp_dist
+	@echo "Webapp bundled into lakehoused/lakehoused/webapp_dist"
+
 daemon-install:
 	@echo "Installing daemon dependencies..."
 	cd lakehoused && uv sync
 
 daemon-clean:
 	@echo "Cleaning daemon build artifacts..."
+	rm -rf lakehoused/lakehoused/webapp_dist
 	cd lakehoused && rm -rf __pycache__ .pytest_cache .ruff_cache .pyright_cache
 	cd lakehoused && find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	cd lakehoused && find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true

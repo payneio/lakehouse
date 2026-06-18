@@ -18,7 +18,10 @@ from starlette.responses import Response
 
 from lakehoused.config.settings import load_config
 
+from .auth import auth_required as _auth_required
+from .auth import verify_token as _verify_token
 from .config.loader import load_config as load_daemon_config
+from .routers import auth_router
 from .routers import automations_router
 from .routers import bundles_router
 from .routers import events_router
@@ -175,6 +178,53 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Password gate middleware. Enforces a session token on /api/ requests when a
+# password is configured in secrets.yaml. Registered BEFORE the CORS middleware
+# below so that CORS remains the outermost layer (Starlette runs the last-added
+# middleware first), ensuring 401 responses still carry CORS headers and the
+# browser can read them.
+_AUTH_EXEMPT_PREFIXES = ("/api/v1/auth/",)
+# Exact paths that must stay public (e.g. liveness/readiness probes).
+_AUTH_EXEMPT_PATHS = frozenset({"/api/v1/health"})
+
+
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    """Require a valid session token for API requests when auth is enabled."""
+    path = request.url.path
+
+    # Only gate API routes; static SPA assets are public (data lives behind the API).
+    if not path.startswith("/api/"):
+        return await call_next(request)
+
+    # Always allow auth endpoints, health checks, and CORS preflight requests.
+    if (
+        request.method == "OPTIONS"
+        or path in _AUTH_EXEMPT_PATHS
+        or path.startswith(_AUTH_EXEMPT_PREFIXES)
+    ):
+        return await call_next(request)
+
+    # No password configured -> gate disabled, pass everything through.
+    if not _auth_required():
+        return await call_next(request)
+
+    # Accept the token from the Authorization header or a `token` query param.
+    # EventSource (SSE) cannot set headers, so streaming endpoints pass it in
+    # the query string instead.
+    token: str | None = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer ") :]
+    if token is None:
+        token = request.query_params.get("token")
+
+    if not _verify_token(token):
+        return JSONResponse(status_code=401, content={"detail": "Authentication required"})
+
+    return await call_next(request)
+
+
 # Add CORS middleware - origins configured in daemon.yaml
 daemon_config = load_daemon_config()
 app.add_middleware(
@@ -187,6 +237,7 @@ app.add_middleware(
 logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 
 # Include routers
+app.include_router(auth_router)
 app.include_router(automations_router)
 app.include_router(bundles_router)
 app.include_router(events_router)

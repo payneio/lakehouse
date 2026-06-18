@@ -1,19 +1,25 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { MainLayout } from '@/components/layout/MainLayout'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { LoginPage } from '@/pages/Login'
 import { HomePage } from '@/pages/Home'
 import { BundlesPage } from '@/pages/Bundles'
 import { ProjectsPage } from '@/pages/Projects'
 import { SessionView } from '@/features/session'
-import { useGlobalEvents } from '@/hooks/useGlobalEvents'
 
 function App() {
-  // Subscribe to global events app-wide
-  useGlobalEvents();
-
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MainLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<HomePage />} />
           <Route path="bundles" element={<BundlesPage />} />

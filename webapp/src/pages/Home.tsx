@@ -1,4 +1,4 @@
-import { BASE_URL } from "@/api/client";
+import { fetchApi } from "@/api/client";
 import { useMobileMenu } from "@/components/layout/MobileMenuContext";
 import {
   ArrowRight,
@@ -34,21 +34,21 @@ export function HomePage() {
     // Check API connection on mount
     const checkConnection = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/v1/status`, {
-          mode: "cors",
-        });
-
-        const data = await response.json();
+        const data = await fetchApi<{ version?: string; rootDir?: string }>(
+          "/api/v1/status"
+        );
         setApiStatus("connected");
         setApiVersion(data.version || "unknown");
         setDataPath(data.rootDir || "");
 
         // Fetch system info for debugging
         try {
-          const infoResponse = await fetch(`${BASE_URL}/api/info`, {
-            mode: "cors",
-          });
-          const infoData = await infoResponse.json();
+          const infoData = await fetchApi<{
+            daemon_path: string;
+            daemon_pid: number;
+            webapp_path: string;
+            webapp_url: string;
+          }>("/api/info");
           setSystemInfo({
             daemonPath: infoData.daemon_path,
             daemonPid: infoData.daemon_pid,

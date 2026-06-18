@@ -4,6 +4,8 @@
  * Provides functions for managing scheduled project prompts (automations).
  */
 
+import { fetchApi } from "./client";
+
 export interface ScheduleConfig {
   type: "cron" | "interval" | "once";
   value: string; // cron expression, interval notation (e.g., "1h"), or ISO datetime
@@ -55,8 +57,6 @@ export interface ExecutionHistory {
   total: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
-
 /**
  * Encode project ID for URL path.
  * Special case: Use 'root' for '.' to avoid FastAPI routing issues with path normalization.
@@ -72,21 +72,13 @@ export async function createAutomation(
   projectId: string,
   automation: AutomationCreate
 ): Promise<Automation> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/`,
+  const data = await fetchApi<{ automation: Automation }>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(automation),
     }
   );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(error.detail || `Failed to create automation: ${response.statusText}`);
-  }
-
-  const data = await response.json();
   return data.automation;
 }
 
@@ -106,17 +98,11 @@ export async function listAutomations(
   if (options?.limit !== undefined) params.set("limit", String(options.limit));
   if (options?.offset !== undefined) params.set("offset", String(options.offset));
 
-  const url = `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${
+  const url = `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${
     params.toString() ? `?${params}` : ""
   }`;
 
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to list automations: ${response.statusText}`);
-  }
-
-  return response.json();
+  return fetchApi<AutomationList>(url);
 }
 
 /**
@@ -126,15 +112,9 @@ export async function getAutomation(
   projectId: string,
   automationId: string
 ): Promise<Automation> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`
+  const data = await fetchApi<{ automation: Automation }>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to get automation: ${response.statusText}`);
-  }
-
-  const data = await response.json();
   return data.automation;
 }
 
@@ -146,21 +126,13 @@ export async function updateAutomation(
   automationId: string,
   update: AutomationUpdate
 ): Promise<Automation> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
+  const data = await fetchApi<{ automation: Automation }>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(update),
     }
   );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(error.detail || `Failed to update automation: ${response.statusText}`);
-  }
-
-  const data = await response.json();
   return data.automation;
 }
 
@@ -171,16 +143,12 @@ export async function deleteAutomation(
   projectId: string,
   automationId: string
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
+  await fetchApi<void>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}`,
     {
       method: "DELETE",
     }
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete automation: ${response.statusText}`);
-  }
 }
 
 /**
@@ -191,20 +159,13 @@ export async function toggleAutomation(
   automationId: string,
   enabled: boolean
 ): Promise<{ automation_id: string; enabled: boolean }> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/toggle`,
+  return fetchApi<{ automation_id: string; enabled: boolean }>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/toggle`,
     {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ enabled }),
     }
   );
-
-  if (!response.ok) {
-    throw new Error(`Failed to toggle automation: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -214,19 +175,12 @@ export async function executeAutomation(
   projectId: string,
   automationId: string
 ): Promise<{ session_id: string; status: string }> {
-  const response = await fetch(
-    `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/execute`,
+  return fetchApi<{ session_id: string; status: string }>(
+    `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/execute`,
     {
       method: "POST",
     }
   );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(error.detail || `Failed to execute automation: ${response.statusText}`);
-  }
-
-  return response.json();
 }
 
 /**
@@ -246,17 +200,11 @@ export async function getExecutionHistory(
   if (options?.limit !== undefined) params.set("limit", String(options.limit));
   if (options?.offset !== undefined) params.set("offset", String(options.offset));
 
-  const url = `${API_BASE}/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/executions${
+  const url = `/api/v1/projects/${encodeProjectPath(projectId)}/automations/${encodeURIComponent(automationId)}/executions${
     params.toString() ? `?${params}` : ""
   }`;
 
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to get execution history: ${response.statusText}`);
-  }
-
-  return response.json();
+  return fetchApi<ExecutionHistory>(url);
 }
 
 /**

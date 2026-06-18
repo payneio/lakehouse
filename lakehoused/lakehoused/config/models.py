@@ -130,6 +130,11 @@ class Secrets(BaseModel):
         description="API keys by provider module name (e.g., 'provider-anthropic': 'sk-ant-...')",
     )
 
+    auth_password: str | None = Field(
+        default=None,
+        description="Optional password gate for the UI/API. When set, clients must log in with this password. When unset (None), authentication is disabled.",
+    )
+
     @classmethod
     def load_from_file(cls, path: Path) -> Secrets:
         """Load secrets from YAML file.
