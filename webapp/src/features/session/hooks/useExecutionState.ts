@@ -210,11 +210,16 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   }, []);
 
   // Get current state (safe getter function)
-  // Return a NEW object reference when updateCounter changes, so React re-renders children
-  const getState = useCallback(() => ({
-    ...stateRef.current,
-    turns: [...stateRef.current.turns],  // New array reference for proper React diffing
-  }), [updateCounter]);
+  const getState = useCallback(() => {
+    // Depend on updateCounter so getState (and the memoized API below) gets a
+    // new identity whenever state changes, forcing consumers to re-render.
+    // State itself lives in a ref, so it isn't otherwise referenced here.
+    void updateCounter;
+    return {
+      ...stateRef.current,
+      turns: [...stateRef.current.turns], // New array reference for proper React diffing
+    };
+  }, [updateCounter]);
 
   // Return stable API using useMemo
   return useMemo(

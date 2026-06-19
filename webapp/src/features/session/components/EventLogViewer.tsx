@@ -37,7 +37,7 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
     enabled: !!sessionId,
   });
 
-  const events = data?.events || [];
+  const events = useMemo(() => data?.events || [], [data]);
 
   // Extract unique sessions for filter dropdown
   const sessionOptions = useMemo(() => {

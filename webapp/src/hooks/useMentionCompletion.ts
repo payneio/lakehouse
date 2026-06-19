@@ -93,7 +93,7 @@ export function useMentionCompletion({
     staleTime: 5000, // Cache for 5 seconds
   });
 
-  const completions = data?.entries ?? [];
+  const completions = useMemo(() => data?.entries ?? [], [data]);
 
   // Detect @mention in input (both simple and quoted formats)
   const handleInputChange = useCallback((value: string, cursorPosition: number) => {

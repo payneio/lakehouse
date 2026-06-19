@@ -129,6 +129,11 @@ export function SessionView() {
     },
   });
 
+  // `on` is a stable useCallback; bind it so the subscription effect below
+  // depends on a stable reference and does not re-run when the stream's
+  // connection state changes (which changes eventStream's identity).
+  const subscribeToEvent = eventStream.on;
+
   // Clear SSE messages when navigating to different session
   React.useEffect(() => {
     setSseMessages([]);
@@ -147,7 +152,7 @@ export function SessionView() {
 
     const unsubscribers = [
       // User message saved
-      eventStream.on("user_message_saved", (data: unknown) => {
+      subscribeToEvent("user_message_saved", (data: unknown) => {
         const msgData = data as MessageEventData;
         setSseMessages((prev) => [
           ...prev,
@@ -161,13 +166,13 @@ export function SessionView() {
       }),
 
       // Assistant message start
-      eventStream.on("assistant_message_start", () => {
+      subscribeToEvent("assistant_message_start", () => {
         setStreamingContent("");
         setForceHideHeader(true);
       }),
 
       // Content streaming
-      eventStream.on("content", (data: unknown) => {
+      subscribeToEvent("content", (data: unknown) => {
         const contentData = data as ContentEventData;
         if (contentData.type === "content" && contentData.content) {
           setStreamingContent((prev) => prev + contentData.content);
@@ -175,7 +180,7 @@ export function SessionView() {
       }),
 
       // Assistant message complete
-      eventStream.on("assistant_message_complete", (data: unknown) => {
+      subscribeToEvent("assistant_message_complete", (data: unknown) => {
         const msgData = data as MessageEventData;
         setSseMessages((prev) => {
           const updated = [
@@ -195,7 +200,7 @@ export function SessionView() {
       }),
 
       // Tool call events
-      eventStream.on("hook:tool:pre", (data: unknown) => {
+      subscribeToEvent("hook:tool:pre", (data: unknown) => {
         const eventData = data as {
           hook_data?: {
             tool_name: string;
@@ -213,7 +218,7 @@ export function SessionView() {
         }
       }),
 
-      eventStream.on("hook:tool:post", (data: unknown) => {
+      subscribeToEvent("hook:tool:post", (data: unknown) => {
         const eventData = data as {
           hook_data?: {
             tool_name: string;
@@ -239,7 +244,7 @@ export function SessionView() {
       }),
 
       // Thinking events
-      eventStream.on("hook:thinking:delta", (data: unknown) => {
+      subscribeToEvent("hook:thinking:delta", (data: unknown) => {
         const eventData = data as { hook_data?: { delta: string } };
         const thinkingData = eventData.hook_data;
         if (thinkingData?.delta) {
@@ -248,21 +253,21 @@ export function SessionView() {
       }),
 
       // Execution cancelled
-      eventStream.on("execution_cancelled", () => {
+      subscribeToEvent("execution_cancelled", () => {
         setStreamingContent("");
         setIsSending(false);
         executionStateRef.current.completeTurn();
       }),
 
       // Execution error
-      eventStream.on("execution_error", () => {
+      subscribeToEvent("execution_error", () => {
         setStreamingContent("");
         setIsSending(false);
         executionStateRef.current.completeTurn();
       }),
 
       // Message deleted (cross-client sync)
-      eventStream.on("message_deleted", () => {
+      subscribeToEvent("message_deleted", () => {
         // Another client (or this one) deleted a message, refetch transcript
         queryClient.invalidateQueries({ queryKey: ["transcript", sessionId] });
         setSseMessages([]); // Clear SSE messages, they'll be in transcript now
@@ -272,7 +277,7 @@ export function SessionView() {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
     };
-  }, [sessionId, eventStream.on]); // Removed executionState - use ref instead
+  }, [sessionId, subscribeToEvent, queryClient]); // executionState read via ref to avoid re-subscribing
 
   const handleSend = async (message: string) => {
     setIsSending(true);
