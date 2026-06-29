@@ -1,52 +1,67 @@
-# Amplifier Online - Azure Web App (Linux container) + Static Web App
-# Stack docs: https://github.com/payneio/amplifier-online/blob/main/docs/stacks/web-app-awa.md
-#
-# Validate:  amplifier-online up --dry-run
-# Deploy:    amplifier-online up
+# Amplifier Online - Azure Web App + Static Web App Stack Configuration
+# Documentation: https://github.com/microsoft/amplifier-online/blob/main/docs/stacks/web-app-awa.md
 
 name: lakehouse
 stack: web-app-awa
 
-# ------------------------------------------------------------------
-# Backend: amplifierd FastAPI daemon (Linux container on Azure Web App)
-# ------------------------------------------------------------------
-# Image MUST be pre-built and pushed to the platform ACR before `up`.
-# Build context is the repo root because amplifier_library is a
-# sibling editable dep of amplifierd:
-#
-#   az acr login --name amplifieronlinecr
-#   docker build -t amplifieronlinecr.azurecr.io/lakehouse-api:latest .
-#   docker push amplifieronlinecr.azurecr.io/lakehouse-api:latest
-backend:
-  image: amplifieronlinecr.azurecr.io/lakehouse-api:latest
-  port: 8421   # must match Dockerfile EXPOSE and AMPLIFIERD_DAEMON_PORT
+# Services define the container apps to deploy.
+# The web-app-awa stack requires an "api" service for the backend.
+services:
+  api:
+    image: amplifieronlinecr.azurecr.io/lakehouse-api:latest  # Push to ACR before deploying
+    port: 8421  # Matches Dockerfile EXPOSE 8421 / AMPLIFIERD_DAEMON_PORT
+    env:
+      # Point the daemon's state dir at the mounted volume so file-state survives restarts
+      - name: AMPLIFIERD_HOME
+        value: /mounts/data
+      # data_path defaults to ~/amplifier (=/home/amplifier/amplifier); under the App Service
+      # platform the image's /home/amplifier is shadowed, so its parent is missing and the
+      # daemon crashes at startup (DaemonSettings validation). Pin it to the persistent volume
+      # (parent /mounts/data exists + is writable), which is also where this state belongs.
+      - name: AMPLIFIERD_DATA_PATH
+        value: /mounts/data/data
+    volume:
+      mount_path: /mounts/data  # web-app-awa REQUIRES mount_path under /mounts/
+      size_gib: 16
 
-# ------------------------------------------------------------------
-# Frontend: Vite React SPA on Azure Static Web Apps
-# ------------------------------------------------------------------
-# SWA's Oryx build runs install + build_command from app_location.
-# protect_assets: true puts EasyAuth (EntraID) in front of the SPA on day one.
+# Frontend (Azure Static Web App - built by GitHub Actions)
+# Delete this section if your backend serves its own frontend.
 frontend:
   type: static-web-app
-  repo: https://github.com/payneio/lakehouse
+  repo: "https://github.com/payneio/lakehouse"  # GitHub repo URL
   branch: main
-  app_location: "/webapp"
-  output_location: "dist"
-  build_command: "pnpm install --frozen-lockfile && pnpm run build"
-  protect_assets: true
+  app_location: "/webapp"  # Frontend code lives in ./webapp/
+  output_location: "dist"  # Vite build output dir
+  build_command: "npm run build"  # Optional - defaults to "npm run build"
+  protected: login  # SWA frontend always requires sign-in (enforced by platform)
 
-# ------------------------------------------------------------------
-# Optional managed Azure resources
-# ------------------------------------------------------------------
-# Lakehouse stores state as files under $AMPLIFIERD_HOME, not in a
-# database, so none of these are needed. Persistent state lives on
-# the App Service /home mount (see Dockerfile + DEPLOYMENT notes).
+# Optional managed databases (provisions isolated resources for this project)
 resources:
   postgres:
-    enabled: false
+    enabled: false  # lakehouse does not use Postgres (no driver in backend). Would inject DB_HOST/DB_NAME/DB_USER/DB_PASSWORD (no DATABASE_URL).
   cosmos:
-    enabled: false
+    enabled: false  # Injects COSMOS_ENDPOINT, COSMOS_DATABASE, COSMOS_KEY into backend
   redis:
-    enabled: false
+    enabled: false  # Injects REDIS_HOST, REDIS_PORT, REDIS_PASSWORD into backend
   storage:
-    enabled: false   # NOTE: this is blob storage, not a file mount
+    enabled: false  # Injects STORAGE_ACCOUNT, STORAGE_FILESYSTEM, STORAGE_ENDPOINT (managed-identity/RBAC; no key)
+  # Persistent file state is handled by the services.api.volume block above
+  # (mounted at /mounts/data, with AMPLIFIERD_HOME pointed there).
+
+# BEFORE YOU DEPLOY:
+# 1. Backend: Create Dockerfile, add /health endpoint, build and push to ACR:
+#    docker build -t amplifieronlinecr.azurecr.io/lakehouse-api:latest ./api
+#    docker push amplifieronlinecr.azurecr.io/lakehouse-api:latest
+# 2. Frontend: Commit code to GitHub repo, test build locally (npm run build)
+# 3. Update frontend.repo above with your GitHub repository URL
+# 4. Run: amplifier-online up
+#
+# AFTER DEPLOYMENT:
+# - Generate CI/CD: amplifier-online cicd create
+#   (prints the gh secret set commands for OIDC secrets and the SWA deployment token)
+# - Run the printed commands to configure GitHub secrets
+# - Push to GitHub: automatic deployment starts!
+#
+# IMPORTANT: Frontend is STATIC ONLY (no SSR). Backend calls must include CORS config.
+#
+# Need help? See: https://github.com/microsoft/amplifier-online/blob/main/docs/stacks/web-app-awa.md

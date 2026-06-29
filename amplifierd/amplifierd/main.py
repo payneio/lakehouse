@@ -174,6 +174,20 @@ app.include_router(mount_plans_router)
 app.include_router(stream_router)
 
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Root-level health check for platform probes.
+
+    Mirrors /api/v1/health. The Amplifier Online web-app-awa platform probes a
+    fixed /health path that is not configurable in the manifest, so this alias
+    must exist outside the /api/v1 router prefix.
+
+    Returns:
+        Simple health status
+    """
+    return {"status": "healthy"}
+
+
 @app.get("/")
 async def root() -> dict[str, str]:
     """Root endpoint.
