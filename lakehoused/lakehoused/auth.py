@@ -1,9 +1,10 @@
 """Simple password-based authentication for the lakehoused daemon.
 
 A single shared password (no username) gates API access. The password is read
-from ``~/.lakehoused/config/secrets.yaml`` under ``auth_password``. When no
-password is configured, authentication is disabled and all requests pass
-through unchanged.
+from the ``LAKEHOUSED_AUTH_PASSWORD`` environment variable if set (so a deployment
+can inject it from its own secret store), otherwise from
+``~/.lakehoused/config/secrets.yaml`` under ``auth_password``. When no password is
+configured, authentication is disabled and all requests pass through unchanged.
 
 This is a lightweight gate intended for a personal/local daemon, not a
 multi-user authentication system.

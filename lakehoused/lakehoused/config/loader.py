@@ -40,20 +40,22 @@ def get_secrets_path() -> Path:
 
 
 def load_secrets(secrets_path: Path | None = None) -> Secrets:
-    """Load secrets from file, with environment variable fallback.
+    """Load secrets from file, with environment variables taking precedence.
 
-    Resolution order:
-    1. secrets.yaml file (explicit configuration)
-    2. Environment variables (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.)
+    Resolution order (highest to lowest):
+    1. Environment variables (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+       LAKEHOUSED_AUTH_PASSWORD, etc.)
+    2. secrets.yaml file (explicit configuration)
 
-    This ensures API keys work in container deployments where env vars
-    are set but no secrets.yaml file exists.
+    Env vars win so a deployment (e.g. castle) can keep secrets in its own store
+    and inject them at start time without writing them into secrets.yaml. They
+    also make secrets work in container deployments where no secrets.yaml exists.
 
     Args:
         secrets_path: Optional path to secrets file. If None, uses default location.
 
     Returns:
-        Loaded secrets (may include env var fallbacks)
+        Loaded secrets (env vars override any file values)
     """
     import os
 
@@ -75,7 +77,9 @@ def load_secrets(secrets_path: Path | None = None) -> Secrets:
         logger.debug(f"No secrets file found at {secrets_path}")
         secrets = Secrets.get_default()
 
-    # Fall back to environment variables for any missing provider keys
+    # Environment variables override the file for provider keys, so a deployment
+    # can supply them from its own secret store (and so container deployments
+    # without a secrets.yaml still work).
     env_key_map = {
         "provider-anthropic": "ANTHROPIC_API_KEY",
         "provider-openai": "OPENAI_API_KEY",
@@ -83,11 +87,19 @@ def load_secrets(secrets_path: Path | None = None) -> Secrets:
         "provider-google": "GOOGLE_API_KEY",
     }
     for provider_name, env_var in env_key_map.items():
-        if provider_name not in secrets.api_keys:
-            value = os.environ.get(env_var)
-            if value:
-                secrets.api_keys[provider_name] = value
-                logger.info(f"Loaded {provider_name} API key from ${env_var}")
+        value = os.environ.get(env_var)
+        if value:
+            secrets.api_keys[provider_name] = value
+            logger.info(f"Loaded {provider_name} API key from ${env_var}")
+
+    # The auth-gate password may be supplied via the environment, which takes
+    # precedence over the file. This lets a deployment (e.g. castle) keep the
+    # password in its own secret store and inject it at start time, instead of
+    # writing it into secrets.yaml.
+    auth_password_env = os.environ.get("LAKEHOUSED_AUTH_PASSWORD")
+    if auth_password_env is not None:
+        secrets.auth_password = auth_password_env
+        logger.info("Loaded auth_password from $LAKEHOUSED_AUTH_PASSWORD")
 
     return secrets
 
