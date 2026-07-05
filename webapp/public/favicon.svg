@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img" aria-label="Lakehouse">
+  <defs>
+    <clipPath id="round"><rect width="32" height="32" rx="7"/></clipPath>
+    <linearGradient id="lake" x1="0" y1="21" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4FA6D4"/>
+      <stop offset="1" stop-color="#2274AA"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#round)">
+    <!-- pale sky -->
+    <rect width="32" height="32" fill="#BAE6FD"/>
+    <!-- lake: full-width body with wavy shoreline at the house base -->
+    <path d="M0 21.5 Q4 19.7 8 21.5 T16 21.5 T24 21.5 T32 21.5 L32 32 L0 32 Z" fill="url(#lake)"/>
+    <!-- house -->
+    <path d="M16 4.5 L27 15.5 L5 15.5 Z" fill="#3C5A7A"/>
+    <path d="M8.5 15 H23.5 V22.3 H8.5 Z" fill="#3C5A7A"/>
+    <!-- lit doorway -->
+    <path d="M13.5 17.5 H18.5 V22.3 H13.5 Z" fill="#F8B84E"/>
+  </g>
+</svg>
