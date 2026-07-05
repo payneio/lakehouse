@@ -1,6 +1,5 @@
 """Test mention parsing utilities."""
 
-import pytest
 
 from lakehoused.utils.mentions import extract_mention_path
 from lakehoused.utils.mentions import format_mention

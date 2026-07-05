@@ -4,9 +4,9 @@ Unit tests for execution runner.
 Tests ExecutionRunner with mocked amplifier-core to avoid real LLM calls.
 """
 
-import pytest
 from unittest.mock import Mock
 
+import pytest
 from lakehoused.execution.runner import ExecutionRunner
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.sessions import state

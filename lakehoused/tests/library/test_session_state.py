@@ -9,9 +9,8 @@ from datetime import UTC
 from datetime import datetime
 
 import pytest
-
-from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
 from lakehoused.sessions import state
 
 

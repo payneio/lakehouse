@@ -13,7 +13,6 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-
 from amplifier_foundation import generate_sub_session_id
 from lakehoused.models.sessions import SessionMessage
 from lakehoused.models.sessions import SessionMetadata
@@ -181,7 +180,7 @@ class TestSpawnAgentSessionCreation:
             mock_session_class.return_value = mock_session
 
             # Execute
-            result = await spawn_agent(
+            await spawn_agent(
                 parent_session=parent_session,
                 agent_name="bug-hunter",
                 instruction="Find bugs",

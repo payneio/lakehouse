@@ -1,14 +1,13 @@
 """Unit tests for mount plan models."""
 
 import pytest
-from pydantic import ValidationError
-
 from lakehoused.models.mount_plans import EmbeddedMount
 from lakehoused.models.mount_plans import MountPlan
 from lakehoused.models.mount_plans import MountPlanRequest
 from lakehoused.models.mount_plans import MountPlanSummary
 from lakehoused.models.mount_plans import ReferencedMount
 from lakehoused.models.mount_plans import SessionConfig
+from pydantic import ValidationError
 
 
 class TestEmbeddedMount:

@@ -13,7 +13,6 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
 from lakehoused.services.mention_resolver import MentionResolver
@@ -472,9 +471,11 @@ async def test_execution_runner_injects_profile_context(
     runner._session = mock_amplifier_session
 
     # Call _ensure_session to trigger context loading
-    with patch("amplifier_core.AmplifierSession", return_value=mock_amplifier_session):
-        with patch("lakehoused.storage.paths.get_share_dir", return_value=tmp_path / "share"):
-            await runner._ensure_session()
+    with (
+        patch("amplifier_core.AmplifierSession", return_value=mock_amplifier_session),
+        patch("lakehoused.storage.paths.get_share_dir", return_value=tmp_path / "share"),
+    ):
+        await runner._ensure_session()
 
     # Simulate the profile context injection logic from execute_stream
     if context_file.exists():
@@ -671,8 +672,7 @@ async def test_execution_runner_works_with_no_context(
     bundle_context_path = session_dir / "bundle_context_messages.json"
     assert not bundle_context_path.exists()
 
-    # Simulate with no runtime context
-    runtime_context_messages = None
+    # Simulate with no runtime context (runtime_context_messages = None)
 
     # Should work without errors
     # No context.add_message calls should be made

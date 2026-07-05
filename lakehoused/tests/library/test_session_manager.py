@@ -9,7 +9,6 @@ from datetime import UTC
 from datetime import datetime
 
 import pytest
-
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.sessions.manager import SessionManager
 

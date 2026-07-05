@@ -10,7 +10,6 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-
 from lakehoused.models.sessions import SessionStatus
 from lakehoused.sessions.manager import SessionManager
 from lakehoused.sessions.spawner import resume_spawned_agent
@@ -140,7 +139,7 @@ class TestSpawnAgentIntegration:
             mock_session.coordinator.mount = AsyncMock()
             mock_session_class.return_value = mock_session
 
-            result = await spawn_agent(
+            await spawn_agent(
                 parent_session=parent_session,
                 agent_name="test-coverage",
                 instruction="Analyze test coverage",

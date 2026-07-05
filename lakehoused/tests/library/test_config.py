@@ -7,7 +7,6 @@ Tests config file creation, loading from YAML, and environment variable override
 from pathlib import Path
 
 import pytest
-
 from lakehoused.config import settings
 from lakehoused.config.settings import DaemonSettings
 
@@ -252,7 +251,7 @@ class TestDaemonSettingsPathExpansion:
         new_dir = tmp_path / "new_amplifier"
         assert not new_dir.exists()
 
-        cfg = DaemonSettings(data_path=str(new_dir))
+        DaemonSettings(data_path=str(new_dir))
 
         assert new_dir.exists()
         assert new_dir.is_dir()

@@ -4,14 +4,13 @@ from datetime import UTC
 from datetime import datetime
 
 import pytest
-from pydantic import ValidationError
-
 from lakehoused.models.sessions import SessionIndex
 from lakehoused.models.sessions import SessionIndexEntry
 from lakehoused.models.sessions import SessionMessage
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionQuery
 from lakehoused.models.sessions import SessionStatus
+from pydantic import ValidationError
 
 
 class TestSessionStatus:

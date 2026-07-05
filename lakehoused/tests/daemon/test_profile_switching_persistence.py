@@ -4,13 +4,11 @@ import json
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
-
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
 from lakehoused.routers.sessions import change_session_bundle

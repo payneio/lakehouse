@@ -7,7 +7,6 @@ Tests Server-Sent Events streaming functionality.
 import json
 
 import pytest
-
 from lakehoused.streaming import format_sse_event
 from lakehoused.streaming import sse_event_stream
 from lakehoused.streaming import wrap_execution_stream

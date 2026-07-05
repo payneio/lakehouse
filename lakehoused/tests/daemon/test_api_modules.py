@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-
 from lakehoused.main import app
 from lakehoused.routers.modules import get_module_discovery_service
 from lakehoused.services.module_service import ModuleService

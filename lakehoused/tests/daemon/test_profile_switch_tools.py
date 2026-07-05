@@ -6,7 +6,6 @@ using the old profile's tools.
 """
 
 import pytest
-
 from lakehoused.services.session_stream_manager import SessionStreamManager
 from lakehoused.services.session_stream_registry import SessionStreamRegistry
 
@@ -46,7 +45,6 @@ async def test_session_stream_manager_update_mount_plan(tmp_path) -> None:
         session_manager=session_manager, config=initial_mount_plan, session_id=session_id, resolver=mock_resolver
     )
     manager._runner_initialized = True
-    original_runner = manager._runner
     assert manager._runner is not None
 
     # Update mount plan (simulates profile change)

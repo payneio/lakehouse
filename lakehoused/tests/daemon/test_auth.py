@@ -7,7 +7,6 @@ password so these tests can exercise the real enforcement path.
 
 import pytest
 from fastapi.testclient import TestClient
-
 from lakehoused.main import app
 
 

@@ -218,7 +218,7 @@ def test_inject_runtime_config_session_log_template_creates_config(tmp_path: Pat
     manager = LakehouseBundleManager(home_dir=tmp_path)
 
     # hooks-logging without config key
-    mount_plan = {
+    mount_plan: dict = {
         "hooks": [
             {"module": "hooks-logging", "source": "test"},
         ],

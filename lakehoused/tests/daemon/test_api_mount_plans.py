@@ -2,13 +2,11 @@
 
 from datetime import UTC
 from datetime import datetime
-from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
-
 from lakehoused.main import app
 
 

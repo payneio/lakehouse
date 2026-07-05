@@ -66,6 +66,7 @@ class TestScheduleParsing:
         """Test parsing one-time datetime."""
         dt_str = "2024-12-15T09:00:00Z"
         trigger = scheduler._parse_once(dt_str)
+        assert trigger.run_date is not None
         assert trigger.run_date.year == 2024
         assert trigger.run_date.month == 12
         assert trigger.run_date.day == 15

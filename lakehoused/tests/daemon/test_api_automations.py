@@ -12,17 +12,15 @@ Tests cover:
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from pathlib import Path
 from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-
+from lakehoused.main import app
 from lakehoused.models.automations import Automation
 from lakehoused.models.automations import ExecutionRecord
 from lakehoused.models.automations import ScheduleConfig
-from lakehoused.main import app
 from lakehoused.routers.automations import get_automation_manager
 from lakehoused.routers.automations import get_automation_scheduler
 

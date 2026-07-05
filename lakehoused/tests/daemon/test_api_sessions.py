@@ -5,14 +5,13 @@ from datetime import datetime
 from typing import Any
 from unittest.mock import Mock
 
+import lakehoused.routers.sessions
 import pytest
 from fastapi.testclient import TestClient
-
+from lakehoused.main import app
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
-from lakehoused.main import app
 from lakehoused.routers.sessions import get_session_state_service
-import lakehoused.routers.sessions
 
 
 @pytest.fixture
@@ -115,8 +114,8 @@ def mock_project_service(mock_mount_plan: dict):
     mock_service.get = Mock(return_value=mock_project)
 
     # Create mock bundle manager
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
 
     # Create a temporary directory for bundles
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -230,8 +229,8 @@ class TestSessionsAPI:
     ) -> None:
         """Test POST /api/v1/sessions/ returns 404 for invalid bundle."""
         # Create a mock bundle manager that raises FileNotFoundError
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             mock_bundle_manager = Mock()
@@ -559,7 +558,6 @@ class TestSessionsAPI:
         mount_plan_path.write_text(json.dumps(mock_mount_plan))
 
         # Mock get_state_dir to return tmp_path
-        import lakehoused.routers.sessions
 
         original_get_state_dir = lakehoused.routers.sessions.get_state_dir
         lakehoused.routers.sessions.get_state_dir = lambda: tmp_path
@@ -594,8 +592,8 @@ class TestSessionsAPI:
         self, client: TestClient, mock_session_state_service: Mock, monkeypatch
     ) -> None:
         """Test create_session with unexpected error during mount plan generation."""
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Create mock bundle manager that raises generic Exception
@@ -666,7 +664,6 @@ class TestSessionsAPI:
         (session_dir / "events.jsonl").write_text('{"event": "test", "ts": "2024-01-01T00:00:00Z"}\n')
 
         # Mock get_state_dir to return tmp_path
-        import lakehoused.routers.sessions
 
         original_get_state_dir = lakehoused.routers.sessions.get_state_dir
         lakehoused.routers.sessions.get_state_dir = lambda: tmp_path
@@ -691,7 +688,7 @@ class TestSessionsAPI:
             nonlocal created_session_id
             if sid == "test_session_123":
                 return source_metadata
-            elif created_session_id and sid == created_session_id:
+            if created_session_id and sid == created_session_id:
                 return SessionMetadata(
                     session_id=created_session_id,
                     status=SessionStatus.ACTIVE,
@@ -768,7 +765,6 @@ class TestSessionsAPI:
         (source_dir / "bundle_context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
 
         # Mock get_state_dir
-        import lakehoused.routers.sessions
 
         original_get_state_dir = lakehoused.routers.sessions.get_state_dir
         lakehoused.routers.sessions.get_state_dir = lambda: tmp_path
@@ -865,7 +861,6 @@ class TestSessionsAPI:
         (child_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Child message"}\n')
 
         # Mock get_state_dir
-        import lakehoused.routers.sessions
 
         original_get_state_dir = lakehoused.routers.sessions.get_state_dir
         lakehoused.routers.sessions.get_state_dir = lambda: tmp_path
@@ -917,20 +912,19 @@ class TestSessionsAPI:
         def mock_get_session(sid):
             if sid == "parent_session":
                 return parent_metadata
-            elif sid == "child_session":
+            if sid == "child_session":
                 return child_metadata
-            else:
-                # Return cloned session
-                return SessionMetadata(
-                    session_id=sid,
-                    status=SessionStatus.ACTIVE,
-                    bundle_name="foundation/base",
-                    mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
-                    created_at=datetime.now(UTC),
-                    started_at=datetime.now(UTC),
-                    project_path=".",
-                    name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
-                )
+            # Return cloned session
+            return SessionMetadata(
+                session_id=sid,
+                status=SessionStatus.ACTIVE,
+                bundle_name="foundation/base",
+                mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
+                created_at=datetime.now(UTC),
+                started_at=datetime.now(UTC),
+                project_path=".",
+                name="Parent Session (copy)" if created_sessions and sid == created_sessions[0] else "Child Session",
+            )
 
         # list_sessions returns child when querying parent's subsessions
         def mock_list_sessions(parent_session_id=None, **kwargs):

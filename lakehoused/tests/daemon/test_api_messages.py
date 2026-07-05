@@ -10,14 +10,13 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
-
-from lakehoused.models.sessions import SessionMessage
-from lakehoused.models.sessions import SessionMetadata
-from lakehoused.models.sessions import SessionStatus
 from lakehoused.main import app
 from lakehoused.models.mount_plans import EmbeddedMount
 from lakehoused.models.mount_plans import MountPlan
 from lakehoused.models.mount_plans import SessionConfig
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
 from lakehoused.routers.sessions import get_session_state_service
 
 
@@ -119,8 +118,8 @@ def mock_project_service(mock_mount_plan: MountPlan):
     Yields:
         None
     """
-    from pathlib import Path
     import tempfile
+    from pathlib import Path
     from unittest.mock import patch
 
     from lakehoused.models.projects import Project

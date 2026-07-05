@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-
 from lakehoused.services.mention_resolver import MentionResolver
 
 
@@ -30,7 +29,7 @@ def temp_project_path():
         yield Path(tmpdir)
 
 
-def create_profile_yaml(profile_dir: Path, instructions: str = "", behaviors: list = None):
+def create_profile_yaml(profile_dir: Path, instructions: str = "", behaviors: list | None = None):
     """Create a profile.yaml file with given content."""
     profile_yaml = {
         "name": "test_profile",

@@ -7,13 +7,12 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-
+from lakehoused.models.mount_plans import MountPlan
+from lakehoused.models.mount_plans import SessionConfig
 from lakehoused.models.sessions import SessionMessage
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
 from lakehoused.sessions.manager import SessionManager as SessionStateService
-from lakehoused.models.mount_plans import MountPlan
-from lakehoused.models.mount_plans import SessionConfig
 
 
 class TestSessionStateService:
@@ -170,6 +169,7 @@ class TestSessionStateService:
 
         # Verify still ACTIVE
         metadata = service.get_session("sess_bad_start")
+        assert metadata is not None
         assert metadata.status == SessionStatus.ACTIVE
 
     def test_complete_session(
@@ -585,6 +585,7 @@ class TestSessionStateService:
         service.complete_session("test_session")
 
         metadata = service.get_session("test_session")
+        assert metadata is not None
         assert metadata.status == SessionStatus.COMPLETED
 
     def test_fail_session_from_created_state_error(
@@ -604,6 +605,7 @@ class TestSessionStateService:
         service.fail_session("test_session", "error")
 
         metadata = service.get_session("test_session")
+        assert metadata is not None
         assert metadata.status == SessionStatus.FAILED
         assert metadata.error_message == "error"
 
@@ -624,6 +626,7 @@ class TestSessionStateService:
         service.terminate_session("test_session")
 
         metadata = service.get_session("test_session")
+        assert metadata is not None
         assert metadata.status == SessionStatus.TERMINATED
 
     def test_create_session_cleanup_on_mount_plan_write_failure(

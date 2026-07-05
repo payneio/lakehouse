@@ -1,7 +1,6 @@
 """Tests for global events SSE endpoint."""
 
 import pytest
-
 from lakehoused.main import app
 from lakehoused.models.events import GlobalEvent
 from lakehoused.models.events import SessionCreatedEvent
@@ -20,7 +19,7 @@ class TestGlobalEventsAPI:
 
     def test_events_router_registered(self):
         """Test that events router is registered."""
-        routes = [route.path for route in app.routes]
+        routes = [getattr(route, "path", None) for route in app.routes]
         assert "/api/v1/events" in routes
 
     def test_event_models_validate(self):
