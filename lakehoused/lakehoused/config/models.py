@@ -173,7 +173,7 @@ class Secrets(BaseModel):
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # Add header comment
-        header = """# Amplifierd Secrets
+        header = """# lakehoused Secrets
 # This file contains sensitive credentials - DO NOT commit to version control.
 # API keys are stored by provider module name.
 #

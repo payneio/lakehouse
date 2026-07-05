@@ -1,4 +1,4 @@
-# Amplifierd Documentation
+# lakehoused Documentation
 
 **Bundle management daemon for Amplifier**
 
@@ -6,7 +6,7 @@
 
 ## What is lakehoused?
 
-Amplifierd is a daemon that manages **bundles** - reusable session configurations for the Amplifier AI agent system. Think of bundles as templates that define which AI models, tools, agents, and settings to use for different workflows.
+lakehoused is a daemon that manages **bundles** - reusable session configurations for the Amplifier AI agent system. Think of bundles as templates that define which AI models, tools, agents, and settings to use for different workflows.
 
 Instead of configuring each session manually, you define a bundle once and reuse it across sessions.
 

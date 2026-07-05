@@ -1,4 +1,4 @@
-# Amplifierd Overview
+# lakehoused Overview
 
 **Understanding the big picture**
 
@@ -203,20 +203,20 @@ services:                   |  session:
 ```
 
 **Docker Compose**: defines containers to run
-**Amplifierd Profile**: defines modules to load
+**lakehoused Profile**: defines modules to load
 
 Both are declarative templates for runtime configuration.
 
 ---
 
-## What Makes Amplifierd Special?
+## What Makes lakehoused Special?
 
 **Traditional approach:**
 - Manual configuration per session
 - Hardcoded paths and settings
 - No reusability or sharing
 
-**Amplifierd approach:**
+**lakehoused approach:**
 - Declarative profiles (what, not how)
 - Git-based sharing and versioning
 - Automatic resource resolution
@@ -330,7 +330,7 @@ registry/profiles/           # Profile definitions (source)
 
 ## Philosophy
 
-Amplifierd follows the **ruthless simplicity** principle:
+lakehoused follows the **ruthless simplicity** principle:
 
 - Profiles are just markdown + YAML (no complex formats)
 - Mount plans are plain dicts (no custom types)

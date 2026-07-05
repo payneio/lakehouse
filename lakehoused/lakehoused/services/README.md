@@ -1,4 +1,4 @@
-# Amplifierd Services
+# lakehoused Services
 
 ## Overview
 

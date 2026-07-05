@@ -281,7 +281,7 @@ def save_example_config(path: Path | None = None) -> Path:
 
     # Read back and add header comment
     content = path.read_text()
-    header = """# Amplifierd Daemon Configuration
+    header = """# lakehoused Daemon Configuration
 #
 # This is an example configuration file showing all available options with their defaults.
 # Copy this to daemon.yaml and customize as needed.
