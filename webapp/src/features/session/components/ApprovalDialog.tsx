@@ -19,14 +19,24 @@ export function ApprovalDialog({ sessionId }: ApprovalDialogProps) {
   const eventStream = useEventStream({ sessionId });
 
   useEffect(() => {
-    return eventStream.on('hook:approval:required', (data: unknown) => {
-      const d = data as Record<string, unknown>;
-      const hookData = d.hook_data as Record<string, unknown> | undefined;
+    return eventStream.on('hook:approval:required', (data) => {
+      const eventData = data as {
+        approval_id?: string;
+        prompt?: string;
+        options?: string[];
+        timeout?: number;
+        hook_data?: {
+          approval_id?: string;
+          approval_prompt?: string;
+          approval_options?: string[];
+          approval_timeout?: number;
+        };
+      };
       setPrompt({
-        approval_id: (d.approval_id as string) || (hookData?.approval_id as string),
-        prompt: (d.prompt as string) || (hookData?.approval_prompt as string) || 'Approval required',
-        options: (d.options as string[]) || (hookData?.approval_options as string[]) || ['Allow', 'Deny'],
-        timeout: (d.timeout as number) || (hookData?.approval_timeout as number),
+        approval_id: eventData.approval_id || eventData.hook_data?.approval_id || '',
+        prompt: eventData.prompt || eventData.hook_data?.approval_prompt || 'Approval required',
+        options: eventData.options || eventData.hook_data?.approval_options || ['Allow', 'Deny'],
+        timeout: eventData.timeout || eventData.hook_data?.approval_timeout,
       });
     });
   }, [eventStream]);

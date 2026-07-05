@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Lakehouse / amplifierd backend image
+# Lakehouse / lakehoused backend image
 #
-# Build context: REPO ROOT (not amplifierd/), because amplifierd's
+# Build context: REPO ROOT (not lakehoused/), because lakehoused's
 # pyproject.toml declares amplifier_library as a sibling editable
 # dependency: { path = "../amplifier_library", editable = true }
 #
@@ -29,10 +29,10 @@ WORKDIR /app
 
 # Copy both projects so the relative editable path (../amplifier_library) resolves.
 COPY amplifier_library/ ./amplifier_library/
-COPY amplifierd/        ./amplifierd/
+COPY lakehoused/        ./lakehoused/
 
-# Resolve and install the locked dependency set into amplifierd/.venv
-WORKDIR /app/amplifierd
+# Resolve and install the locked dependency set into lakehoused/.venv
+WORKDIR /app/lakehoused
 RUN uv sync --frozen --no-dev
 
 ############################
@@ -58,26 +58,26 @@ COPY --from=builder --chown=amplifier:amplifier /app /app
 # Persistent state directory.
 # On Azure Web App for Containers, /home is a persistent mount that
 # survives restarts (when WEBSITES_ENABLE_APP_SERVICE_STORAGE=true is
-# set as an app setting). We point AMPLIFIERD_HOME there so config,
+# set as an app setting). We point LAKEHOUSED_HOME there so config,
 # state, cache, and logs persist. The directory is created lazily by
 # the daemon on first boot; we don't pre-create it because /home is
 # overlaid by the platform mount at runtime.
 
 # Daemon configuration via environment (precedence: env > yaml > defaults)
-ENV AMPLIFIERD_HOME=/home/amplifierd \
-    AMPLIFIERD_DAEMON_HOST=0.0.0.0 \
-    AMPLIFIERD_DAEMON_PORT=8421 \
-    AMPLIFIERD_DAEMON_LOG_LEVEL=INFO \
-    AMPLIFIERD_DAEMON_TIMEZONE=UTC \
-    PATH="/app/amplifierd/.venv/bin:${PATH}" \
+ENV LAKEHOUSED_HOME=/home/lakehoused \
+    LAKEHOUSED_DAEMON_HOST=0.0.0.0 \
+    LAKEHOUSED_DAEMON_PORT=8421 \
+    LAKEHOUSED_DAEMON_LOG_LEVEL=INFO \
+    LAKEHOUSED_DAEMON_TIMEZONE=UTC \
+    PATH="/app/lakehoused/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 USER amplifier
-WORKDIR /app/amplifierd
+WORKDIR /app/lakehoused
 
 EXPOSE 8421
 
 # tini reaps zombies from any subprocesses the scheduler / claude-code-sdk spawns
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python", "-m", "amplifierd"]
+CMD ["python", "-m", "lakehoused"]

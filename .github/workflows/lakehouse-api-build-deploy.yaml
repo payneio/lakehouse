@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'amplifierd/**'
+      - 'lakehoused/**'
       - 'amplifier_library/**'
       - 'Dockerfile'
       - '.dockerignore'
@@ -57,9 +57,9 @@ jobs:
         id: push
         uses: docker/build-push-action@v6
         with:
-          # Build context is the REPO ROOT (not amplifierd/, not backend/).
-          # The Dockerfile copies both amplifier_library/ and amplifierd/
-          # because amplifier_library is a sibling editable dep of amplifierd.
+          # Build context is the REPO ROOT (not lakehoused/, not backend/).
+          # The Dockerfile copies both amplifier_library/ and lakehoused/
+          # because amplifier_library is a sibling editable dep of lakehoused.
           context: .
           file: Dockerfile
           push: true
@@ -126,7 +126,7 @@ jobs:
       - name: Wait for backend to come up
         run: |
           FQDN="${{ steps.host.outputs.fqdn }}"
-          # amplifierd exposes a JSON root at /, not /health. Poll until 200.
+          # lakehoused exposes a JSON root at /, not /health. Poll until 200.
           for i in $(seq 1 30); do
             if curl --silent --fail --max-time 10 "https://$FQDN/" > /dev/null; then
               echo "Backend healthy after ${i} attempt(s)"

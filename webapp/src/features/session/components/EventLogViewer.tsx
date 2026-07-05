@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, RefreshCw } from "lucide-react";
+import { Search, X, RefreshCw, ChevronLeft } from "lucide-react";
 import { getSessionEvents, type SessionEvent } from "@/api/sessions";
 import { JsonViewer } from "@/components/JsonViewer";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
     enabled: !!sessionId,
   });
 
-  const events = data?.events || [];
+  const events = useMemo(() => data?.events || [], [data]);
 
   // Extract unique sessions for filter dropdown
   const sessionOptions = useMemo(() => {
@@ -282,10 +282,15 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
         </span>
       </div>
 
-      {/* Two-pane layout */}
+      {/* Two-pane layout - responsive: stacked on mobile, side-by-side on md+ */}
       <div className="flex flex-1 min-h-0">
-        {/* Event List */}
-        <div className="w-80 flex-shrink-0 border-r border-gray-700 overflow-y-auto">
+        {/* Event List - hidden on mobile when an event is selected */}
+        <div
+          className={cn(
+            "w-full md:w-80 flex-shrink-0 border-r border-gray-700 overflow-y-auto",
+            selectedEvent && "hidden md:block"
+          )}
+        >
           {filteredEvents.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               {events.length === 0 ? "No events" : "No matching events"}
@@ -338,10 +343,19 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
           )}
         </div>
 
-        {/* Detail Panel */}
-        <div className="flex-1 overflow-y-auto bg-gray-900">
+        {/* Detail Panel - full width on mobile, flex-1 on md+ */}
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto bg-gray-900",
+            !selectedEvent && "hidden md:flex"
+          )}
+        >
           {selectedEvent ? (
-            <EventDetail event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+            <EventDetail
+              event={selectedEvent}
+              onClose={() => setSelectedEvent(null)}
+              showBackButton={true}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
               Select an event to view details
@@ -356,9 +370,10 @@ export function EventLogViewer({ sessionId }: EventLogViewerProps) {
 interface EventDetailProps {
   event: SessionEvent;
   onClose: () => void;
+  showBackButton?: boolean;
 }
 
-function EventDetail({ event, onClose }: EventDetailProps) {
+function EventDetail({ event, onClose, showBackButton }: EventDetailProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "data" | "raw">(
     "overview"
   );
@@ -367,10 +382,20 @@ function EventDetail({ event, onClose }: EventDetailProps) {
   const levelColor = LEVEL_COLORS[level] || LEVEL_COLORS.INFO;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col w-full">
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-2">
+          {/* Back button - visible on mobile */}
+          {showBackButton && (
+            <button
+              onClick={onClose}
+              className="md:hidden p-1 -ml-1 text-gray-400 hover:text-gray-200"
+              aria-label="Back to event list"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
           <span
             className={cn(
               "px-1.5 py-0.5 text-xs font-medium rounded",
@@ -380,13 +405,13 @@ function EventDetail({ event, onClose }: EventDetailProps) {
           >
             {level}
           </span>
-          <span className="text-sm font-medium text-gray-200">
+          <span className="text-sm font-medium text-gray-200 truncate">
             {event.event}
           </span>
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-200"
+          className="hidden md:block p-1 text-gray-400 hover:text-gray-200"
         >
           <X className="h-4 w-4" />
         </button>

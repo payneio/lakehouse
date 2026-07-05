@@ -1,0 +1,483 @@
+"""Messages router for lakehoused API.
+
+Handles message operations: send message, get transcript, send message for execution.
+"""
+
+import asyncio
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import HTTPException
+from fastapi import Request
+from pydantic import BaseModel
+
+from lakehoused.execution.runner import ExecutionRunner
+from lakehoused.sessions.manager import SessionManager as SessionStateService
+from lakehoused.storage import get_state_dir
+
+from ..models import MessageResponse
+from ..models import SendMessageRequest
+from ..models import TranscriptResponse
+
+logger = logging.getLogger(__name__)
+
+# Keep ExecutionRunner in scope for test mocking
+__test_exports__ = [ExecutionRunner]
+
+router = APIRouter(prefix="/api/v1/sessions/{session_id}", tags=["messages"])
+
+
+def get_session_state_service() -> SessionStateService:
+    """Dependency to get SessionStateService instance.
+
+    Returns:
+        SessionStateService instance configured with state directory
+    """
+    state_dir = get_state_dir()
+    return SessionStateService(storage_dir=state_dir)
+
+
+@router.post("/messages", response_model=MessageResponse, status_code=201)
+async def send_message(
+    session_id: str,
+    request: SendMessageRequest,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> MessageResponse:
+    """Send a message to a session (synchronous).
+
+    This endpoint adds a user message to the session transcript without
+    executing it. Use the /execute endpoint for execution with streaming.
+
+    Args:
+        session_id: Session ID
+        request: Message request
+        service: SessionStateService dependency
+
+    Returns:
+        Created message
+
+    Raises:
+        HTTPException: 404 if session not found, 500 on error
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Add user message to transcript
+        service.append_message(
+            session_id=session_id,
+            role="user",
+            content=request.content,
+        )
+
+        # Get the last message we just added
+        from datetime import UTC
+        from datetime import datetime
+
+        return MessageResponse(
+            role="user",
+            content=request.content,
+            timestamp=datetime.now(UTC),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send message to session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.post("/send-message", status_code=202)
+async def send_message_for_execution(
+    session_id: str,
+    message_request: SendMessageRequest,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+    request: Request,
+) -> dict[str, str]:
+    """Send message and trigger execution (SSE-only architecture).
+
+    This endpoint triggers execution and returns immediately.
+    All events (user message, content, completion) are broadcast via
+    SessionStreamManager to persistent /stream subscribers.
+
+    Use this endpoint when you have a persistent /stream connection.
+    Use /execute if you want direct SSE streaming without persistent connection.
+
+    Args:
+        session_id: Session ID
+        request: Message request
+        service: SessionStateService dependency
+
+    Returns:
+        Status confirmation
+
+    Raises:
+        HTTPException: 404 if session not found, 500 on error
+    """
+    try:
+        # Check session exists
+        metadata = service.get_session(session_id)
+        if metadata is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Convert to library SessionMetadata
+        import json
+        from datetime import UTC
+        from datetime import datetime
+
+        from lakehoused.models.sessions import SessionMetadata as LibrarySessionMetadata
+        from lakehoused.storage import get_state_dir
+
+        from ..services.session_stream_registry import get_stream_registry
+
+        session = LibrarySessionMetadata(**metadata.model_dump())
+
+        # Get config and paths
+        from pathlib import Path
+
+        from lakehoused.bundles import LakehouseBundleManager
+        from lakehoused.config.settings import load_config
+
+        from ..services.mention_resolver import MentionResolver
+
+        config = load_config()
+        data_dir = Path(config.data_path)
+        state_dir = get_state_dir()
+
+        # Get project_path from session metadata
+        project_path = Path(metadata.project_path) if metadata.project_path else Path(".")
+        if not project_path.is_absolute():
+            project_path = data_dir / project_path
+
+        # Load mount plan from session directory (created during session creation)
+        mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
+        if not mount_plan_path.exists():
+            raise HTTPException(status_code=500, detail=f"Mount plan not found for session {session_id}")
+        mount_plan = json.loads(mount_plan_path.read_text())
+        logger.debug(f"Loaded mount plan from {mount_plan_path}")
+
+        # Get bundle directory for mention resolution
+        bundle_name = metadata.bundle_name
+        bundle_manager = LakehouseBundleManager()
+        # Use bundle dir if available, otherwise fallback to project_path for mention resolution
+        bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else project_path
+
+        # Resolve runtime mentions (AGENTS.md + user message)
+        mention_resolver = MentionResolver(
+            compiled_profile_dir=bundle_dir,
+            project_path=project_path,
+            data_dir=data_dir,
+        )
+        runtime_context_messages = mention_resolver.resolve_runtime_mentions(message_request.content)
+        logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
+
+        # Get module resolver from app state (daemon-level)
+        module_resolver = request.app.state.module_resolver
+
+        # Get stream registry and update/create manager with fresh mount plan
+        registry = get_stream_registry()
+        existing_manager = registry.get(session_id)
+        if existing_manager:
+            # Update existing manager with fresh mount plan (invalidates runner)
+            await existing_manager.update_mount_plan(mount_plan)
+            manager = existing_manager
+            logger.debug(f"Updated existing manager with fresh mount plan for session {session_id}")
+        else:
+            # Create new manager
+            manager = await registry.get_or_create(session_id, mount_plan, module_resolver)
+
+        # Note: Don't save user message here - ExecutionRunner.execute_stream() does it
+        # to avoid duplicates in transcript
+
+        # Emit user_message_saved to ALL subscribers
+        await manager.emitter.emit(
+            "user_message_saved",
+            {"role": "user", "content": message_request.content, "timestamp": datetime.now(UTC).isoformat()},
+        )
+
+        # Get runner (handles hook mounting internally via _hooks_mounted flag)
+        runner = await manager.get_runner(session)
+
+        # Emit assistant_message_start to SSE subscribers
+        await manager.emitter.emit(
+            "assistant_message_start",
+            {"timestamp": datetime.now(UTC).isoformat()},
+        )
+
+        # Execute in background task - don't block response
+        async def execute_and_emit():
+            try:
+                full_response = ""
+                async for token in runner.execute_stream(session, message_request.content, runtime_context_messages):
+                    full_response += token
+                    # Emit each token to ALL subscribers
+                    await manager.emitter.emit("content", {"type": "content", "content": token})
+
+                # Note: Don't save assistant message here - ExecutionRunner.execute_stream() does it
+                # to avoid duplicates in transcript
+
+                # Emit completion to ALL subscribers
+                if full_response:
+                    await manager.emitter.emit(
+                        "assistant_message_complete",
+                        {
+                            "role": "assistant",
+                            "content": full_response,
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        },
+                    )
+
+                    # Mark session as unread so user sees badge when viewing another session
+                    # Only mark unread if:
+                    # 1. No one is currently viewing (no active SSE subscribers)
+                    # 2. Session was previously read (avoid unnecessary writes)
+                    has_active_viewers = len(manager.emitter.queues) > 0
+                    if not has_active_viewers:
+                        current_session = service.get_session(session_id)
+                        if current_session and not current_session.is_unread:
+                            service.update_session_fields(session_id, is_unread=True)
+                            # Import here to avoid circular imports at module level
+                            from ..models.events import SessionUpdatedEvent
+                            from ..services.global_events import GlobalEventService
+
+                            await GlobalEventService.emit(
+                                SessionUpdatedEvent(
+                                    project_id=current_session.project_path,
+                                    session_id=session_id,
+                                    fields_changed=["is_unread"],
+                                )
+                            )
+                            logger.debug(f"Marked session {session_id} as unread after assistant response")
+                    else:
+                        logger.debug(f"Session {session_id} has active viewers, not marking as unread")
+            except asyncio.CancelledError:
+                logger.info(f"Execution cancelled for session {session_id}")
+                await manager.emitter.emit(
+                    "execution_cancelled",
+                    {"timestamp": datetime.now(UTC).isoformat()},
+                )
+                raise  # Re-raise to properly terminate the task
+            except Exception as e:
+                logger.error(f"Execution error in background task: {e}")
+                await manager.emitter.emit("execution_error", {"error": str(e)})
+            finally:
+                manager.clear_execution_task()
+
+            # Start execution in background and track the task
+
+        task = asyncio.create_task(execute_and_emit())
+        manager.set_execution_task(task)
+
+        # Return immediately
+        return {"status": "executing", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to send message to session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.post("/cancel-execution", status_code=200)
+async def cancel_execution(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict[str, str]:
+    """Cancel any pending execution for a session.
+
+    This endpoint cancels the current background execution task if one is active.
+    An 'execution_cancelled' event will be emitted to SSE subscribers.
+
+    Args:
+        session_id: Session ID
+        service: SessionStateService dependency
+
+    Returns:
+        Status indicating whether execution was cancelled or no active execution
+
+    Raises:
+        HTTPException: 404 if session not found
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        manager = registry.get(session_id)
+
+        if manager is None:
+            return {"status": "no_active_execution", "session_id": session_id}
+
+        cancelled = manager.cancel_execution()
+
+        if cancelled:
+            return {"status": "cancelled", "session_id": session_id}
+        return {"status": "no_active_execution", "session_id": session_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel execution for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.delete("/messages/last", status_code=200)
+async def delete_last_message(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> dict[str, str | dict | None]:
+    """Delete the last message from a session's transcript.
+
+    This endpoint removes the most recent message from the transcript.
+    Cannot be called while an execution is in progress.
+
+    Args:
+        session_id: Session ID
+        service: SessionStateService dependency
+
+    Returns:
+        Status and deleted message info
+
+    Raises:
+        HTTPException: 404 if session not found, 409 if execution active
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        from ..services.session_stream_registry import get_stream_registry
+
+        registry = get_stream_registry()
+        manager = registry.get(session_id)
+
+        # Check no active execution
+        if manager and manager.has_active_execution():
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot delete message while execution is active",
+            )
+
+        deleted = service.delete_last_message(session_id)
+
+        if deleted and manager:
+            # Emit SSE event for cross-client sync
+            await manager.emitter.emit(
+                "message_deleted",
+                {
+                    "position": "last",
+                    "deleted_message": {
+                        "role": deleted.role,
+                        "content": deleted.content[:100] if len(deleted.content) > 100 else deleted.content,
+                        "timestamp": deleted.timestamp.isoformat(),
+                    },
+                },
+            )
+
+        if deleted:
+            return {
+                "status": "deleted",
+                "session_id": session_id,
+                "deleted_message": {
+                    "role": deleted.role,
+                    "timestamp": deleted.timestamp.isoformat(),
+                },
+            }
+        return {"status": "no_messages", "session_id": session_id, "deleted_message": None}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete last message for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.get("/messages", response_model=TranscriptResponse)
+async def get_messages(
+    session_id: str,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
+) -> TranscriptResponse:
+    """Get session transcript.
+
+    Args:
+        session_id: Session ID
+        service: SessionStateService dependency
+
+    Returns:
+        Session transcript with all messages
+
+    Raises:
+        HTTPException: 404 if session not found
+    """
+    try:
+        # Check session exists
+        if service.get_session(session_id) is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+        # Get transcript
+        messages = service.get_transcript(session_id)
+
+        return TranscriptResponse(
+            session_id=session_id,
+            messages=[
+                MessageResponse(
+                    role=msg.role,
+                    content=msg.content,
+                    timestamp=msg.timestamp,
+                )
+                for msg in messages
+            ],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get transcript for session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+# Approval management (in-memory for simplicity)
+pending_approvals: dict[str, asyncio.Event] = {}
+approval_responses: dict[str, str] = {}
+
+
+class ApprovalResponse(BaseModel):
+    """User's response to approval prompt."""
+
+    approval_id: str
+    response: str
+
+
+@router.post("/approval-response")
+async def submit_approval_response(
+    response: ApprovalResponse,
+) -> dict[str, str]:
+    """Receive user's approval decision.
+
+    Unblocks execution waiting on approval.
+
+    Args:
+        response: User's approval response
+
+    Returns:
+        Status confirmation
+
+    Raises:
+        HTTPException: If approval not found or expired
+    """
+    if response.approval_id not in pending_approvals:
+        raise HTTPException(status_code=404, detail="Approval not found or expired")
+
+    # Store response
+    approval_responses[response.approval_id] = response.response
+
+    # Signal waiting execution
+    pending_approvals[response.approval_id].set()
+
+    return {"status": "received", "approval_id": response.approval_id}

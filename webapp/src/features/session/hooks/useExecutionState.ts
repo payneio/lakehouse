@@ -5,7 +5,6 @@
  * - Tool calls with timing
  * - Thinking blocks
  * - Turn lifecycle
- * - Performance metrics
  *
  * Uses refs to avoid re-render issues during high-frequency SSE updates
  */
@@ -18,7 +17,6 @@ import type {
   Turn,
   ToolCall,
   ThinkingBlock,
-  SessionMetrics,
   CurrentActivity,
 } from '../types/execution';
 
@@ -44,11 +42,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   const stateRef = useRef<ExecutionState>({
     turns: [],
     currentTurn: null,
-    metrics: {
-      totalTools: 0,
-      totalThinking: 0,
-      avgToolDuration: 0,
-    },
   });
 
   // Track whether we've initialized from historical data
@@ -81,36 +74,6 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
     }
   }, [historicalTrace, forceUpdate]);
 
-  // Calculate metrics from current state
-  const calculateMetrics = useCallback((): SessionMetrics => {
-    const allTools = stateRef.current.turns.flatMap((t) => t.tools);
-    const completedTools = allTools.filter((t) => t.duration !== undefined);
-    const allThinking = stateRef.current.turns.flatMap((t) => t.thinking);
-
-    const avgDuration =
-      completedTools.length > 0
-        ? completedTools.reduce((sum, t) => sum + (t.duration || 0), 0) / completedTools.length
-        : 0;
-
-    const longest = completedTools.reduce<{ name: string; duration: number } | undefined>(
-      (max, tool) => {
-        if (!tool.duration) return max;
-        if (!max || tool.duration > max.duration) {
-          return { name: tool.name, duration: tool.duration };
-        }
-        return max;
-      },
-      undefined
-    );
-
-    return {
-      totalTools: allTools.length,
-      totalThinking: allThinking.length,
-      avgToolDuration: avgDuration,
-      longestTool: longest,
-    };
-  }, []);
-
   // Start new turn
   const startTurn = useCallback((userMessage: string) => {
     const turn: Turn = {
@@ -134,10 +97,9 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
       stateRef.current.currentTurn.status = 'completed';
       stateRef.current.currentTurn.endTime = Date.now();
       stateRef.current.currentTurn = null;
-      stateRef.current.metrics = calculateMetrics();
       forceUpdate();
     }
-  }, [calculateMetrics, forceUpdate]);
+  }, [forceUpdate]);
 
   // Add tool to current turn
   const addTool = useCallback(
@@ -193,15 +155,10 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
           tool.duration = updates.endTime - tool.startTime;
         }
 
-        // Update metrics if tool completed
-        if (updates.status === 'completed' || updates.status === 'error') {
-          stateRef.current.metrics = calculateMetrics();
-        }
-
         forceUpdate();
       }
     },
-    [calculateMetrics, forceUpdate]
+    [forceUpdate]
   );
 
   // Add thinking block to current turn
@@ -215,9 +172,8 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
     };
 
     stateRef.current.currentTurn.thinking.push(thinking);
-    stateRef.current.metrics = calculateMetrics();
     forceUpdate();
-  }, [calculateMetrics, forceUpdate]);
+  }, [forceUpdate]);
 
   // Get current activity (for inline display)
   const getCurrentActivity = useCallback((): CurrentActivity | null => {
@@ -254,11 +210,16 @@ export function useExecutionState({ sessionId }: UseExecutionStateOptions) {
   }, []);
 
   // Get current state (safe getter function)
-  // Return a NEW object reference when updateCounter changes, so React re-renders children
-  const getState = useCallback(() => ({
-    ...stateRef.current,
-    turns: [...stateRef.current.turns],  // New array reference for proper React diffing
-  }), [updateCounter]);
+  const getState = useCallback(() => {
+    // Depend on updateCounter so getState (and the memoized API below) gets a
+    // new identity whenever state changes, forcing consumers to re-render.
+    // State itself lives in a ref, so it isn't otherwise referenced here.
+    void updateCounter;
+    return {
+      ...stateRef.current,
+      turns: [...stateRef.current.turns], // New array reference for proper React diffing
+    };
+  }, [updateCounter]);
 
   // Return stable API using useMemo
   return useMemo(

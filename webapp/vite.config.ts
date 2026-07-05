@@ -18,5 +18,11 @@ export default defineConfig({
   server: {
     port: 7777,
     allowedHosts: ["civil.lan", "civil.local", "localhost", "127.0.0.1"],
+    proxy: {
+      "/api": {
+        target: "http://localhost:8420",
+        changeOrigin: true,
+      },
+    },
   },
 });

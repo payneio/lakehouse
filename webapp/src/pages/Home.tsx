@@ -1,4 +1,4 @@
-import { BASE_URL } from "@/api/client";
+import { fetchApi } from "@/api/client";
 import { useMobileMenu } from "@/components/layout/MobileMenuContext";
 import {
   ArrowRight,
@@ -34,21 +34,21 @@ export function HomePage() {
     // Check API connection on mount
     const checkConnection = async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/v1/status`, {
-          mode: "cors",
-        });
-
-        const data = await response.json();
+        const data = await fetchApi<{ version?: string; rootDir?: string }>(
+          "/api/v1/status"
+        );
         setApiStatus("connected");
         setApiVersion(data.version || "unknown");
         setDataPath(data.rootDir || "");
 
         // Fetch system info for debugging
         try {
-          const infoResponse = await fetch(`${BASE_URL}/api/info`, {
-            mode: "cors",
-          });
-          const infoData = await infoResponse.json();
+          const infoData = await fetchApi<{
+            daemon_path: string;
+            daemon_pid: number;
+            webapp_path: string;
+            webapp_url: string;
+          }>("/api/info");
           setSystemInfo({
             daemonPath: infoData.daemon_path,
             daemonPid: infoData.daemon_pid,
@@ -105,7 +105,7 @@ export function HomePage() {
           {/* Primary CTA */}
           <div className="pt-4">
             <Link
-              to="/directories"
+              to="/projects"
               className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold text-lg"
             >
               <FolderPlus className="h-5 w-5" />
@@ -134,7 +134,7 @@ export function HomePage() {
           />
           <StepCard
             step={3}
-            title="Switch Profiles"
+            title="Switch Bundles"
             description="Customize agent behavior for different domains and tasks."
             icon={<Users className="h-6 w-6" />}
           />
@@ -152,14 +152,14 @@ export function HomePage() {
             description="Works on YOUR directories. Your data stays local, private, and under your control."
             icon={<FolderOpen className="h-8 w-8" />}
             linkText="Configure data path"
-            linkTo="/directories"
+            linkTo="/projects"
           />
           <ConceptCard
             title="Contextual Intelligence"
-            description="Different expertise for different tasks. Switch profiles to customize agent behavior."
+            description="Different expertise for different tasks. Switch bundles to customize agent behavior."
             icon={<Users className="h-8 w-8" />}
-            linkText="Browse profiles"
-            linkTo="/collections"
+            linkText="Browse bundles"
+            linkTo="/bundles"
           />
           <ConceptCard
             title="Always Learning"
@@ -174,7 +174,7 @@ export function HomePage() {
             description="Each project has its own context, chat history, and workflows."
             icon={<Settings className="h-8 w-8" />}
             linkText="See projects"
-            linkTo="/directories"
+            linkTo="/projects"
           />
         </div>
       </section>
@@ -187,7 +187,7 @@ export function HomePage() {
             <ResourceLink
               icon={<BookOpen className="h-5 w-5" />}
               title="Vision Document"
-              href="https://github.com/payneio/lakehouse/blob/main/amplifierd/docs/the-amplifier-computation-platform.md"
+              href="https://github.com/payneio/lakehouse/blob/main/lakehoused/docs/the-amplifier-computation-platform.md"
             />
             <ResourceLink
               icon={<BookOpen className="h-5 w-5" />}

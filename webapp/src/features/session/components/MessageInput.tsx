@@ -8,7 +8,7 @@ interface MessageInputProps {
   disabled?: boolean;
   isSending?: boolean;
   onCancel?: () => void;
-  amplifiedDir?: string;
+  projectPath?: string;
 }
 
 export function MessageInput({
@@ -16,7 +16,7 @@ export function MessageInput({
   disabled,
   isSending,
   onCancel,
-  amplifiedDir = '',
+  projectPath = '',
 }: MessageInputProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -31,8 +31,8 @@ export function MessageInput({
     selectCompletion,
     resetMention,
   } = useMentionCompletion({
-    basePath: amplifiedDir,
-    enabled: !!amplifiedDir,
+    basePath: projectPath,
+    enabled: !!projectPath,
   });
 
   const handleSend = () => {
@@ -144,7 +144,7 @@ export function MessageInput({
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={
-              amplifiedDir
+              projectPath
                 ? 'Type your message... (@ for file completion, Enter to send)'
                 : 'Type your message... (Enter to send, Shift+Enter for new line)'
             }

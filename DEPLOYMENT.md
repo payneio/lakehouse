@@ -126,7 +126,7 @@ After=network.target
 Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/path/to/lakehouse
-ExecStart=/home/YOUR_USERNAME/.local/bin/amplifierd
+ExecStart=/home/YOUR_USERNAME/.local/bin/lakehoused
 Restart=always
 RestartSec=10
 Environment="PATH=/home/YOUR_USERNAME/.local/bin:/usr/local/bin:/usr/bin"
@@ -231,7 +231,7 @@ nano ~/Library/LaunchAgents/com.lakehouse.daemon.plist
     <string>com.lakehouse.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/YOUR_USERNAME/.local/bin/amplifierd</string>
+        <string>/Users/YOUR_USERNAME/.local/bin/lakehoused</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/path/to/lakehouse</string>
@@ -341,7 +341,7 @@ choco install nssm
 
 ```powershell
 # Install daemon service
-nssm install lakehouse-daemon "C:\Users\YOUR_USERNAME\.local\bin\amplifierd.exe"
+nssm install lakehouse-daemon "C:\Users\YOUR_USERNAME\.local\bin\lakehoused.exe"
 nssm set lakehouse-daemon AppDirectory "C:\path\to\lakehouse"
 nssm set lakehouse-daemon Start SERVICE_AUTO_START
 
@@ -411,16 +411,16 @@ version: '3.8'
 services:
   daemon:
     build:
-      context: ./amplifierd
+      context: ./lakehoused
       dockerfile: Dockerfile
     ports:
       - "8421:8421"
     volumes:
       - ./data:/data
-      - ./.amplifierd:/app/.amplifierd
+      - ./.lakehoused:/app/.lakehoused
     restart: unless-stopped
     environment:
-      - AMPLIFIERD_DATA_DIR=/data
+      - LAKEHOUSED_DATA_DIR=/data
 
   webapp:
     build:
@@ -435,7 +435,7 @@ services:
 
 ### Dockerfile Examples
 
-**amplifierd/Dockerfile:**
+**lakehoused/Dockerfile:**
 
 ```dockerfile
 FROM python:3.11-slim
@@ -455,7 +455,7 @@ RUN uv sync
 EXPOSE 8421
 
 # Run daemon
-CMD ["uv", "run", "python", "-m", "amplifierd"]
+CMD ["uv", "run", "python", "-m", "lakehoused"]
 ```
 
 **webapp/Dockerfile:**
@@ -599,7 +599,7 @@ journalctl -u lakehouse-daemon -n 50
 tail -f /tmp/lakehouse-daemon.log
 
 # Verify paths
-which amplifierd
+which lakehoused
 which pnpm
 ```
 
@@ -621,7 +621,7 @@ kill -9 <PID>
 sudo chown -R $USER:$USER /path/to/lakehouse
 
 # Ensure executable permissions
-chmod +x ~/.local/bin/amplifierd
+chmod +x ~/.local/bin/lakehoused
 chmod +x ~/.local/bin/lakehouse
 ```
 

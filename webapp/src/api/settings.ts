@@ -15,9 +15,10 @@ export interface DaemonSettings {
   corsOrigins: string[];
 }
 
+// @deprecated - Profile settings removed in v3. Bundles handle this automatically.
 export interface StartupSettings {
-  autoDiscoverProfiles: boolean;
-  autoCompileProfiles: boolean;
+  autoDiscoverProfiles?: boolean;  // @deprecated
+  autoCompileProfiles?: boolean;   // @deprecated
   parallelCompilation: boolean;
   maxParallelWorkers: number;
 }

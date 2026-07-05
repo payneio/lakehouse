@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useEventStream } from './useEventStream';
+import { sendMessage as sendMessageApi } from '@/api/sessions';
 
 export interface Message {
   id: string;
@@ -20,13 +21,13 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   const [streamingMessage, setStreamingMessage] = useState<Message | null>(null);
 
   useEffect(() => {
-    return eventStream.on('user_message', (data: unknown) => {
-      const d = data as Record<string, unknown>;
+    return eventStream.on('user_message', (data) => {
+      const eventData = data as { content?: string; timestamp?: string };
       const msg: Message = {
         id: `msg-${Date.now()}-user`,
         role: 'user',
-        content: d.content as string,
-        timestamp: (d.timestamp as string) || new Date().toISOString(),
+        content: eventData.content || '',
+        timestamp: eventData.timestamp || new Date().toISOString(),
         status: 'complete',
       };
       setMessages((prev) => [...prev, msg]);
@@ -34,21 +35,21 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   }, [eventStream]);
 
   useEffect(() => {
-    return eventStream.on('content', (data: unknown) => {
-      const d = data as Record<string, unknown>;
+    return eventStream.on('content', (data) => {
+      const eventData = data as { content?: string };
       setStreamingMessage((prev) => {
         if (!prev) {
           return {
             id: `msg-${Date.now()}-assistant`,
             role: 'assistant',
-            content: (d.content as string) || '',
+            content: eventData.content || '',
             timestamp: new Date().toISOString(),
             status: 'streaming',
           };
         } else {
           return {
             ...prev,
-            content: prev.content + ((d.content as string) || ''),
+            content: prev.content + (eventData.content || ''),
           };
         }
       });
@@ -69,8 +70,8 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
   }, [eventStream, streamingMessage, onComplete]);
 
   useEffect(() => {
-    return eventStream.on('error', (data: unknown) => {
-      const d = data as Record<string, unknown>;
+    return eventStream.on('error', (data) => {
+      const eventData = data as { error?: string };
       if (streamingMessage) {
         setMessages((prev) => [
           ...prev,
@@ -78,22 +79,14 @@ export function useMessageStream({ sessionId, onComplete }: UseMessageStreamOpti
         ]);
         setStreamingMessage(null);
       }
-      console.error('Stream error:', d.error);
+      console.error('Stream error:', eventData.error);
     });
   }, [eventStream, streamingMessage]);
 
   const sendMessage = useCallback(
     async (content: string) => {
       try {
-        const response = await fetch(`/api/v1/sessions/${sessionId}/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to send message');
-        }
+        await sendMessageApi(sessionId, content);
       } catch (error) {
         console.error('Error sending message:', error);
         throw error;

@@ -1,0 +1,567 @@
+"""Session state management service."""
+
+import logging
+import shutil
+from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+
+from lakehoused.models.sessions import SessionIndex
+from lakehoused.models.sessions import SessionIndexEntry
+from lakehoused.models.sessions import SessionMessage
+from lakehoused.models.sessions import SessionMetadata
+from lakehoused.models.sessions import SessionStatus
+
+logger = logging.getLogger(__name__)
+
+
+class SessionManager:
+    """Manages session lifecycle and persistence.
+
+    Handles session state transitions, transcript management, and queries.
+    Uses atomic file operations and append-only patterns for reliability.
+    """
+
+    def __init__(self, storage_dir: Path) -> None:
+        """Initialize with storage directory.
+
+        Args:
+            storage_dir: Path to parent directory - will create sessions/ subdirectory
+                        (e.g., .lakehoused/state for daemon, .amplifier for CLI)
+        """
+        self.storage_dir = Path(storage_dir) / "sessions"
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
+        self.index_path = self.storage_dir / "index.json"
+
+    # --- Lifecycle Management ---
+
+    def create_session(
+        self,
+        session_id: str,
+        bundle_name: str,
+        mount_plan: Any = None,
+        parent_session_id: str | None = None,
+        project_path: str = ".",
+        name: str | None = None,
+        created_by: str = "user",
+    ) -> SessionMetadata:
+        """Create new session in CREATED state.
+
+        Args:
+            session_id: Unique session identifier
+            bundle_name: Bundle name for this session
+            mount_plan: Complete mount plan to persist
+            parent_session_id: Optional parent session for sub-sessions
+            project_path: Relative path to project directory (defaults to ".")
+            name: Optional human-readable session name
+            created_by: Who created the session ("user" or "automation")
+
+        Returns:
+            SessionMetadata for created session
+
+        Raises:
+            ValueError: If session_id already exists (idempotency)
+
+        Side Effects:
+            Creates session directory with:
+            - mount_plan.json (full mount plan)
+            - session.json (metadata)
+            - transcript.jsonl (empty)
+            Updates index.json
+        """
+        session_dir = self.storage_dir / session_id
+
+        # Check idempotency
+        if session_dir.exists():
+            raise ValueError(f"Session {session_id} already exists")
+
+        try:
+            # Create session directory
+            session_dir.mkdir(parents=True)
+
+            # Write mount_plan.json if provided
+            if mount_plan is not None:
+                import json
+
+                mount_plan_path = session_dir / "mount_plan.json"
+                # Handle both Pydantic models and dicts
+                if hasattr(mount_plan, "model_dump"):
+                    mount_plan_data = mount_plan.model_dump()
+                else:
+                    mount_plan_data = mount_plan
+                mount_plan_path.write_text(json.dumps(mount_plan_data, indent=2))
+
+            # Create SessionMetadata with ACTIVE status (auto-start)
+            now = datetime.now(UTC)
+            metadata = SessionMetadata(
+                session_id=session_id,
+                name=name,  # Optional human-readable name
+                project_path=project_path,
+                bundle_name=bundle_name,
+                status=SessionStatus.ACTIVE,  # Start active immediately
+                created_at=now,
+                started_at=now,  # Set started_at to creation time
+                ended_at=None,
+                parent_session_id=parent_session_id,
+                mount_plan_path="mount_plan.json",
+                message_count=0,
+                agent_invocations=0,
+                token_usage=None,
+                error_message=None,
+                error_details=None,
+                is_unread=created_by == "automation",  # Automations start unread
+                last_read_at=now if created_by == "user" else None,
+            )
+
+            # Write session.json atomically
+            session_path = session_dir / "session.json"
+            tmp_path = session_path.with_suffix(".tmp")
+            tmp_path.write_text(metadata.model_dump_json(indent=2))
+            tmp_path.rename(session_path)
+
+            # Create empty transcript.jsonl
+            transcript_path = session_dir / "transcript.jsonl"
+            transcript_path.touch()
+
+            # Update index
+            self._update_index(metadata)
+
+            logger.info(f"Created session {session_id} with bundle {bundle_name}")
+            return metadata
+
+        except Exception as e:
+            # Cleanup partial session on any failure
+            if session_dir.exists():
+                shutil.rmtree(session_dir)
+            logger.error(f"Failed to create session {session_id}: {e}")
+            raise
+
+    def start_session(self, session_id: str) -> None:
+        """Start session or no-op if already ACTIVE (idempotent).
+
+        Transitions CREATED → ACTIVE (legacy behavior for old sessions).
+        No-op for already ACTIVE sessions (backwards compatibility).
+
+        Args:
+            session_id: Session identifier
+
+        Raises:
+            ValueError: If session is in terminal state
+            FileNotFoundError: If session not found
+        """
+
+        def update(metadata: SessionMetadata) -> None:
+            # Already active? No-op (common path after this change)
+            if metadata.status == SessionStatus.ACTIVE:
+                logger.debug(f"Session {session_id} already active, no-op")
+                return
+
+            # Terminal state? Error
+            if metadata.status in {SessionStatus.COMPLETED, SessionStatus.FAILED, SessionStatus.TERMINATED}:
+                raise ValueError(f"Cannot start session {session_id} in terminal state {metadata.status}")
+
+            # CREATED → ACTIVE (legacy path for old sessions)
+            if metadata.status == SessionStatus.CREATED:
+                metadata.status = SessionStatus.ACTIVE
+                metadata.started_at = datetime.now(UTC)
+                logger.info(f"Started legacy CREATED session {session_id}")
+
+        self._update_session(session_id, update)
+
+    def complete_session(self, session_id: str) -> None:
+        """Transition ACTIVE → COMPLETED."""
+
+        def update(metadata: SessionMetadata) -> None:
+            if metadata.status != SessionStatus.ACTIVE:
+                raise ValueError(f"Cannot complete session {session_id} in state {metadata.status}")
+            metadata.status = SessionStatus.COMPLETED
+            metadata.ended_at = datetime.now(UTC)
+
+        self._update_session(session_id, update)
+        logger.info(f"Completed session {session_id}")
+
+    def fail_session(
+        self,
+        session_id: str,
+        error_message: str,
+        error_details: dict | None = None,
+    ) -> None:
+        """Transition ACTIVE → FAILED."""
+
+        def update(metadata: SessionMetadata) -> None:
+            if metadata.status != SessionStatus.ACTIVE:
+                raise ValueError(f"Cannot fail session {session_id} in state {metadata.status}")
+            metadata.status = SessionStatus.FAILED
+            metadata.ended_at = datetime.now(UTC)
+            metadata.error_message = error_message
+            metadata.error_details = error_details
+
+        self._update_session(session_id, update)
+        logger.warning(f"Failed session {session_id}: {error_message}")
+
+    def terminate_session(self, session_id: str) -> None:
+        """Transition ACTIVE → TERMINATED."""
+
+        def update(metadata: SessionMetadata) -> None:
+            if metadata.status != SessionStatus.ACTIVE:
+                raise ValueError(f"Cannot terminate session {session_id} in state {metadata.status}")
+            metadata.status = SessionStatus.TERMINATED
+            metadata.ended_at = datetime.now(UTC)
+
+        self._update_session(session_id, update)
+        logger.info(f"Terminated session {session_id}")
+
+    def update_session_fields(self, session_id: str, **fields: Any) -> SessionMetadata:
+        """Update arbitrary session fields.
+
+        Args:
+            session_id: Session identifier
+            **fields: Fields to update on SessionMetadata
+
+        Returns:
+            Updated SessionMetadata
+
+        Raises:
+            FileNotFoundError: If session not found
+            ValueError: If field is invalid
+        """
+
+        def update(metadata: SessionMetadata) -> None:
+            for field, value in fields.items():
+                if not hasattr(metadata, field):
+                    raise ValueError(f"Invalid field: {field}")
+                setattr(metadata, field, value)
+
+        self._update_session(session_id, update)
+        updated = self.get_session(session_id)
+        if updated is None:
+            raise FileNotFoundError(f"Session {session_id} not found after update")
+        return updated
+
+    # --- Transcript Management ---
+
+    def append_message(
+        self,
+        session_id: str,
+        role: str,
+        content: str,
+        agent: str | None = None,
+        token_count: int | None = None,
+    ) -> None:
+        """Append message to transcript (efficient append-only).
+
+        Args:
+            session_id: Session identifier
+            role: Message role ("user" | "assistant" | "system")
+            content: Message content
+            agent: Optional agent identifier
+            token_count: Optional token count
+
+        Side Effects:
+            Appends line to transcript.jsonl
+            Updates message_count in session.json
+            Updates token_usage if token_count provided
+        """
+        transcript_path = self.storage_dir / session_id / "transcript.jsonl"
+
+        # Ensure session directory exists
+        transcript_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Create SessionMessage
+        message = SessionMessage(
+            timestamp=datetime.now(UTC),
+            role=role,
+            content=content,
+            agent=agent,
+            token_count=token_count,
+        )
+
+        # Append to transcript.jsonl
+        with open(transcript_path, "a") as f:
+            f.write(message.model_dump_json() + "\n")
+
+        # Update metadata counts
+        def update(metadata: SessionMetadata) -> None:
+            metadata.message_count += 1
+            if token_count:
+                metadata.token_usage = (metadata.token_usage or 0) + token_count
+
+        self._update_session(session_id, update)
+
+    def delete_last_message(self, session_id: str) -> SessionMessage | None:
+        """Remove the last message from transcript.
+
+        Returns the deleted message, or None if transcript was empty.
+
+        Note: Caller must ensure no active execution is in progress.
+        """
+        transcript_path = self.storage_dir / session_id / "transcript.jsonl"
+        if not transcript_path.exists():
+            return None
+
+        lines = transcript_path.read_text().strip().split("\n")
+        if not lines or lines == [""]:
+            return None
+
+        # Parse the message we're about to delete
+        deleted_message = SessionMessage.model_validate_json(lines[-1])
+
+        # Remove last line
+        remaining = lines[:-1]
+
+        # Rewrite file atomically
+        tmp_path = transcript_path.with_suffix(".tmp")
+        tmp_path.write_text("\n".join(remaining) + "\n" if remaining else "")
+        tmp_path.rename(transcript_path)
+
+        # Update message_count
+        def update(metadata: SessionMetadata) -> None:
+            metadata.message_count = max(0, metadata.message_count - 1)
+
+        self._update_session(session_id, update)
+
+        return deleted_message
+
+    def get_transcript(self, session_id: str, limit: int | None = None) -> list[SessionMessage]:
+        """Read transcript (optionally limited to last N messages)."""
+        transcript_path = self.storage_dir / session_id / "transcript.jsonl"
+
+        if not transcript_path.exists():
+            return []
+
+        # Read all lines
+        lines = transcript_path.read_text().strip().split("\n")
+        if not lines or lines == [""]:
+            return []
+
+        # Parse each line as SessionMessage
+        messages = [SessionMessage.model_validate_json(line) for line in lines if line]
+
+        # Return last N if limit provided
+        if limit is not None:
+            return messages[-limit:]
+        return messages
+
+    # --- Queries ---
+
+    def get_session(self, session_id: str) -> SessionMetadata | None:
+        """Get session metadata by ID."""
+        session_path = self.storage_dir / session_id / "session.json"
+
+        if not session_path.exists():
+            return None
+
+        return SessionMetadata.model_validate_json(session_path.read_text())
+
+    def list_sessions(
+        self,
+        status: SessionStatus | None = None,
+        bundle_name: str | None = None,
+        project_path: str | None = None,
+        since: datetime | None = None,
+        limit: int | None = None,
+        parent_session_id: str | None = None,
+    ) -> list[SessionMetadata]:
+        """Query sessions with filters.
+
+        Uses index for fast filtering, then loads full metadata.
+
+        Args:
+            status: Optional filter by session status
+            bundle_name: Optional filter by bundle name
+            project_path: Optional filter by project path
+            since: Optional filter by creation time
+            limit: Optional maximum number of results
+            parent_session_id: Optional filter by parent session ID (for finding subsessions)
+
+        Returns:
+            List of session metadata matching filters, sorted by creation time descending
+        """
+        # Load index
+        index = self._load_index()
+
+        # Apply filters to index entries (fast filtering using index)
+        filtered_ids: list[str] = []
+        for entry in index.sessions.values():
+            if status is not None and entry.status != status:
+                continue
+            if bundle_name is not None and entry.bundle_name != bundle_name:
+                continue
+            if project_path is not None and entry.project_path != project_path:
+                continue
+            if since is not None and entry.created_at < since:
+                continue
+            filtered_ids.append(entry.session_id)
+
+        # Load full metadata for matches
+        results: list[SessionMetadata] = []
+        for session_id in filtered_ids:
+            metadata = self.get_session(session_id)
+            if metadata:
+                # Apply parent_session_id filter (requires full metadata)
+                if parent_session_id is not None and metadata.parent_session_id != parent_session_id:
+                    continue
+                results.append(metadata)
+
+        # Sort by created_at descending (most recent first)
+        results.sort(key=lambda m: m.created_at, reverse=True)
+
+        # Apply limit if provided
+        if limit is not None:
+            return results[:limit]
+        return results
+
+    def get_active_sessions(self) -> list[SessionMetadata]:
+        """Get all ACTIVE sessions."""
+        return self.list_sessions(status=SessionStatus.ACTIVE)
+
+    # --- Management ---
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete session directory, all subsessions, and remove from index.
+
+        Cascades deletion to all child sessions (subsessions) recursively.
+        """
+        session_dir = self.storage_dir / session_id
+
+        if not session_dir.exists():
+            return False
+
+        try:
+            # Delete subsessions first (recursive cascade)
+            children = self.list_sessions(parent_session_id=session_id)
+            for child in children:
+                self.delete_session(child.session_id)
+
+            # Remove directory
+            shutil.rmtree(session_dir)
+
+            # Update index
+            index = self._load_index()
+            if session_id in index.sessions:
+                del index.sessions[session_id]
+                self._save_index(index)
+
+            logger.info(f"Deleted session {session_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete session {session_id}: {e}")
+            return False
+
+    def cleanup_old_sessions(
+        self,
+        older_than_days: int = 30,
+        keep_statuses: set[SessionStatus] | None = None,
+    ) -> int:
+        """Remove sessions older than threshold (except protected statuses).
+
+        Args:
+            older_than_days: Age threshold in days
+            keep_statuses: Statuses to preserve (default: {ACTIVE})
+
+        Returns:
+            Number of sessions removed
+        """
+        # Default keep_statuses to {ACTIVE}
+        if keep_statuses is None:
+            keep_statuses = {SessionStatus.ACTIVE}
+
+        # Calculate cutoff datetime
+        cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+
+        # Iterate index
+        index = self._load_index()
+        to_delete: list[str] = []
+
+        for entry in index.sessions.values():
+            # Skip protected statuses
+            if entry.status in keep_statuses:
+                continue
+
+            # Check age (use ended_at if available, else created_at)
+            check_time = entry.ended_at if entry.ended_at else entry.created_at
+            if check_time < cutoff:
+                to_delete.append(entry.session_id)
+
+        # Delete old sessions
+        deleted_count = 0
+        for session_id in to_delete:
+            if self.delete_session(session_id):
+                deleted_count += 1
+
+        if deleted_count > 0:
+            logger.info(f"Cleaned up {deleted_count} sessions older than {older_than_days} days")
+
+        return deleted_count
+
+    # --- Helpers ---
+
+    def _update_session(self, session_id: str, update_fn: Callable[[SessionMetadata], None]) -> None:
+        """Atomically update session metadata.
+
+        Uses tmp + rename pattern for atomic updates.
+        Updates index after successful write.
+        """
+        session_path = self.storage_dir / session_id / "session.json"
+
+        if not session_path.exists():
+            raise FileNotFoundError(f"Session {session_id} not found")
+
+        # Read
+        metadata = SessionMetadata.model_validate_json(session_path.read_text())
+
+        # Modify
+        update_fn(metadata)
+
+        # Write atomically
+        tmp_path = session_path.with_suffix(".tmp")
+        tmp_path.write_text(metadata.model_dump_json(indent=2))
+        tmp_path.rename(session_path)
+
+        # Update index
+        self._update_index(metadata)
+
+    def _load_index(self) -> SessionIndex:
+        """Load session index from disk."""
+        if not self.index_path.exists():
+            return SessionIndex(sessions={}, last_updated=datetime.now(UTC))
+
+        return SessionIndex.model_validate_json(self.index_path.read_text())
+
+    def _save_index(self, index: SessionIndex) -> None:
+        """Save session index to disk atomically."""
+        # Update last_updated
+        index.last_updated = datetime.now(UTC)
+
+        # Write to tmp file
+        tmp_path = self.index_path.with_suffix(".tmp")
+        tmp_path.write_text(index.model_dump_json(indent=2))
+
+        # Rename to index.json (atomic)
+        tmp_path.rename(self.index_path)
+
+    def _update_index(self, metadata: SessionMetadata) -> None:
+        """Update index entry for session."""
+        # Load index
+        index = self._load_index()
+
+        # Create SessionIndexEntry from metadata
+        entry = SessionIndexEntry(
+            session_id=metadata.session_id,
+            project_path=metadata.project_path,
+            bundle_name=metadata.bundle_name,
+            status=metadata.status,
+            created_at=metadata.created_at,
+            ended_at=metadata.ended_at,
+            message_count=metadata.message_count,
+        )
+
+        # Update sessions dict
+        index.sessions[metadata.session_id] = entry
+
+        # Save index
+        self._save_index(index)

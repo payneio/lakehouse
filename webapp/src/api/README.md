@@ -1,10 +1,10 @@
 # API Client Module
 
-HTTP client for amplifierd REST API.
+HTTP client for lakehoused REST API.
 
 ## Purpose
 
-Provides typed access to all amplifierd API endpoints with proper error handling.
+Provides typed access to all lakehoused API endpoints with proper error handling.
 
 ## Contract
 
@@ -16,11 +16,10 @@ Provides typed access to all amplifierd API endpoints with proper error handling
 ## Usage
 
 ```typescript
-import { listCollections, getProfile, createSession } from '@/api';
+import { listBundles, createSession } from '@/api';
 
-const collections = await listCollections();
-const profile = await getProfile('default');
-const session = await createSession({ profile_name: 'default' });
+const bundles = await listBundles();
+const session = await createSession({ bundle_name: 'default' });
 ```
 
 ## Environment Variables
@@ -42,20 +41,19 @@ Collection management endpoints.
 - `getCollection(identifier)` - Get collection by identifier
 - `syncCollections(params)` - Sync collections from registry
 
-### `profiles.ts`
-Profile management endpoints.
+### `bundles.ts`
+Bundle listing endpoints.
 
-- `listProfiles()` - Get all profiles
-- `getProfile(name)` - Get profile by name
+- `listBundles()` - Get all available bundles
 
-### `directories.ts`
-Amplified directory management endpoints.
+### `projects.ts`
+Project management endpoints.
 
-- `listDirectories()` - Get all amplified directories
-- `getDirectory(relativePath)` - Get directory by path
-- `createDirectory(data)` - Create new amplified directory
-- `updateDirectory(relativePath, data)` - Update directory
-- `deleteDirectory(relativePath, removeMarker)` - Delete directory
+- `listProjects()` - Get all projects
+- `getProject(relativePath)` - Get project by path
+- `createProject(data)` - Create new project
+- `updateProject(relativePath, data)` - Update project
+- `deleteProject(relativePath, removeMarker)` - Delete project
 
 ### `sessions.ts`
 Session management endpoints.
@@ -97,7 +95,7 @@ All API responses are fully typed. See `src/types/api.ts` for type definitions.
 
 The API client is a self-contained module with clear contracts. To test:
 
-1. Start amplifierd backend: `cd amplifierd && uv run uvicorn amplifierd.main:app`
+1. Start lakehoused backend: `cd lakehoused && uv run uvicorn lakehoused.main:app`
 2. Import and call functions from your components
 3. All network errors will be properly typed and caught
 

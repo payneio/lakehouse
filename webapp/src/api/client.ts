@@ -1,4 +1,6 @@
-export const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8420';
+import { getToken, clearToken } from './token';
+
+export const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export class ApiError extends Error {
   status: number;
@@ -21,14 +23,25 @@ export async function fetchApi<T>(
   options?: RequestInit
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
+  const token = getToken();
 
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
     ...options,
   });
+
+  // Session expired or missing: clear the stale token and bounce to login.
+  if (response.status === 401) {
+    clearToken();
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+    throw new ApiError(401, 'Unauthorized', 'Authentication required');
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

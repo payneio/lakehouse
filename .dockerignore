@@ -1,4 +1,4 @@
-# Keep the docker build context small. Only amplifier_library/ and amplifierd/
+# Keep the docker build context small. Only amplifier_library/ and lakehoused/
 # are COPY'd, but ignore noise inside them too.
 
 # VCS
@@ -35,7 +35,7 @@ related-projects/
 *.code-workspace
 
 # Runtime / state
-**/.amplifierd
+**/.lakehoused
 **/.amplified
 .data/
 .smoke_test_data/

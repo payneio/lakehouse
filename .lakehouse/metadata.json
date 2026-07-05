@@ -1,0 +1,5 @@
+{
+  "name": "Lakehouse",
+  "description": "The Amplifier UX",
+  "default_bundle": "software-developer"
+}

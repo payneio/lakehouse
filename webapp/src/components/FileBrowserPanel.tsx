@@ -76,7 +76,7 @@ export function FileBrowserPanel({ basePath, isOpen, onClose }: FileBrowserPanel
     enabled: !!selectedFile,
   });
 
-  const entries = filesData?.entries ?? [];
+  const entries = useMemo(() => filesData?.entries ?? [], [filesData]);
   const fileEntries = useMemo(() => entries.filter(e => !e.is_directory), [entries]);
 
   // Calculate adjacent file paths for prefetching

@@ -9,16 +9,16 @@ stack: web-app-awa
 services:
   api:
     image: amplifieronlinecr.azurecr.io/lakehouse-api:latest  # Push to ACR before deploying
-    port: 8421  # Matches Dockerfile EXPOSE 8421 / AMPLIFIERD_DAEMON_PORT
+    port: 8421  # Matches Dockerfile EXPOSE 8421 / LAKEHOUSED_DAEMON_PORT
     env:
       # Point the daemon's state dir at the mounted volume so file-state survives restarts
-      - name: AMPLIFIERD_HOME
+      - name: LAKEHOUSED_HOME
         value: /mounts/data
       # data_path defaults to ~/amplifier (=/home/amplifier/amplifier); under the App Service
       # platform the image's /home/amplifier is shadowed, so its parent is missing and the
       # daemon crashes at startup (DaemonSettings validation). Pin it to the persistent volume
       # (parent /mounts/data exists + is writable), which is also where this state belongs.
-      - name: AMPLIFIERD_DATA_PATH
+      - name: LAKEHOUSED_DATA_PATH
         value: /mounts/data/data
     volume:
       mount_path: /mounts/data  # web-app-awa REQUIRES mount_path under /mounts/
@@ -46,7 +46,7 @@ resources:
   storage:
     enabled: false  # Injects STORAGE_ACCOUNT, STORAGE_FILESYSTEM, STORAGE_ENDPOINT (managed-identity/RBAC; no key)
   # Persistent file state is handled by the services.api.volume block above
-  # (mounted at /mounts/data, with AMPLIFIERD_HOME pointed there).
+  # (mounted at /mounts/data, with LAKEHOUSED_HOME pointed there).
 
 # BEFORE YOU DEPLOY:
 # 1. Backend: Create Dockerfile, add /health endpoint, build and push to ACR:

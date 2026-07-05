@@ -9,6 +9,7 @@ export interface Collection {
   metadata?: Record<string, unknown>;
 }
 
+// @deprecated - Use Bundle interface from bundles.ts instead. Profiles replaced by bundles in v3.
 export interface Profile {
   name: string;
   description?: string;
@@ -42,6 +43,7 @@ export interface SessionConfig {
   contextManager?: ModuleConfig;
 }
 
+// @deprecated - Use BundleDetails interface from bundles.ts instead. Profiles replaced by bundles in v3.
 export interface ProfileDetails {
   name: string;
   schemaVersion: number;
@@ -70,32 +72,33 @@ export interface DirectoryMetadata {
   [key: string]: unknown;
 }
 
-export interface AmplifiedDirectory {
+export interface Project {
   path: string;
   relative_path: string;
-  default_profile?: string;
+  default_bundle?: string;
   metadata?: DirectoryMetadata;
   agents_content?: string;
-  is_amplified: boolean;
+  is_project: boolean;
 }
 
-export interface AmplifiedDirectoryCreate {
+export interface ProjectCreate {
   relative_path: string;
-  default_profile?: string;
+  default_bundle?: string;
   metadata?: DirectoryMetadata;
   create_marker?: boolean;
 }
 
+
 export interface Session {
   sessionId: string;
   name?: string;
-  profileName: string;
+  bundleName: string;
   status: 'created' | 'active' | 'completed' | 'failed' | 'terminated';
   createdAt: string;
   startedAt?: string;
   endedAt?: string;
   parentSessionId?: string;
-  amplifiedDir?: string;
+  projectPath?: string;
   mountPlanPath?: string;
   messageCount?: number;
   agentInvocations?: number;
@@ -116,8 +119,8 @@ export interface SessionMessage {
 }
 
 export interface CreateSessionRequest {
-  profile_name?: string;  // API expects snake_case for POST body - optional, uses directory default if not provided
-  amplified_dir?: string;  // API expects snake_case for POST body
+  bundle_name?: string;  // API expects snake_case for POST body - optional, uses project default if not provided
+  project_path?: string;  // API expects snake_case for POST body
   parent_session_id?: string;  // API expects snake_case for POST body
   settings_overrides?: Record<string, unknown>;
 }
@@ -127,11 +130,15 @@ export interface SyncCollectionsResponse {
   modules: Record<string, unknown>;
 }
 
-export interface ListDirectoriesResponse {
-  directories: AmplifiedDirectory[];
+export interface ListProjectsResponse {
+  projects: Project[];
   total: number;
 }
 
+// Backward compatibility alias
+export type ListDirectoriesResponse = ListProjectsResponse;
+
+// @deprecated - Profile creation removed in v3. Use bundles instead.
 export interface CreateProfileRequest {
   name: string;
   version?: string;
@@ -143,6 +150,7 @@ export interface CreateProfileRequest {
   instruction?: string;
 }
 
+// @deprecated - Profile updates removed in v3. Use bundles instead.
 export interface UpdateProfileRequest {
   version?: string;
   description?: string;

@@ -4,13 +4,13 @@ import { toWebUrl } from './gitUrl';
 describe('toWebUrl', () => {
   describe('Actual Amplifier Collection URL Formats', () => {
     it('should parse git+https with @branch#subdirectory=path format (developer-expertise)', () => {
-      const result = toWebUrl('git+https://github.com/payneio/amplifierd@main#subdirectory=registry/profiles/developer-expertise');
-      expect(result).toBe('https://github.com/payneio/amplifierd/tree/main/registry/profiles/developer-expertise');
+      const result = toWebUrl('git+https://github.com/payneio/lakehoused@main#subdirectory=registry/profiles/developer-expertise');
+      expect(result).toBe('https://github.com/payneio/lakehoused/tree/main/registry/profiles/developer-expertise');
     });
 
     it('should parse git+https with @branch#subdirectory=path format (foundation)', () => {
-      const result = toWebUrl('git+https://github.com/payneio/amplifierd@main#subdirectory=registry/profiles/foundation');
-      expect(result).toBe('https://github.com/payneio/amplifierd/tree/main/registry/profiles/foundation');
+      const result = toWebUrl('git+https://github.com/payneio/lakehoused@main#subdirectory=registry/profiles/foundation');
+      expect(result).toBe('https://github.com/payneio/lakehoused/tree/main/registry/profiles/foundation');
     });
 
     it('should parse git+https with nested subdirectory path', () => {

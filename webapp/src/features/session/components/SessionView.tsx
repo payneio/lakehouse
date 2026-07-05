@@ -1,24 +1,21 @@
-import { BASE_URL } from "@/api/client";
-import { listProfiles } from "@/api/profiles";
-import { cancelExecution, changeProfile, cloneSession, deleteLastMessage } from "@/api/sessions";
+import { listBundles } from "@/api/bundles";
+import { cancelExecution, changeBundle, cloneSession, deleteLastMessage, sendMessage } from "@/api/sessions";
 import { FileBrowserPanel } from "@/components/FileBrowserPanel";
-import { SessionNameEdit } from "@/features/directories/components/SessionNameEdit";
+import { SessionNameEdit } from "@/features/projects/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useMarkSessionRead } from "@/hooks/useMarkSessionRead";
 import { useScrollDirection } from "@/hooks/useScrollDirection";
 import type { SessionMessage } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, ArrowLeft, Copy, FileText, FolderOpen, Play, RefreshCw } from "lucide-react";
+import { ArrowLeft, Copy, FileText, FolderOpen, Play, RefreshCw } from "lucide-react";
 import React from "react";
 import { useNavigate, useParams } from "react-router";
 import { useExecutionState } from "../hooks/useExecutionState";
 import { useSession } from "../hooks/useSession";
 import { ApprovalDialog } from "./ApprovalDialog";
-import { ExecutionPanel } from "./ExecutionPanel";
 import { MessageInput } from "./MessageInput";
 import { MessageList } from "./MessageList";
 import { SessionLogDialog } from "./SessionLogDialog";
-import { ToolCallDisplay } from "./ToolCallDisplay";
 
 interface MessageEventData {
   role?: "user" | "assistant";
@@ -42,7 +39,6 @@ export function SessionView() {
   );
   const [isSending, setIsSending] = React.useState(false);
   const [streamingContent, setStreamingContent] = React.useState<string>("");
-  const [executionPanelOpen, setExecutionPanelOpen] = React.useState(false);
   const [logDialogOpen, setLogDialogOpen] = React.useState(false);
   const [fileBrowserOpen, setFileBrowserOpen] = React.useState(false);
 
@@ -81,43 +77,34 @@ export function SessionView() {
   // Auto-mark session as read after viewing for 2 seconds
   useMarkSessionRead(sessionId);
 
-  // Fetch available profiles
-  const { data: profiles } = useQuery({
-    queryKey: ["profiles"],
-    queryFn: listProfiles,
+  // Fetch available bundles
+  const { data: bundles } = useQuery({
+    queryKey: ["bundles"],
+    queryFn: listBundles,
   });
 
-  // Build sorted list of full profile names (collection/profile)
-  const profileOptions = React.useMemo(() => {
-    if (!profiles) return [];
+  // Build sorted list of bundle names
+  const bundleOptions = React.useMemo(() => {
+    if (!bundles) return [];
+    return bundles.map((bundle) => bundle.name).sort();
+  }, [bundles]);
 
-    return profiles
-      .map((profile) => {
-        // Construct full name: collection/profile
-        const fullName = profile.collectionId
-          ? `${profile.collectionId}/${profile.name}`
-          : profile.name;
-        return fullName;
-      })
-      .sort(); // Sort alphabetically
-  }, [profiles]);
-
-  // Profile change mutation
-  const changeProfileMutation = useMutation({
+  // Bundle change mutation
+  const changeBundleMutation = useMutation({
     mutationFn: ({
       sessionId,
-      profileName,
+      bundleName,
     }: {
       sessionId: string;
-      profileName: string;
-    }) => changeProfile(sessionId, profileName),
+      bundleName: string;
+    }) => changeBundle(sessionId, bundleName),
     onSuccess: () => {
       // Refresh session data
       queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
     },
     onError: (error: Error) => {
-      console.error("Failed to change profile:", error);
-      alert(`Failed to change profile: ${error.message}`);
+      console.error("Failed to change bundle:", error);
+      alert(`Failed to change bundle: ${error.message}`);
     },
   });
 
@@ -142,6 +129,11 @@ export function SessionView() {
     },
   });
 
+  // `on` is a stable useCallback; bind it so the subscription effect below
+  // depends on a stable reference and does not re-run when the stream's
+  // connection state changes (which changes eventStream's identity).
+  const subscribeToEvent = eventStream.on;
+
   // Clear SSE messages when navigating to different session
   React.useEffect(() => {
     setSseMessages([]);
@@ -160,7 +152,7 @@ export function SessionView() {
 
     const unsubscribers = [
       // User message saved
-      eventStream.on("user_message_saved", (data: unknown) => {
+      subscribeToEvent("user_message_saved", (data: unknown) => {
         const msgData = data as MessageEventData;
         setSseMessages((prev) => [
           ...prev,
@@ -174,13 +166,13 @@ export function SessionView() {
       }),
 
       // Assistant message start
-      eventStream.on("assistant_message_start", () => {
+      subscribeToEvent("assistant_message_start", () => {
         setStreamingContent("");
         setForceHideHeader(true);
       }),
 
       // Content streaming
-      eventStream.on("content", (data: unknown) => {
+      subscribeToEvent("content", (data: unknown) => {
         const contentData = data as ContentEventData;
         if (contentData.type === "content" && contentData.content) {
           setStreamingContent((prev) => prev + contentData.content);
@@ -188,7 +180,7 @@ export function SessionView() {
       }),
 
       // Assistant message complete
-      eventStream.on("assistant_message_complete", (data: unknown) => {
+      subscribeToEvent("assistant_message_complete", (data: unknown) => {
         const msgData = data as MessageEventData;
         setSseMessages((prev) => {
           const updated = [
@@ -208,7 +200,7 @@ export function SessionView() {
       }),
 
       // Tool call events
-      eventStream.on("hook:tool:pre", (data: unknown) => {
+      subscribeToEvent("hook:tool:pre", (data: unknown) => {
         const eventData = data as {
           hook_data?: {
             tool_name: string;
@@ -226,7 +218,7 @@ export function SessionView() {
         }
       }),
 
-      eventStream.on("hook:tool:post", (data: unknown) => {
+      subscribeToEvent("hook:tool:post", (data: unknown) => {
         const eventData = data as {
           hook_data?: {
             tool_name: string;
@@ -252,7 +244,7 @@ export function SessionView() {
       }),
 
       // Thinking events
-      eventStream.on("hook:thinking:delta", (data: unknown) => {
+      subscribeToEvent("hook:thinking:delta", (data: unknown) => {
         const eventData = data as { hook_data?: { delta: string } };
         const thinkingData = eventData.hook_data;
         if (thinkingData?.delta) {
@@ -261,21 +253,21 @@ export function SessionView() {
       }),
 
       // Execution cancelled
-      eventStream.on("execution_cancelled", () => {
+      subscribeToEvent("execution_cancelled", () => {
         setStreamingContent("");
         setIsSending(false);
         executionStateRef.current.completeTurn();
       }),
 
       // Execution error
-      eventStream.on("execution_error", () => {
+      subscribeToEvent("execution_error", () => {
         setStreamingContent("");
         setIsSending(false);
         executionStateRef.current.completeTurn();
       }),
 
       // Message deleted (cross-client sync)
-      eventStream.on("message_deleted", () => {
+      subscribeToEvent("message_deleted", () => {
         // Another client (or this one) deleted a message, refetch transcript
         queryClient.invalidateQueries({ queryKey: ["transcript", sessionId] });
         setSseMessages([]); // Clear SSE messages, they'll be in transcript now
@@ -285,7 +277,7 @@ export function SessionView() {
     return () => {
       unsubscribers.forEach((unsub) => unsub());
     };
-  }, [sessionId, eventStream.on]); // Removed executionState - use ref instead
+  }, [sessionId, subscribeToEvent, queryClient]); // executionState read via ref to avoid re-subscribing
 
   const handleSend = async (message: string) => {
     setIsSending(true);
@@ -294,18 +286,7 @@ export function SessionView() {
     try {
       // POST to send-message (triggers execution, returns immediately)
       // All events come via persistent /stream connection
-      const response = await fetch(
-        `${BASE_URL}/api/v1/sessions/${sessionId}/send-message`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: message }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Send message failed: ${response.status}`);
-      }
+      await sendMessage(sessionId, message);
 
       // Execution triggered in background
       // All events (user_message_saved, content, assistant_message_complete) come via /stream
@@ -351,22 +332,22 @@ export function SessionView() {
     }
   };
 
-  // Handle profile change
-  const handleProfileChange = (newProfileName: string) => {
+  // Handle bundle change
+  const handleBundleChange = (newBundleName: string) => {
     if (!sessionId) return;
 
-    // Only allow profile change if session is active
+    // Only allow bundle change if session is active
     if (session?.status !== "active") {
-      alert("Can only change profile for active sessions");
+      alert("Can only change bundle for active sessions");
       return;
     }
 
     if (
       confirm(
-        `Switch to profile "${newProfileName}"? This will reload the session configuration.`
+        `Switch to bundle "${newBundleName}"? This will reload the session configuration.`
       )
     ) {
-      changeProfileMutation.mutate({ sessionId, profileName: newProfileName });
+      changeBundleMutation.mutate({ sessionId, bundleName: newBundleName });
     }
   };
 
@@ -387,7 +368,7 @@ export function SessionView() {
   }
 
   const needsStart = session.status === "created";
-  const canChangeProfile = session.status === "active";
+  const canChangeBundle = session.status === "active";
 
   return (
     <div className="flex flex-col h-full">
@@ -415,40 +396,40 @@ export function SessionView() {
               createdAt={session.createdAt}
             />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {/* Profile dropdown - compact on mobile (no label) */}
-              <span className="hidden sm:inline flex-shrink-0">Profile:</span>
+              {/* Bundle dropdown - compact on mobile (no label) */}
+              <span className="hidden sm:inline flex-shrink-0">Bundle:</span>
               <select
-                value={session.profileName}
-                onChange={(e) => handleProfileChange(e.target.value)}
+                value={session.bundleName}
+                onChange={(e) => handleBundleChange(e.target.value)}
                 disabled={
-                  !canChangeProfile || changeProfileMutation.isPending
+                  !canChangeBundle || changeBundleMutation.isPending
                 }
                 className="bg-background border border-border rounded px-2 py-1 text-sm max-w-[100px] sm:max-w-[150px] truncate disabled:opacity-50 disabled:cursor-not-allowed hover:border-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 title={
-                  !canChangeProfile
-                    ? "Profile can only be changed for active sessions"
-                    : `Profile: ${session.profileName}`
+                  !canChangeBundle
+                    ? "Bundle can only be changed for active sessions"
+                    : `Bundle: ${session.bundleName}`
                 }
               >
-                {profileOptions.map((fullName) => (
-                  <option key={fullName} value={fullName}>
-                    {fullName}
+                {bundleOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
                   </option>
                 ))}
               </select>
-              {changeProfileMutation.isPending && (
+              {changeBundleMutation.isPending && (
                 <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
               )}
 
-              {/* Amplified directory - hidden on mobile */}
-              {session.amplifiedDir && (
+              {/* Project path - hidden on mobile */}
+              {session.projectPath && (
                 <span className="hidden md:inline-flex items-center gap-1">
                   <span
-                    aria-label={`Amplified directory: ${session.amplifiedDir}`}
-                    title={session.amplifiedDir}
+                    aria-label={`Project: ${session.projectPath}`}
+                    title={session.projectPath}
                     className="truncate"
                   >
-                    dir: /{session.amplifiedDir}
+                    dir: /{session.projectPath}
                   </span>
                   <button
                     onClick={() => setFileBrowserOpen(true)}
@@ -460,7 +441,7 @@ export function SessionView() {
                 </span>
               )}
 
-              {/* Action buttons - on same row as profile */}
+              {/* Action buttons - on same row as bundle */}
               <div className="flex items-center gap-1 ml-auto flex-shrink-0">
                 <button
                   onClick={() => cloneMutation.mutate()}
@@ -470,14 +451,6 @@ export function SessionView() {
                 >
                   <Copy className="h-4 w-4" />
                   <span className="hidden md:inline">{cloneMutation.isPending ? "Cloning..." : "Clone"}</span>
-                </button>
-                <button
-                  onClick={() => setExecutionPanelOpen(!executionPanelOpen)}
-                  className="flex items-center gap-1 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
-                  title="Toggle execution trace"
-                >
-                  <Activity className="h-4 w-4" />
-                  <span className="hidden md:inline">Trace</span>
                 </button>
                 <button
                   onClick={() => setLogDialogOpen(true)}
@@ -512,17 +485,11 @@ export function SessionView() {
         currentTurnThinking={
           executionState.getState().currentTurn?.thinking || []
         }
+        turns={executionState.getState().turns}
+        currentTurn={executionState.getState().currentTurn}
         onDeleteLast={handleDeleteLast}
         canDeleteLast={!isSending && allMessages.length > 0}
       />
-
-      {/* Tool call display */}
-      <div className="px-4">
-        <ToolCallDisplay
-          sessionId={sessionId || ""}
-          eventStream={eventStream}
-        />
-      </div>
 
       {/* Input */}
       <MessageInput
@@ -530,18 +497,11 @@ export function SessionView() {
         disabled={needsStart || isSending}
         isSending={isSending}
         onCancel={handleCancel}
-        amplifiedDir={session?.amplifiedDir}
+        projectPath={session?.projectPath}
       />
 
       {/* Approval dialog */}
       <ApprovalDialog sessionId={sessionId || ""} />
-
-      {/* Execution Panel */}
-      <ExecutionPanel
-        executionState={executionState.getState()}
-        isOpen={executionPanelOpen}
-        onClose={() => setExecutionPanelOpen(false)}
-      />
 
       {/* Session Log Dialog */}
       <SessionLogDialog
@@ -551,10 +511,10 @@ export function SessionView() {
       />
 
       {/* File Browser Panel */}
-      {session?.amplifiedDir && (
+      {session?.projectPath && (
         <FileBrowserPanel
-          key={session.amplifiedDir}
-          basePath={session.amplifiedDir}
+          key={session.projectPath}
+          basePath={session.projectPath}
           isOpen={fileBrowserOpen}
           onClose={() => setFileBrowserOpen(false)}
         />

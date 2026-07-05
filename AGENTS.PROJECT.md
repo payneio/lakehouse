@@ -4,29 +4,24 @@
 
 This repository contains Lakehouse, an **Intelligent Computation Platform** (the Amplifier Computing Platform or ACP). Lakehouse is an experimental project that demonstrates what it might look like for users to interact naturally with their computers through AI agents that work directly on their personal data, build custom tools on the fly, and proactively manage workflows.
 
-**Vision Document**: See @amplifierd/docs/the-amplifier-computation-platform.md for the complete vision.
+**Vision Document**: See @lakehoused/docs/the-amplifier-computation-platform.md for the complete vision.
 
 ## Project Structure
 
 ### Core Components
 
-1. **amplifierd/** - The Amplifier Daemon
+1. **lakehoused/** - The Amplifier Daemon
    - FastAPI web service exposing Amplifier functionality over HTTP
    - Always-running daemon enabling reactive and scheduled workflows
-   - See @amplifierd/README.md for details
+   - See @lakehoused/README.md for details
 
-2. **amplifier_library/** - Amplifier Library
-   - Python library providing higher-level abstractions over Microsoft's Amplifier Core
-   - Business logic layer between daemon transport and Amplifier Core execution
-   - See @amplifier_library/README.md for architecture details
-
-3. **webapp/** - React Web Application
+2. **webapp/** - React Web Application
    - Modern React + TypeScript UI for interacting with the daemon
    - Tech stack: React 19, TypeScript, Vite, TanStack Query, Tailwind CSS
    - See @webapp/README.md for development details
 
 4. **notebooks/** - Jupyter Notebooks
-   - Demonstrations of amplifier-core and amplifierd usage
+   - Demonstrations of amplifier-core and lakehoused usage
    - Learning resources and examples
 
 5. **guides/** - Documentation
@@ -40,11 +35,11 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
 - Integrates naturally with synced data (calendar, email, OneDrive, etc.)
 - Privacy and control through local-first architecture
 
-### Profile-Based Personalization
+### Bundle-Based Personalization
 - Agents can be contextualized for different domains/situations
-- Profiles define agent behavior (separate from project context)
+- Bundles define agent behavior (separate from project context)
 - Can be switched within any chat session
-- Built on Amplifier Core's flexible module composition
+- Built on Amplifier Foundation's bundle system for module composition
 
 ### Always-Running Intelligence
 - Unlike CLI tools that only work when invoked, the daemon is always running
@@ -53,9 +48,9 @@ This repository contains Lakehouse, an **Intelligent Computation Platform** (the
 - Examples: daily newspaper generation, lead dossier creation, self-improvement suggestions
 
 ### Project-Based Organization
-- Each amplified directory becomes a project with:
+- Any directory can be "amplified" to become a project with:
   - Chat sessions with historical context
-  - Default profiles and custom context
+  - Default bundles and custom context
   - Project-specific workflows and automation
   - Any file organization you prefer
 
@@ -75,7 +70,7 @@ Development follows:
 
 ## Technology Stack
 
-### Backend (amplifierd)
+### Backend (lakehoused)
 - **Python 3.11+**
 - **FastAPI** - Web framework
 - **Amplifier Core** - Microsoft's AI orchestration system
@@ -107,7 +102,7 @@ make webapp-dev
 
 Visit http://localhost:7777 in your browser.
 
-**Configuration**: A `.amplifierd` directory is created, by default at `~/.amplifierd`. Configure the `data_dir` in `.amplifierd/config/daemon.yaml` to specify where ACP can access your data.
+**Configuration**: A `.lakehoused` directory is created, by default at `~/.lakehoused`. Configure the `data_dir` in `.lakehoused/config/daemon.yaml` to specify where ACP can access your data.
 
 ## Development Commands
 
@@ -129,7 +124,7 @@ See @Makefile for complete list of targets.
 
 ## Important Documents
 
-- @amplifierd/docs/the-amplifier-computation-platform.md - Vision document
+- @lakehoused/docs/the-amplifier-computation-platform.md - Vision document
 
 ## Testing
 

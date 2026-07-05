@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { BASE_URL } from '@/api/client';
+import { fetchApi } from '@/api/client';
 
 /**
  * Hook to fetch unread session counts per project.
@@ -11,17 +11,8 @@ import { BASE_URL } from '@/api/client';
 export function useUnreadCounts() {
   return useQuery<Record<string, number>>({
     queryKey: ['unread-counts'],
-    queryFn: async () => {
-      console.log('[useUnreadCounts] Fetching unread counts');
-      const response = await fetch(`${BASE_URL}/api/v1/sessions/unread-counts`);
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to fetch unread counts: ${error}`);
-      }
-      const counts = await response.json();
-      console.log('[useUnreadCounts] Fetched counts:', counts);
-      return counts;
-    },
+    queryFn: () =>
+      fetchApi<Record<string, number>>('/api/v1/sessions/unread-counts'),
     staleTime: Infinity, // Only refetch when explicitly invalidated (via SSE)
     retry: 3,
   });

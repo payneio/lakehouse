@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { SessionMessage } from '@/types/api';
-import type { CurrentActivity, ThinkingBlock } from '@/features/session/types/execution';
+import type { CurrentActivity, Turn, ThinkingBlock } from '@/features/session/types/execution';
 import { User, Bot, Trash2, Copy, Check } from 'lucide-react';
-import { CurrentActivityIndicator } from './CurrentActivityIndicator';
 import { ThinkingViewer } from './ThinkingViewer';
+import { InlineTurnSummary } from './InlineTurnSummary';
 
 interface MessageListProps {
   messages: SessionMessage[];
   streamingContent?: string;
   currentActivity?: CurrentActivity | null;
   currentTurnThinking?: ThinkingBlock[];
+  turns?: Turn[];
+  currentTurn?: Turn | null;
   onContainerMount?: (element: HTMLDivElement | null) => void;
   onDeleteLast?: () => void;
   canDeleteLast?: boolean;
@@ -20,8 +22,9 @@ interface MessageListProps {
 export function MessageList({
   messages,
   streamingContent,
-  currentActivity,
   currentTurnThinking = [],
+  turns = [],
+  currentTurn = null,
   onContainerMount,
   onDeleteLast,
   canDeleteLast = false,
@@ -74,6 +77,9 @@ export function MessageList({
     bottomRef.current?.scrollIntoView({ behavior });
   }, [messages, streamingContent]);
 
+  // Combine completed turns + current turn for positional correlation with user messages
+  const allTurns = [...turns, ...(currentTurn ? [currentTurn] : [])];
+
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -82,75 +88,116 @@ export function MessageList({
     );
   }
 
-  return (
-    <div ref={onContainerMount} className="flex-1 overflow-y-auto space-y-4 p-4 pt-[88px] lg:pt-4">
-      {messages.map((message, idx) => {
-        const isUser = message.role === 'user';
-        const isLastMessage = idx === messages.length - 1;
-        const showDeleteButton = isLastMessage && onDeleteLast && canDeleteLast;
-        return (
+  // Build render items: interleave messages with turn summaries
+  // Turns correlate positionally: turn[i] corresponds to user message[i]
+  const renderItems: React.ReactNode[] = [];
+  let userMessageIndex = 0;
+
+  for (let idx = 0; idx < messages.length; idx++) {
+    const message = messages[idx];
+    const isUser = message.role === 'user';
+    const isLastMessage = idx === messages.length - 1;
+    const showDeleteButton = isLastMessage && onDeleteLast && canDeleteLast;
+
+    // Render the message
+    renderItems.push(
+      <div
+        key={`msg-${idx}`}
+        className={`group flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+      >
+        {!isUser && (
+          <div className="shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Bot className="h-4 w-4 text-primary" />
+          </div>
+        )}
+        <div className="flex flex-col gap-1 min-w-0 max-w-[80%]">
           <div
-            key={idx}
-            className={`group flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}
+            className={`rounded-lg p-3 ${
+              isUser
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted'
+            }`}
           >
-            {!isUser && (
-              <div className="shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Bot className="h-4 w-4 text-primary" />
-              </div>
-            )}
-            <div className="flex flex-col gap-1 min-w-0 max-w-[80%]">
-              <div
-                className={`rounded-lg p-3 ${
-                  isUser
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
-                }`}
-              >
-                <div className={isUser ? '' : 'prose prose-sm dark:prose-invert max-w-none'}>
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {message.content}
-                    </ReactMarkdown>
-                  )}
-                </div>
-                <div className="text-xs opacity-70 mt-1">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </div>
-              </div>
-              {/* Action bar - always visible on mobile, hover on desktop */}
-              <div className={`flex gap-1 ${isUser ? 'justify-end' : 'justify-start'} opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity`}>
-                <button
-                  onClick={() => handleCopy(message.content, idx)}
-                  className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                  title="Copy message"
-                >
-                  {copiedIndex === idx ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </button>
-                {showDeleteButton && (
-                  <button
-                    onClick={onDeleteLast}
-                    className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
-                    title="Delete last message"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            <div className={isUser ? '' : 'prose prose-sm dark:prose-invert max-w-none'}>
+              {isUser ? (
+                <div className="whitespace-pre-wrap break-words">{message.content}</div>
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {message.content}
+                </ReactMarkdown>
+              )}
             </div>
-            {isUser && (
-              <div className="shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                <User className="h-4 w-4 text-primary-foreground" />
-              </div>
+            <div className="text-xs opacity-70 mt-1">
+              {new Date(message.timestamp).toLocaleTimeString()}
+            </div>
+          </div>
+          {/* Action bar - always visible on mobile, hover on desktop */}
+          <div className={`flex gap-1 ${isUser ? 'justify-end' : 'justify-start'} opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity`}>
+            <button
+              onClick={() => handleCopy(message.content, idx)}
+              className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+              title="Copy message"
+            >
+              {copiedIndex === idx ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </button>
+            {showDeleteButton && (
+              <button
+                onClick={onDeleteLast}
+                className="p-1.5 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                title="Delete last message"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             )}
           </div>
+        </div>
+        {isUser && (
+          <div className="shrink-0 h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+            <User className="h-4 w-4 text-primary-foreground" />
+          </div>
+        )}
+      </div>
+    );
+
+    // After each user message, render the corresponding turn summary (if it exists)
+    if (isUser) {
+      const turn = allTurns[userMessageIndex];
+      if (turn && turn.tools.length > 0) {
+        renderItems.push(
+          <InlineTurnSummary
+            key={`turn-${turn.id}`}
+            turn={turn}
+            turnNumber={userMessageIndex + 1}
+          />
         );
-      })}
+      }
+      userMessageIndex++;
+    }
+  }
+
+  // If there's an active turn with tools but no corresponding user message yet in the list
+  // (e.g., user message arrived via SSE but the message list hasn't updated yet),
+  // show it at the bottom
+  if (currentTurn && currentTurn.tools.length > 0 && userMessageIndex <= turns.length) {
+    const alreadyRendered = allTurns.slice(0, userMessageIndex).some(t => t.id === currentTurn.id);
+    if (!alreadyRendered) {
+      renderItems.push(
+        <InlineTurnSummary
+          key={`turn-${currentTurn.id}`}
+          turn={currentTurn}
+          turnNumber={userMessageIndex + 1}
+        />
+      );
+    }
+  }
+
+  return (
+    <div ref={onContainerMount} className="flex-1 overflow-y-auto space-y-4 p-4 pt-[88px] lg:pt-4">
+      {renderItems}
 
       {/* Show streaming content as it arrives */}
       {streamingContent && (
@@ -179,18 +226,6 @@ export function MessageList({
                 defaultExpanded={false}
               />
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Show current activity indicator (even when not streaming) */}
-      {currentActivity && !streamingContent && (
-        <div className="flex gap-3 justify-start">
-          <div className="shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <Bot className="h-4 w-4 text-primary animate-pulse" />
-          </div>
-          <div className="max-w-[80%]">
-            <CurrentActivityIndicator activity={currentActivity} />
           </div>
         </div>
       )}

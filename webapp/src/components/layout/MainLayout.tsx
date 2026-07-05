@@ -1,12 +1,16 @@
 import { SettingsDialog } from "@/components/SettingsDialog";
-import { DirectoryTreeSidebar } from "@/features/directories/components/DirectoryTreeSidebar";
+import { ProjectTreeSidebar } from "@/features/projects/components/ProjectTreeSidebar";
 import { cn } from "@/lib/utils";
 import { FolderOpen, Home, Package, X } from "lucide-react";
 import { NavLink, Outlet } from "react-router";
+import { useGlobalEvents } from "@/hooks/useGlobalEvents";
 import { MobileMenuProvider, useMobileMenu } from "./MobileMenuContext";
 
 function MainLayoutContent() {
   const { isOpen, close } = useMobileMenu();
+
+  // Subscribe to global events once the authenticated layout is mounted.
+  useGlobalEvents();
 
   return (
     <div className="flex h-screen">
@@ -68,7 +72,7 @@ function MainLayoutContent() {
             </li>
             <li>
               <NavLink
-                to="/profiles"
+                to="/bundles"
                 onClick={close}
                 className={({ isActive }) =>
                   cn(
@@ -80,12 +84,12 @@ function MainLayoutContent() {
                 }
               >
                 <Package className="h-4 w-4" />
-                <span>Profiles</span>
+                <span>Bundles</span>
               </NavLink>
             </li>
             <li>
               <NavLink
-                to="/directories"
+                to="/projects"
                 onClick={close}
                 className={({ isActive }) =>
                   cn(
@@ -102,7 +106,7 @@ function MainLayoutContent() {
             </li>
           </ul>
         </nav>
-        <DirectoryTreeSidebar onNavigate={close} />
+        <ProjectTreeSidebar onNavigate={close} />
       </aside>
 
       {/* Main content */}

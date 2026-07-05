@@ -96,15 +96,15 @@ ai_working/tmp
 # related-projects
 # working
 
-# amplifierd
+# lakehoused
 
-amplifierd/.amplifierd/state
-amplifierd/.amplifierd/cache
-amplifierd/.compilation_meta.json
+lakehoused/.lakehoused/state
+lakehoused/.lakehoused/cache
+lakehoused/.compilation_meta.json
 .amplified
 
 # temporary ignores during development
-amplifierd/.amplifierd/share/profiles
+lakehoused/.lakehoused/share/profiles
 
 
 
@@ -113,3 +113,4 @@ amplifierd/.amplifierd/share/profiles
 /working/foreman-demo-using-multi-context-workflow-orchestrator
 /working/profile-compilation-demo
 
+lakehoused/lakehoused/webapp_dist/

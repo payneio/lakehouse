@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { BASE_URL } from '@/api/client';
+import { withToken } from '@/api/token';
 
 type EventHandler = (data: unknown) => void;
 
@@ -69,7 +70,7 @@ export function useEventStream({ sessionId, onError, executionHandlers }: UseEve
     isConnectedRef.current = true;
 
     const eventSource = new EventSource(
-      `${BASE_URL}/api/v1/sessions/${sessionId}/stream`,
+      withToken(`${BASE_URL}/api/v1/sessions/${sessionId}/stream`),
       { withCredentials: true }
     );
 

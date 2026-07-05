@@ -1,8 +1,5 @@
 import { fetchApi, BASE_URL } from './client';
 import type {
-  AmplifiedDirectory,
-  AmplifiedDirectoryCreate,
-  ListDirectoriesResponse,
   DirectoryListResponse,
   DirectoryCreateRequest,
   DirectoryCreateResponse,
@@ -10,9 +7,21 @@ import type {
   FileContentResponse,
 } from '@/types/api';
 
-export const listDirectories = () =>
-  fetchApi<ListDirectoriesResponse>('/api/v1/amplified-directories/');
+// Re-export project functions for backward compatibility
+export {
+  listProjects,
+  listProjects as listDirectories,
+  getProject,
+  getProject as getDirectory,
+  createProject,
+  createProject as createDirectory,
+  updateProject,
+  updateProject as updateDirectory,
+  deleteProject,
+  deleteProject as deleteDirectory,
+} from './projects';
 
+// File system browsing (not project-related)
 export const listDirectoryContents = (path: string = '') =>
   fetchApi<DirectoryListResponse>(`/api/v1/directories/list?path=${encodeURIComponent(path)}`);
 
@@ -21,36 +30,6 @@ export const createDirectoryPath = (data: DirectoryCreateRequest) =>
     method: 'POST',
     body: JSON.stringify(data),
   });
-
-export const getDirectory = (relativePath: string) => {
-  // Special case: Use /root endpoint for root directory to avoid FastAPI routing issues
-  const path = relativePath === '.' ? 'root' : encodeURIComponent(relativePath);
-  return fetchApi<AmplifiedDirectory>(`/api/v1/amplified-directories/${path}`);
-};
-
-export const createDirectory = (data: AmplifiedDirectoryCreate) =>
-  fetchApi<AmplifiedDirectory>('/api/v1/amplified-directories/', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-
-export const updateDirectory = (
-  relativePath: string,
-  data: Partial<AmplifiedDirectoryCreate>
-) =>
-  fetchApi<AmplifiedDirectory>(`/api/v1/amplified-directories/${relativePath}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  });
-
-export const deleteDirectory = (
-  relativePath: string,
-  removeMarker: boolean = false
-) =>
-  fetchApi<void>(
-    `/api/v1/amplified-directories/${relativePath}?remove_marker=${removeMarker}`,
-    { method: 'DELETE' }
-  );
 
 export const listFilesForCompletion = (
   path: string = '',
