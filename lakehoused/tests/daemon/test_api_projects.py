@@ -19,8 +19,8 @@ def test_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def mock_service(test_root: Path) -> ProjectService:
-    """Create real service with test root."""
+def mock_service(test_root: Path, mock_storage_env: Path) -> ProjectService:
+    """Create real service with test root and isolated state (registry)."""
     return ProjectService(test_root)
 
 
@@ -50,14 +50,14 @@ class TestProjectsAPI:
             "/api/v1/projects/",
             json={
                 "relative_path": "test_project",
-                "default_bundle": "foundation/base",
+                "default_assistant": "foundation/base",
             },
         )
 
         assert response.status_code == 201
         data = response.json()
         assert data["relative_path"] == "test_project"
-        assert data["metadata"]["default_bundle"] == "foundation/base"
+        assert data["metadata"]["default_assistant"] == "foundation/base"
         assert "created_at" in data
 
     def test_create_via_api_with_metadata(self, client: TestClient) -> None:
@@ -77,7 +77,7 @@ class TestProjectsAPI:
         data = response.json()
         assert data["metadata"]["name"] == "My Project"
         assert data["metadata"]["description"] == "Test project"
-        assert "default_bundle" in data["metadata"]
+        assert "default_assistant" in data["metadata"]
 
     def test_create_via_api_invalid_path_absolute(self, client: TestClient) -> None:
         """Test that absolute paths return 400."""
@@ -206,7 +206,7 @@ class TestProjectsAPI:
                 "metadata": {
                     "name": "Updated",
                     "version": 2,
-                    "default_bundle": "foundation/base",
+                    "default_assistant": "foundation/base",
                 }
             },
         )
@@ -508,7 +508,7 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={
                 "relative_path": "parent",
-                "default_bundle": "parent/profile",
+                "default_assistant": "parent/profile",
             },
         )
 
@@ -520,7 +520,7 @@ And some markdown: **bold** _italic_ `code`
 
         assert response.status_code == 201
         data = response.json()
-        assert data["metadata"]["default_bundle"] == "parent/profile"
+        assert data["metadata"]["default_assistant"] == "parent/profile"
 
     def test_create_with_profile_uses_explicit(self, client: TestClient) -> None:
         """Test that explicit bundle overrides inheritance."""
@@ -529,7 +529,7 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={
                 "relative_path": "parent",
-                "default_bundle": "parent/profile",
+                "default_assistant": "parent/profile",
             },
         )
 
@@ -538,13 +538,13 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={
                 "relative_path": "parent/child",
-                "default_bundle": "child/profile",
+                "default_assistant": "child/profile",
             },
         )
 
         assert response.status_code == 201
         data = response.json()
-        assert data["metadata"]["default_bundle"] == "child/profile"
+        assert data["metadata"]["default_assistant"] == "child/profile"
 
     def test_nested_project_inheritance(self, client: TestClient) -> None:
         """Test inheritance through multiple levels."""
@@ -553,7 +553,7 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={
                 "relative_path": "gp",
-                "default_bundle": "gp/profile",
+                "default_assistant": "gp/profile",
             },
         )
 
@@ -562,14 +562,14 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={"relative_path": "gp/parent"},
         )
-        assert parent_response.json()["metadata"]["default_bundle"] == "gp/profile"
+        assert parent_response.json()["metadata"]["default_assistant"] == "gp/profile"
 
         # Create child (should inherit from parent which inherited from grandparent)
         child_response = client.post(
             "/api/v1/projects/",
             json={"relative_path": "gp/parent/child"},
         )
-        assert child_response.json()["metadata"]["default_bundle"] == "gp/profile"
+        assert child_response.json()["metadata"]["default_assistant"] == "gp/profile"
 
     # --- Error Handling Tests ---
 
@@ -686,7 +686,7 @@ And some markdown: **bold** _italic_ `code`
             "/api/v1/projects/",
             json={
                 "relative_path": "session_project",
-                "default_bundle": "foundation/base",
+                "default_assistant": "foundation/base",
             },
         )
 
@@ -694,7 +694,7 @@ And some markdown: **bold** _italic_ `code`
         # For now, we verify the project was created correctly
         response = client.get("/api/v1/projects/session_project")
         assert response.status_code == 200
-        assert response.json()["metadata"]["default_bundle"] == "foundation/base"
+        assert response.json()["metadata"]["default_assistant"] == "foundation/base"
 
     # --- Edge Cases ---
 
@@ -748,7 +748,7 @@ And some markdown: **bold** _italic_ `code`
             json={
                 "metadata": {
                     "field1": "updated",
-                    "default_bundle": "foundation/base",
+                    "default_assistant": "foundation/base",
                 }
             },
         )
@@ -799,7 +799,7 @@ And some markdown: **bold** _italic_ `code`
                 "metadata": {
                     "version": 2,
                     "updated": True,
-                    "default_bundle": "foundation/base",
+                    "default_assistant": "foundation/base",
                 }
             },
         )

@@ -16,10 +16,10 @@ Provides typed access to all lakehoused API endpoints with proper error handling
 ## Usage
 
 ```typescript
-import { listBundles, createSession } from '@/api';
+import { listAssistants, createSession } from '@/api';
 
-const bundles = await listBundles();
-const session = await createSession({ bundle_name: 'default' });
+const assistants = await listAssistants();
+const session = await createSession({ assistant_name: 'default' });
 ```
 
 ## Environment Variables
@@ -41,10 +41,10 @@ Collection management endpoints.
 - `getCollection(identifier)` - Get collection by identifier
 - `syncCollections(params)` - Sync collections from registry
 
-### `bundles.ts`
-Bundle listing endpoints.
+### `assistants.ts`
+Assistant listing endpoints.
 
-- `listBundles()` - Get all available bundles
+- `listAssistants()` - Get all available assistants
 
 ### `projects.ts`
 Project management endpoints.

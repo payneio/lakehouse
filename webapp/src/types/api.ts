@@ -9,7 +9,7 @@ export interface Collection {
   metadata?: Record<string, unknown>;
 }
 
-// @deprecated - Use Bundle interface from bundles.ts instead. Profiles replaced by bundles in v3.
+// @deprecated - Use Assistant interface from assistants.ts instead. Profiles replaced by assistants in v3.
 export interface Profile {
   name: string;
   description?: string;
@@ -43,7 +43,7 @@ export interface SessionConfig {
   contextManager?: ModuleConfig;
 }
 
-// @deprecated - Use BundleDetails interface from bundles.ts instead. Profiles replaced by bundles in v3.
+// @deprecated - Use AssistantDetails interface from assistants.ts instead. Profiles replaced by assistants in v3.
 export interface ProfileDetails {
   name: string;
   schemaVersion: number;
@@ -75,7 +75,7 @@ export interface DirectoryMetadata {
 export interface Project {
   path: string;
   relative_path: string;
-  default_bundle?: string;
+  default_assistant?: string;
   metadata?: DirectoryMetadata;
   agents_content?: string;
   is_project: boolean;
@@ -83,7 +83,7 @@ export interface Project {
 
 export interface ProjectCreate {
   relative_path: string;
-  default_bundle?: string;
+  default_assistant?: string;
   metadata?: DirectoryMetadata;
   create_marker?: boolean;
 }
@@ -92,7 +92,7 @@ export interface ProjectCreate {
 export interface Session {
   sessionId: string;
   name?: string;
-  bundleName: string;
+  assistantName: string;
   status: 'created' | 'active' | 'completed' | 'failed' | 'terminated';
   createdAt: string;
   startedAt?: string;
@@ -119,7 +119,7 @@ export interface SessionMessage {
 }
 
 export interface CreateSessionRequest {
-  bundle_name?: string;  // API expects snake_case for POST body - optional, uses project default if not provided
+  assistant_name?: string;  // API expects snake_case for POST body - optional, uses project default if not provided
   project_path?: string;  // API expects snake_case for POST body
   parent_session_id?: string;  // API expects snake_case for POST body
   settings_overrides?: Record<string, unknown>;
@@ -138,7 +138,7 @@ export interface ListProjectsResponse {
 // Backward compatibility alias
 export type ListDirectoriesResponse = ListProjectsResponse;
 
-// @deprecated - Profile creation removed in v3. Use bundles instead.
+// @deprecated - Profile creation removed in v3. Use assistants instead.
 export interface CreateProfileRequest {
   name: string;
   version?: string;
@@ -150,7 +150,7 @@ export interface CreateProfileRequest {
   instruction?: string;
 }
 
-// @deprecated - Profile updates removed in v3. Use bundles instead.
+// @deprecated - Profile updates removed in v3. Use assistants instead.
 export interface UpdateProfileRequest {
   version?: string;
   description?: string;

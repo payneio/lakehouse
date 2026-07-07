@@ -132,15 +132,22 @@ def get_git_cache_dir() -> Path:
     return git_cache_dir
 
 
-def get_bundles_dir() -> Path:
-    """Get bundles directory for user-editable bundles.
+def get_opencode_assistants_dir(configured_path: str | None = None) -> Path:
+    """Get the opencode assistant store directory.
 
-    All local bundles (user-created, copied, edited) are stored here.
-    Registry bundles (from git+ URIs) are cached separately.
+    This is the version-controlled repo containing the shared ``_library/`` and
+    per-assistant ``manifests/*.json`` produced by the external amplifier2opencode
+    build step.
+
+    Args:
+        configured_path: Optional path from daemon settings
+            (``opencode_assistants_path``). Empty/None falls back to the default.
 
     Returns:
-        Path to bundles directory ($LAKEHOUSED_HOME/share/bundles)
+        Path to the assistant store ($LAKEHOUSED_HOME/share/opencode by default).
     """
-    bundles_dir = get_share_dir() / "bundles"
-    bundles_dir.mkdir(parents=True, exist_ok=True)
-    return bundles_dir
+    if configured_path:
+        return Path(configured_path).expanduser().resolve()
+    assistants_dir = get_share_dir() / "opencode"
+    assistants_dir.mkdir(parents=True, exist_ok=True)
+    return assistants_dir

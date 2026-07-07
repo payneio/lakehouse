@@ -80,23 +80,10 @@ async def stream_session_events(
     if metadata is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-    # Load mount plan
-    state_dir = get_state_dir()
-    mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
-
-    if not mount_plan_path.exists():
-        raise HTTPException(status_code=500, detail=f"Mount plan not found for session {session_id}")
-
-    with open(mount_plan_path) as f:
-        mount_plan = json.load(f)
-
     async def event_generator():
         """Generate SSE events from session stream."""
-        # Get module resolver from app state (daemon-level)
-        module_resolver = request.app.state.module_resolver
-
         registry = get_stream_registry()
-        manager = await registry.get_or_create(session_id, mount_plan, module_resolver)
+        manager = await registry.get_or_create(session_id)
 
         # Subscribe to event stream
         queue = manager.subscribe()

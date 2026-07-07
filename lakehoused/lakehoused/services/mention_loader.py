@@ -32,7 +32,7 @@ class MentionLoader:
     - Graceful skip on missing files (logs warning, continues)
 
     Three @mention types:
-    1. @namespace:path - Bundle namespace references (e.g., @foundation:context/file.md)
+    1. @namespace:path - Assistant namespace references (e.g., @foundation:context/file.md)
        Resolves to: {source_base_paths[namespace]}/{path}
     2. @context-key:path - Profile context references
        Resolves to: {compiled_profile_dir}/contexts/{context-key}/{path}
@@ -53,8 +53,8 @@ class MentionLoader:
             compiled_profile_dir: Path to compiled profile (for context resolution)
             project_path: Path to project directory (for relative resolution)
             data_dir: Path to data directory (for security validation). Defaults to project_path.parent if not provided.
-            source_base_paths: Dict mapping bundle namespace to base_path for @namespace:path resolution.
-                Enables @foundation:context/file.md to resolve to Foundation bundle's context directory.
+            source_base_paths: Dict mapping assistant namespace to base_path for @namespace:path resolution.
+                Enables @foundation:context/file.md to resolve to Foundation assistant's context directory.
         """
         self.compiled_profile_dir = compiled_profile_dir
         self.project_path = project_path
@@ -166,7 +166,7 @@ class MentionLoader:
         """Resolve @mention to file path with context-aware resolution.
 
         Three types (in priority order):
-        1. @namespace:path → Bundle namespace resolution (e.g., @foundation:context/file.md)
+        1. @namespace:path → Assistant namespace resolution (e.g., @foundation:context/file.md)
            Resolves using source_base_paths if namespace is known
         2. @context-key:path → Context-aware resolution based on source file location
            If source file is in behaviors/{behavior_id}/ → Try behavior context first
@@ -189,13 +189,13 @@ class MentionLoader:
 
             namespace, path_part = parts
 
-            # Type 1: Check bundle source_base_paths first (for @foundation:context/... style)
+            # Type 1: Check assistant source_base_paths first (for @foundation:context/... style)
             if namespace in self.source_base_paths:
                 resolved = self.source_base_paths[namespace] / path_part
                 if resolved.exists():
-                    logger.debug(f"Resolved bundle namespace mention {mention} → {resolved}")
+                    logger.debug(f"Resolved assistant namespace mention {mention} → {resolved}")
                     return resolved
-                logger.debug(f"Bundle namespace path not found: {resolved}")
+                logger.debug(f"Assistant namespace path not found: {resolved}")
                 # Don't return None yet - fall through to context-key resolution
                 # in case this is actually a context-key that matches a namespace
 

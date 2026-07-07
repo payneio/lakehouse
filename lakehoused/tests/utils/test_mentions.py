@@ -1,6 +1,5 @@
 """Test mention parsing utilities."""
 
-
 from lakehoused.utils.mentions import extract_mention_path
 from lakehoused.utils.mentions import format_mention
 from lakehoused.utils.mentions import has_mentions

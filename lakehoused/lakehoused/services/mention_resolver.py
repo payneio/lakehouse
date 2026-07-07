@@ -38,8 +38,8 @@ class MentionResolver:
             project_path: Path to project directory (project root)
             data_dir: Path to data directory (for security validation). Defaults to project_path.parent if not provided.
             loader: Optional MentionLoader instance (creates default if None)
-            source_base_paths: Dict mapping bundle namespace to base_path for @namespace:path resolution.
-                Enables @foundation:context/file.md to resolve to Foundation bundle's context directory.
+            source_base_paths: Dict mapping assistant namespace to base_path for @namespace:path resolution.
+                Enables @foundation:context/file.md to resolve to Foundation assistant's context directory.
         """
         self.compiled_profile_dir = compiled_profile_dir.resolve()
         self.project_path = project_path.resolve()
@@ -220,7 +220,7 @@ class MentionResolver:
 
         NOTE: This method only resolves @mentions in the user's message.
         The ancestor AGENTS.md chain is resolved separately during session creation
-        and stored in bundle_context_messages.json to avoid duplication.
+        and stored in context_messages.json to avoid duplication.
 
         Args:
             user_message: User's message with potential @mentions

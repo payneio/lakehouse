@@ -43,7 +43,7 @@ class AutomationScheduler:
         automation_manager: AutomationManager,
         session_manager: SessionManager,
         timezone: str = "UTC",
-        module_resolver: Any = None,
+        opencode_servers: Any = None,
     ) -> None:
         """Initialize automation scheduler.
 
@@ -51,12 +51,12 @@ class AutomationScheduler:
             automation_manager: Manager for automation persistence
             session_manager: Manager for session lifecycle
             timezone: IANA timezone identifier for scheduling (e.g., "America/Los_Angeles")
-            module_resolver: BundleModuleResolver from Foundation (daemon-level)
+            opencode_servers: OpencodeServerRegistry (daemon-level) for headless runs
         """
         self.automation_manager = automation_manager
         self.session_manager = session_manager
         self.timezone = timezone
-        self.module_resolver = module_resolver
+        self.opencode_servers = opencode_servers
         self.scheduler = AsyncIOScheduler(timezone=timezone)
         self._running = False
         logger.info(f"Automation scheduler initialized with timezone: {timezone}")
@@ -373,7 +373,7 @@ class AutomationScheduler:
             session_name = f"{automation.name} - {execution_date}"
 
             # Create session in automation's project
-            # Note: We need to load the project metadata to get the default bundle
+            # Note: We need to load the project metadata to get the default assistant
             from lakehoused.config.settings import load_config
 
             from ..services.project_service import ProjectService
@@ -386,52 +386,40 @@ class AutomationScheduler:
             if not project:
                 raise ValueError(f"Project directory not found: {automation.project_id}")
 
-            # Get bundle name from project metadata (try default_bundle, fallback to default_bundle)
-            bundle_name = project.metadata.get("default_bundle") or project.metadata.get("default_bundle")
-            if not bundle_name:
-                raise ValueError(f"No default_bundle set for project: {automation.project_id}")
+            # Get assistant name from project metadata
+            assistant_name = project.metadata.get("default_assistant")
+            if not assistant_name:
+                raise ValueError(f"No default_assistant set for project: {automation.project_id}")
 
             # Get absolute path for mount plan generation
             absolute_project_path = str((data_path / automation.project_id).resolve())
 
-            # Generate mount plan using bundle manager
-            from lakehoused.bundles import LakehouseBundleManager
+            # Resolve the assistant manifest for this automation's assistant.
+            from lakehoused.config.settings import load_config as load_settings
+            from lakehoused.opencode import LakehouseOpencodeManager
+            from lakehoused.opencode import session_config
 
-            from ..config.loader import load_secrets
-
-            bundle_manager = LakehouseBundleManager()
-
-            # Load secrets for API key injection
-            secrets = load_secrets()
-
-            mount_plan = await bundle_manager.generate_mount_plan(
-                bundle_ref=bundle_name,
-                session_id=session_id,
-                project_path=absolute_project_path,
-                api_keys=secrets.api_keys if secrets.api_keys else None,
-            )
-
-            # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
-            # is already injected by bundle_manager.generate_mount_plan()
-
-            # Add session metadata
-            if "session" not in mount_plan:
-                mount_plan["session"] = {}
-            if "settings" not in mount_plan["session"]:
-                mount_plan["session"]["settings"] = {}
-
-            mount_plan["session"]["settings"]["project_path"] = absolute_project_path
-            mount_plan["session"]["settings"]["bundle_name"] = bundle_name
-            mount_plan["session"]["settings"]["automation_id"] = automation_id
+            settings = load_settings()
+            assistant_manager = LakehouseOpencodeManager(settings.opencode_assistants_path or None)
+            resolved = assistant_manager.resolve(assistant_name)
 
             # Create session with meaningful name (marked as created by automation)
             self.session_manager.create_session(
                 session_id=session_id,
-                bundle_name=bundle_name,
-                mount_plan=mount_plan,
+                assistant_name=assistant_name,
                 project_path=automation.project_id,
                 name=session_name,
                 created_by="automation",  # Mark as automation-created for unread tracking
+            )
+
+            # Persist the assistant config (replaces mount_plan.json).
+            session_config.write(
+                session_id,
+                assistant_name=assistant_name,
+                manifest_hash=resolved.spec.content_hash,
+                directory=absolute_project_path,
+                agent=resolved.default_agent,
+                model=resolved.model,
             )
 
             # Start session (no-op since sessions start as ACTIVE, but kept for compatibility)
@@ -465,27 +453,47 @@ class AutomationScheduler:
             # Resolve runtime mentions
             from ..services.mention_resolver import MentionResolver
 
-            bundle_dir = bundle_manager.bundles_dir / bundle_name
             resolver = MentionResolver(
-                compiled_profile_dir=bundle_dir,
+                compiled_profile_dir=Path(absolute_project_path),
                 project_path=Path(absolute_project_path),
                 data_dir=data_path,
             )
             runtime_context_messages = resolver.resolve_runtime_mentions(automation.message)
             logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
 
-            # Get stream manager (creates if needed)
-            from ..services.session_stream_registry import get_stream_registry
+            # Build project context (lakehouse primer + ancestor AGENTS.md chain), delivered to
+            # opencode as the prompt `system` field so automated turns carry project context too.
+            from ..services.project_context import build_project_context_system
 
-            registry = get_stream_registry()
-            manager = await registry.get_or_create(session_id, mount_plan, self.module_resolver)
+            system_context = build_project_context_system(Path(absolute_project_path), data_path)
+            if system_context:
+                logger.info(f"Built project context system ({len(system_context)} chars)")
 
-            # Get runner
-            runner = await manager.get_runner(session)
+            # Boot the assistant's opencode server and build a headless runner.
+            if self.opencode_servers is None:
+                raise RuntimeError("opencode server registry is unavailable")
+            server = await self.opencode_servers.get_or_create(resolved.spec)
 
-            # Mount hooks if needed
-            if runner._session is not None:
-                await manager.mount_hooks(runner)
+            from lakehoused.opencode import OpencodeRunner
+
+            from ..streaming import EventQueueEmitter
+
+            emitter = EventQueueEmitter()  # headless: no /stream subscribers
+
+            def _persist_ocid(ocid: str) -> None:
+                session_config.set_opencode_session_id(session_id, ocid)
+
+            runner = OpencodeRunner(
+                session_manager=self.session_manager,
+                emitter=emitter,
+                server=server,
+                session_id=session_id,
+                directory=absolute_project_path,
+                agent=resolved.default_agent,
+                model=resolved.model,
+                system=system_context,
+                on_session_created=_persist_ocid,
+            )
 
             # Execute the message (this saves messages to transcript)
             logger.info(f"Executing automation message for {automation_id} in session {session_id}")

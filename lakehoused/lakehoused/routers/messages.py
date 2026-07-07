@@ -13,7 +13,6 @@ from fastapi import HTTPException
 from fastapi import Request
 from pydantic import BaseModel
 
-from lakehoused.execution.runner import ExecutionRunner
 from lakehoused.sessions.manager import SessionManager as SessionStateService
 from lakehoused.storage import get_state_dir
 
@@ -22,9 +21,6 @@ from ..models import SendMessageRequest
 from ..models import TranscriptResponse
 
 logger = logging.getLogger(__name__)
-
-# Keep ExecutionRunner in scope for test mocking
-__test_exports__ = [ExecutionRunner]
 
 router = APIRouter(prefix="/api/v1/sessions/{session_id}", tags=["messages"])
 
@@ -124,82 +120,90 @@ async def send_message_for_execution(
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
         # Convert to library SessionMetadata
-        import json
         from datetime import UTC
         from datetime import datetime
+        from pathlib import Path
 
+        from lakehoused.config.settings import load_config
         from lakehoused.models.sessions import SessionMetadata as LibrarySessionMetadata
+        from lakehoused.opencode import LakehouseOpencodeManager
+        from lakehoused.opencode import OpencodeRunner
+        from lakehoused.opencode import session_config
+        from lakehoused.sessions.manager import SessionManager
         from lakehoused.storage import get_state_dir
 
+        from ..services.mention_resolver import MentionResolver
         from ..services.session_stream_registry import get_stream_registry
 
         session = LibrarySessionMetadata(**metadata.model_dump())
-
-        # Get config and paths
-        from pathlib import Path
-
-        from lakehoused.bundles import LakehouseBundleManager
-        from lakehoused.config.settings import load_config
-
-        from ..services.mention_resolver import MentionResolver
 
         config = load_config()
         data_dir = Path(config.data_path)
         state_dir = get_state_dir()
 
-        # Get project_path from session metadata
-        project_path = Path(metadata.project_path) if metadata.project_path else Path(".")
-        if not project_path.is_absolute():
-            project_path = data_dir / project_path
+        # Load the session's assistant config (created at session creation).
+        cfg = session_config.read(session_id)
+        if not cfg:
+            raise HTTPException(status_code=500, detail=f"Assistant config not found for session {session_id}")
 
-        # Load mount plan from session directory (created during session creation)
-        mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
-        if not mount_plan_path.exists():
-            raise HTTPException(status_code=500, detail=f"Mount plan not found for session {session_id}")
-        mount_plan = json.loads(mount_plan_path.read_text())
-        logger.debug(f"Loaded mount plan from {mount_plan_path}")
+        directory = cfg.get("directory") or str(data_dir)
+        project_path = Path(directory)
 
-        # Get bundle directory for mention resolution
-        bundle_name = metadata.bundle_name
-        bundle_manager = LakehouseBundleManager()
-        # Use bundle dir if available, otherwise fallback to project_path for mention resolution
-        bundle_dir = bundle_manager.bundles_dir / bundle_name if bundle_name else project_path
+        # Resolve the assistant manifest and get/boot its opencode server.
+        assistant_manager = LakehouseOpencodeManager(config.opencode_assistants_path or None)
+        try:
+            resolved = assistant_manager.resolve(cfg["assistant_name"])
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        server_registry = request.app.state.opencode_servers
+        server = await server_registry.get_or_create(resolved.spec)
 
-        # Resolve runtime mentions (AGENTS.md + user message)
+        # Resolve runtime @mentions (inlined by the runner as a prompt preamble).
         mention_resolver = MentionResolver(
-            compiled_profile_dir=bundle_dir,
+            compiled_profile_dir=project_path,
             project_path=project_path,
             data_dir=data_dir,
         )
         runtime_context_messages = mention_resolver.resolve_runtime_mentions(message_request.content)
         logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
 
-        # Get module resolver from app state (daemon-level)
-        module_resolver = request.app.state.module_resolver
+        # Build the project context (lakehouse primer + ancestor AGENTS.md chain, from the
+        # project dir up to the data root). Delivered to opencode as the prompt `system` field.
+        from ..services.project_context import build_project_context_system
 
-        # Get stream registry and update/create manager with fresh mount plan
+        system_context = build_project_context_system(project_path, data_dir)
+        if system_context:
+            logger.info(f"Built project context system ({len(system_context)} chars)")
+
+        # Get (or create) the session's stream manager (owns the emitter).
         registry = get_stream_registry()
-        existing_manager = registry.get(session_id)
-        if existing_manager:
-            # Update existing manager with fresh mount plan (invalidates runner)
-            await existing_manager.update_mount_plan(mount_plan)
-            manager = existing_manager
-            logger.debug(f"Updated existing manager with fresh mount plan for session {session_id}")
-        else:
-            # Create new manager
-            manager = await registry.get_or_create(session_id, mount_plan, module_resolver)
+        manager = await registry.get_or_create(session_id)
 
-        # Note: Don't save user message here - ExecutionRunner.execute_stream() does it
-        # to avoid duplicates in transcript
+        # Build the per-turn runner. It persists the opencode session id back to
+        # assistant.json when it first creates the opencode session.
+        session_manager = SessionManager(state_dir)
 
-        # Emit user_message_saved to ALL subscribers
+        def _persist_ocid(ocid: str) -> None:
+            session_config.set_opencode_session_id(session_id, ocid)
+
+        runner = OpencodeRunner(
+            session_manager=session_manager,
+            emitter=manager.emitter,
+            server=server,
+            session_id=session_id,
+            directory=directory,
+            agent=cfg.get("agent") or resolved.default_agent,
+            model=cfg.get("model") or resolved.model,
+            system=system_context,
+            opencode_session_id=cfg.get("opencode_session_id"),
+            on_session_created=_persist_ocid,
+        )
+
+        # Emit user_message_saved to ALL subscribers (runner saves the transcript).
         await manager.emitter.emit(
             "user_message_saved",
             {"role": "user", "content": message_request.content, "timestamp": datetime.now(UTC).isoformat()},
         )
-
-        # Get runner (handles hook mounting internally via _hooks_mounted flag)
-        runner = await manager.get_runner(session)
 
         # Emit assistant_message_start to SSE subscribers
         await manager.emitter.emit(
@@ -442,42 +446,61 @@ async def get_messages(
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 
-# Approval management (in-memory for simplicity)
-pending_approvals: dict[str, asyncio.Event] = {}
-approval_responses: dict[str, str] = {}
-
-
 class ApprovalResponse(BaseModel):
-    """User's response to approval prompt."""
+    """User's response to an approval prompt (opencode permission)."""
 
     approval_id: str
     response: str
 
 
+def _map_approval_response(label: str) -> str:
+    """Map a webapp option label to an opencode permission response.
+
+    Options offered: "Allow" -> once, "Always Allow" -> always, "Deny" -> reject.
+    """
+    low = label.strip().lower()
+    if low.startswith("always"):
+        return "always"
+    if low in ("deny", "reject", "no", "decline"):
+        return "reject"
+    return "once"
+
+
 @router.post("/approval-response")
 async def submit_approval_response(
+    session_id: str,
     response: ApprovalResponse,
+    request: Request,
+    service: Annotated[SessionStateService, Depends(get_session_state_service)],
 ) -> dict[str, str]:
-    """Receive user's approval decision.
+    """Relay a user's approval decision to opencode.
 
-    Unblocks execution waiting on approval.
-
-    Args:
-        response: User's approval response
-
-    Returns:
-        Status confirmation
-
-    Raises:
-        HTTPException: If approval not found or expired
+    The webapp posts {approval_id, response} where approval_id is the opencode
+    permission id. We look up the session's opencode server/session and reply.
     """
-    if response.approval_id not in pending_approvals:
-        raise HTTPException(status_code=404, detail="Approval not found or expired")
+    from lakehoused.config.settings import load_config
+    from lakehoused.opencode import LakehouseOpencodeManager
+    from lakehoused.opencode import session_config
 
-    # Store response
-    approval_responses[response.approval_id] = response.response
+    if service.get_session(session_id) is None:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-    # Signal waiting execution
-    pending_approvals[response.approval_id].set()
+    cfg = session_config.read(session_id)
+    if not cfg or not cfg.get("opencode_session_id"):
+        raise HTTPException(status_code=404, detail="No active opencode session for approval")
 
+    config = load_config()
+    assistant_manager = LakehouseOpencodeManager(config.opencode_assistants_path or None)
+    try:
+        resolved = assistant_manager.resolve(cfg["assistant_name"])
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    server = await request.app.state.opencode_servers.get_or_create(resolved.spec)
+    mapped = _map_approval_response(response.response)
+    ok = await server.client.reply_permission(
+        cfg["opencode_session_id"], response.approval_id, mapped, cfg.get("directory")
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to relay approval to opencode")
     return {"status": "received", "approval_id": response.approval_id}

@@ -100,13 +100,13 @@ export function ProjectsPage() {
   const handleEditSubmit = async (data: {
     name?: string;
     description?: string;
-    default_bundle?: string;
+    default_assistant?: string;
   }) => {
     if (!selectedPath) return;
 
     setUpdateError(null);
     try {
-      // All fields go into metadata (default_bundle is stored in metadata.json)
+      // All fields go into metadata (default_assistant is stored in metadata.json)
       const metadata: Record<string, unknown> = {
         ...selectedDirectory?.metadata,
       };
@@ -118,8 +118,8 @@ export function ProjectsPage() {
       if (data.description !== undefined) {
         metadata.description = data.description.trim();
       }
-      if (data.default_bundle !== undefined) {
-        metadata.default_bundle = data.default_bundle;
+      if (data.default_assistant !== undefined) {
+        metadata.default_assistant = data.default_assistant;
       }
 
       // Update directory - mutation returns updated directory

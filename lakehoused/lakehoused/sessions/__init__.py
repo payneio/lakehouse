@@ -8,11 +8,6 @@ from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
 
 from .manager import SessionManager
-from .spawner import AgentNotFoundError
-from .spawner import ExecutionError
-from .spawner import SessionNotFoundError
-from .spawner import resume_spawned_agent
-from .spawner import spawn_agent
 
 # Alias for backward compatibility with lakehoused
 SessionStateService = SessionManager
@@ -26,9 +21,4 @@ __all__ = [
     "SessionStatus",
     "SessionIndex",
     "SessionIndexEntry",
-    "spawn_agent",
-    "resume_spawned_agent",
-    "AgentNotFoundError",
-    "ExecutionError",
-    "SessionNotFoundError",
 ]

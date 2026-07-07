@@ -160,6 +160,35 @@ def mock_storage_env(temp_storage_dir: Path, monkeypatch: pytest.MonkeyPatch) ->
     return temp_storage_dir
 
 
+@pytest.fixture(autouse=True)
+def opencode_assistants_store(tmp_path_factory, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Provide a minimal opencode assistant store for tests that create sessions.
+
+    Creates manifests/<name>.json for the assistant names used across the suite
+    and points LAKEHOUSED_OPENCODE_ASSISTANTS_PATH at it. Autouse so session
+    creation (assistant_name -> assistant) resolves without the old mount-plan path.
+    """
+    import json
+
+    root = tmp_path_factory.mktemp("opencode_assistants")
+    (root / "_library").mkdir()
+    manifests = root / "manifests"
+    manifests.mkdir()
+    manifest = {
+        "$schema": "https://opencode.ai/config.json",
+        "model": "anthropic/claude-sonnet-4-5",
+        "default_agent": "foundation",
+        "agent": {"foundation": {"mode": "primary", "description": "Test assistant"}},
+    }
+    for name in ("foundation/base", "foundation/foundation", "foundation", "default", "test-bundle"):
+        path = manifests / f"{name}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    monkeypatch.setenv("LAKEHOUSED_OPENCODE_ASSISTANTS_PATH", str(root))
+    return root
+
+
 @pytest.fixture
 def session_manager(mock_storage_env: Path):
     """Create SessionManager with isolated storage.
@@ -168,7 +197,7 @@ def session_manager(mock_storage_env: Path):
 
     Example:
         >>> def test_session_creation(session_manager):
-        ...     session = session_manager.create_session(session_id="test", bundle_name="default")
+        ...     session = session_manager.create_session(session_id="test", assistant_name="default")
         ...     assert session.id is not None
     """
     from lakehoused.sessions.manager import SessionManager
@@ -190,12 +219,12 @@ def sample_session(session_manager):
 
     Example:
         >>> def test_with_session(sample_session):
-        ...     assert sample_session.bundle_name == "default"
+        ...     assert sample_session.assistant_name == "default"
         ...     assert sample_session.message_count == 0
     """
     import uuid
 
-    return session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="default")
+    return session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="default")
 
 
 @pytest.fixture

@@ -12,7 +12,7 @@ class Project(BaseModel):
 
     Contract:
     - relative_path: Path relative to LAKEHOUSED_DATA_PATH
-    - default_bundle: Default bundle for new sessions (extracted from metadata)
+    - default_assistant: Default assistant for new sessions (extracted from metadata)
     - metadata: User-defined metadata
     - created_at: Directory registration timestamp
     - last_used_at: Last session creation timestamp
@@ -21,7 +21,7 @@ class Project(BaseModel):
 
     Metadata schema:
     {
-        "default_bundle": "foundation/foundation",  # Required: bundle for new sessions
+        "default_assistant": "foundation/foundation",  # Required: assistant for new sessions
         "name": "Project Name",                      # Optional: human-readable name
         "description": "...",                        # Optional: description
         ... other user-defined fields
@@ -29,7 +29,7 @@ class Project(BaseModel):
     """
 
     relative_path: str = Field(..., description="Path relative to LAKEHOUSED_DATA_PATH")
-    default_bundle: str | None = Field(None, description="Default bundle for new sessions")
+    default_assistant: str | None = Field(None, description="Default assistant for new sessions")
     metadata: dict = Field(..., description="User metadata")
     agents_content: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -53,7 +53,7 @@ class ProjectCreate(BaseModel):
     """Request to create/register a new project"""
 
     relative_path: str
-    default_bundle: str | None = None
+    default_assistant: str | None = None
     metadata: dict | None = None
     create_marker: bool = Field(default=True, description="Create project marker directory if missing")
 
@@ -61,7 +61,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     """Request to update project metadata"""
 
-    default_bundle: str | None = None
+    default_assistant: str | None = None
     metadata: dict | None = None
 
 

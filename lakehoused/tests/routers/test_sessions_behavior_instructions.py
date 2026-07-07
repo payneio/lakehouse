@@ -59,9 +59,7 @@ def create_behavior_yaml(profile_dir: Path, behavior_id: str, instructions: str 
 class TestBehaviorInstructionLoading:
     """Test behavior instruction loading during session creation."""
 
-    def test_profile_with_instructions_and_behaviors_with_instructions(
-        self, temp_profile_dir, temp_project_path
-    ):
+    def test_profile_with_instructions_and_behaviors_with_instructions(self, temp_profile_dir, temp_project_path):
         """Test loading instructions from profile and all behaviors."""
         # Create profile with instructions
         profile_instructions = "Profile level instruction with @file.md mention"

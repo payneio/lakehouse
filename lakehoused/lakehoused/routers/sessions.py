@@ -26,9 +26,7 @@ from lakehoused.models.sessions import SessionStatus
 from lakehoused.sessions.manager import SessionManager as SessionStateService
 from lakehoused.storage import get_state_dir
 
-from ..models.context_messages import ContextMessage
 from ..models.events import SessionUpdatedEvent
-from ..models.mount_plans import MountPlan
 from ..services.global_events import GlobalEventService
 
 logger = logging.getLogger(__name__)
@@ -59,118 +57,11 @@ class SessionUpdateRequest(BaseModel):
 # --- Lifecycle Endpoints ---
 
 
-def _get_lakehouse_context() -> str:
-    """Load lakehouse-specific context from share directory.
-
-    If the file doesn't exist in share dir, creates it from the default
-    template bundled with the daemon.
-
-    Returns:
-        Lakehouse context string, or empty string if unavailable
-    """
-    try:
-        from lakehoused.storage import get_share_dir
-
-        share_dir = get_share_dir()
-        lakehouse_context_file = share_dir / "lakehouse.md"
-
-        # If user's lakehouse.md doesn't exist, create from default
-        if not lakehouse_context_file.exists():
-            default_file = Path(__file__).parent.parent / "context" / "lakehouse_default.md"
-            if default_file.exists():
-                share_dir.mkdir(parents=True, exist_ok=True)
-                lakehouse_context_file.write_text(
-                    default_file.read_text(encoding="utf-8"),
-                    encoding="utf-8",
-                )
-                logger.info(f"Created lakehouse context from default: {lakehouse_context_file}")
-            else:
-                logger.warning("No default lakehouse context found")
-                return ""
-
-        return lakehouse_context_file.read_text(encoding="utf-8")
-    except Exception as e:
-        # In test environments, get_share_dir may return a Mock or other non-Path
-        # Log and continue without lakehouse context
-        logger.debug(f"Could not load lakehouse context: {e}")
-        return ""
-
-
-def _generate_bundle_context_messages(
-    instruction: str | None,
-    project_path: Path,
-    data_dir: Path,
-    source_base_paths: dict[str, Path] | None = None,
-) -> list[ContextMessage]:
-    """Generate bundle context messages from instruction and ancestor AGENTS.md files.
-
-    Automatically includes:
-    1. Lakehouse-specific context (how Lakehouse works)
-    2. Bundle instruction with @mentions resolved
-    3. Ancestor AGENTS.md chain (from data_dir down to project)
-
-    Files that are already included via @mentions in the bundle instruction
-    are deduplicated from the ancestor chain to avoid duplicate context.
-
-    Args:
-        instruction: The composed bundle instruction (from markdown body)
-        project_path: Project directory for @mention resolution
-        data_dir: Data directory for security validation and ancestor traversal boundary
-        source_base_paths: Dict mapping bundle namespace to base_path for @namespace:path resolution.
-            Enables @foundation:context/file.md to resolve to Foundation bundle's context directory.
-
-    Returns:
-        List of context messages with resolved @mentions and ancestor AGENTS.md content
-    """
-    # Prepend lakehouse context to bundle instruction
-    lakehouse_context = _get_lakehouse_context()
-    full_instruction = lakehouse_context
-    if instruction:
-        full_instruction += "\n\n" + instruction
-
-    try:
-        from lakehoused.services.mention_resolver import MentionResolver
-
-        # Use project_path for @mention resolution - bundle instructions should
-        # resolve @mentions relative to the project, not the bundle directory
-        resolver = MentionResolver(
-            compiled_profile_dir=project_path,
-            project_path=project_path,
-            data_dir=data_dir,
-            source_base_paths=source_base_paths,
-        )
-
-        messages: list[ContextMessage] = []
-        resolved_paths: set[Path] = set()
-
-        # 1. Resolve @mentions from bundle instruction
-        if full_instruction.strip():
-            instruction_messages, resolved_paths = resolver.resolve_profile_instructions_with_paths(full_instruction)
-            messages.extend(instruction_messages)
-            logger.info(
-                f"Resolved {len(instruction_messages)} context messages from instruction "
-                f"(lakehouse: {len(lakehouse_context)} chars, bundle: {len(instruction or '')} chars)"
-            )
-
-        # 2. Resolve ancestor AGENTS.md chain (from data_dir to project_path)
-        # This includes AGENTS.md files from parent directories up to data_dir
-        # Pass resolved_paths to exclude files already loaded via @mentions (deduplication)
-        ancestor_messages = resolver.resolve_agents_md_chain(exclude_paths=resolved_paths)
-        if ancestor_messages:
-            messages.extend(ancestor_messages)
-            logger.info(f"Added {len(ancestor_messages)} context messages from ancestor AGENTS.md chain")
-
-        return messages
-    except Exception as e:
-        logger.error(f"Failed to resolve bundle instructions: {e}", exc_info=True)
-        return []
-
-
 @router.post("/", response_model=SessionMetadata, status_code=201)
 async def create_session(
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
     project_path: str = Body(".", embed=True),
-    bundle_name: str | None = Body(None, embed=True),
+    assistant_name: str | None = Body(None, embed=True),
     parent_session_id: str | None = Body(None, embed=True),
     settings_overrides: dict | None = Body(None, embed=True),
 ) -> SessionMetadata:
@@ -185,9 +76,9 @@ async def create_session(
 
     Args:
         project_path: Relative path to project directory (defaults to ".")
-        bundle_name: Bundle to use for session (if not provided, uses directory's default_bundle)
+        assistant_name: Assistant to use for session (if not provided, uses directory's default_assistant)
         parent_session_id: Optional parent session for sub-sessions
-        settings_overrides: Optional settings to override bundle defaults
+        settings_overrides: Optional settings to override assistant defaults
         session_service: Session state service dependency
 
     Returns:
@@ -196,14 +87,14 @@ async def create_session(
     Raises:
         HTTPException:
             - 400 if project_path is not a project or request is invalid
-            - 404 if bundle not found
+            - 404 if assistant not found
             - 500 for other errors
 
     Example:
         ```json
         {
             "project_path": "projects/my-project",
-            "bundle_name": "software-developer",
+            "assistant_name": "software-developer",
             "parent_session_id": "parent-session-123",
             "settings_overrides": {
                 "llm": {"model": "gpt-4"}
@@ -232,82 +123,52 @@ async def create_session(
                 detail=f"Directory '{project_path}' is not a project. Create it first using POST /api/v1/projects/",
             )
 
-        # If no bundle specified, use directory's default_bundle (or legacy default_profile)
-        if not bundle_name:
-            bundle_name = project.default_bundle or project.metadata.get("default_profile")
-            if not bundle_name:
+        # If no assistant specified, use directory's default_assistant (or legacy default_profile)
+        if not assistant_name:
+            assistant_name = project.default_assistant or project.metadata.get("default_profile")
+            if not assistant_name:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"No bundle specified and directory '{project_path}' has no default_bundle in metadata",
+                    detail=f"No assistant specified and directory '{project_path}' has no default_assistant in metadata",
                 )
 
         # Resolve absolute paths for session metadata
         absolute_project_path = str((Path(data_path) / project_path).resolve())
 
-        # Generate mount plan using bundle manager
-        from lakehoused.bundles import LakehouseBundleManager
-
-        from ..startup import get_registry_bundles
-
-        bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
-
-        # Generate session ID early (needed for mount plan generation)
+        # Resolve the assistant manifest for this assistant name.
         import uuid
+
+        from lakehoused.config.settings import load_config as load_settings
+        from lakehoused.opencode import LakehouseOpencodeManager
+        from lakehoused.opencode import session_config
 
         session_id = f"session_{uuid.uuid4().hex[:8]}"
 
-        # Load secrets for API key injection
-        from ..config.loader import load_secrets
+        settings = load_settings()
+        assistant_manager = LakehouseOpencodeManager(settings.opencode_assistants_path or None)
+        try:
+            resolved = assistant_manager.resolve(assistant_name)
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=f"Assistant '{assistant_name}' not found") from e
 
-        secrets = load_secrets()
-
-        mount_plan = await bundle_manager.generate_mount_plan(
-            bundle_ref=bundle_name,
-            session_id=session_id,
-            project_path=absolute_project_path,
-            api_keys=secrets.api_keys if secrets.api_keys else None,
-        )
-
-        # Resolve bundle instruction mentions (from mount_plan instruction field)
-        # Extract source_base_paths from mount_plan (convert string paths back to Path objects)
-        source_base_paths = {ns: Path(p) for ns, p in mount_plan.get("source_base_paths", {}).items()}
-        bundle_context_messages = _generate_bundle_context_messages(
-            instruction=mount_plan.get("instruction"),
-            project_path=Path(absolute_project_path),
-            data_dir=data_path,
-            source_base_paths=source_base_paths,
-        )
-
-        # Add session metadata to mount plan settings
-        if "session" not in mount_plan:
-            mount_plan["session"] = {}
-        if "settings" not in mount_plan["session"]:
-            mount_plan["session"]["settings"] = {}
-
-        mount_plan["session"]["settings"]["project_path"] = absolute_project_path
-        mount_plan["session"]["settings"]["bundle_name"] = bundle_name
-
-        # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
-        # is already injected by bundle_manager.generate_mount_plan()
-
-        # Create session with mount plan
+        # Create session (metadata + dirs). The opencode session is created lazily
+        # on the first message and its id persisted back to assistant.json.
         metadata = session_service.create_session(
             session_id=session_id,
-            bundle_name=bundle_name,
-            mount_plan=mount_plan,
+            assistant_name=assistant_name,
             parent_session_id=parent_session_id,
             project_path=project_path,
         )
 
-        # Save bundle context messages to session directory
-        if bundle_context_messages:
-            session_dir = session_service.storage_dir / session_id
-            session_dir.mkdir(parents=True, exist_ok=True)
-            context_file = session_dir / "bundle_context_messages.json"
-            context_file.write_text(
-                json.dumps([msg.model_dump() for msg in bundle_context_messages], indent=2), encoding="utf-8"
-            )
-            logger.info(f"Saved {len(bundle_context_messages)} bundle context messages to session {session_id}")
+        # Persist the assistant config (replaces mount_plan.json).
+        session_config.write(
+            session_id,
+            assistant_name=assistant_name,
+            manifest_hash=resolved.spec.content_hash,
+            directory=absolute_project_path,
+            agent=resolved.default_agent,
+            model=resolved.model,
+        )
 
         # Emit session:created event
         from ..models.events import SessionCreatedEvent
@@ -322,7 +183,7 @@ async def create_session(
             )
         )
 
-        logger.info(f"Created session {metadata.session_id} in '{project_path}' with bundle {bundle_name}")
+        logger.info(f"Created session {metadata.session_id} in '{project_path}' with assistant {assistant_name}")
         return metadata
 
     except HTTPException:
@@ -356,15 +217,10 @@ def _clone_single_session(
     import uuid
 
     from lakehoused.config.settings import load_config
+    from lakehoused.opencode import session_config
 
     state_dir = get_state_dir()
     source_session_dir = state_dir / "sessions" / source_session.session_id
-    source_mount_plan_path = source_session_dir / "mount_plan.json"
-
-    if not source_mount_plan_path.exists():
-        raise ValueError(f"Mount plan not found for session {source_session.session_id}")
-
-    source_mount_plan = json.loads(source_mount_plan_path.read_text())
 
     # Generate new session ID
     new_session_id = f"session_{uuid.uuid4().hex[:8]}"
@@ -381,28 +237,25 @@ def _clone_single_session(
     else:
         absolute_project_path = str(data_path.resolve())
 
-    # Inject runtime configuration for new session
-    from lakehoused.bundles import LakehouseBundleManager
-
-    from ..config.loader import load_secrets
-    from ..startup import get_registry_bundles
-
-    secrets = load_secrets()
-    bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
-    bundle_manager.inject_runtime_config(
-        mount_plan=source_mount_plan,
-        session_id=new_session_id,
-        project_path=absolute_project_path,
-        api_keys=secrets.api_keys if secrets.api_keys else None,
-    )
-
-    # Create new session with cloned mount plan
+    # Create the cloned session (metadata + dirs).
     session_service.create_session(
         session_id=new_session_id,
-        bundle_name=source_session.bundle_name,
-        mount_plan=source_mount_plan,
+        assistant_name=source_session.assistant_name,
         parent_session_id=new_parent_session_id,
         project_path=source_session.project_path,
+    )
+
+    # Clone the assistant config, resetting the opencode session binding so the
+    # clone starts its own opencode conversation.
+    source_cfg = session_config.read(source_session.session_id) or {}
+    session_config.write(
+        new_session_id,
+        assistant_name=source_cfg.get("assistant_name", source_session.assistant_name),
+        manifest_hash=source_cfg.get("manifest_hash", ""),
+        directory=source_cfg.get("directory", absolute_project_path),
+        agent=source_cfg.get("agent"),
+        model=source_cfg.get("model"),
+        opencode_session_id=None,
     )
 
     new_session_dir = state_dir / "sessions" / new_session_id
@@ -422,12 +275,12 @@ def _clone_single_session(
         new_events.write_text(source_events.read_text())
         logger.debug(f"Copied events from {source_session.session_id} to {new_session_id}")
 
-    # Copy bundle context messages if they exist
-    source_context_file = source_session_dir / "bundle_context_messages.json"
+    # Copy context messages if they exist
+    source_context_file = source_session_dir / "context_messages.json"
     if source_context_file.exists():
-        new_context_file = new_session_dir / "bundle_context_messages.json"
+        new_context_file = new_session_dir / "context_messages.json"
         new_context_file.write_text(source_context_file.read_text())
-        logger.debug(f"Copied bundle context messages from {source_session.session_id} to {new_session_id}")
+        logger.debug(f"Copied context messages from {source_session.session_id} to {new_session_id}")
 
     # Update session metadata (name and message count from source)
     def update_metadata(meta: SessionMetadata) -> None:
@@ -510,7 +363,7 @@ async def clone_session(
     """Clone an existing session including transcript, events, and all subsessions.
 
     Creates a complete copy of an existing session including:
-    - Same bundle_name and mount_plan configuration
+    - Same assistant_name and mount_plan configuration
     - Same project_path
     - Full transcript (message history)
     - Full events log
@@ -859,7 +712,7 @@ async def update_session(
 async def list_sessions(
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
     status: SessionStatus | None = None,
-    bundle_name: str | None = None,
+    assistant_name: str | None = None,
     project_path: str | None = None,
     limit: int | None = None,
 ) -> list[SessionMetadata]:
@@ -870,7 +723,7 @@ async def list_sessions(
 
     Args:
         status: Optional filter by session status
-        bundle_name: Optional filter by bundle name
+        assistant_name: Optional filter by assistant name
         project_path: Optional filter by project path
         limit: Optional maximum number of results
         service: Session state service dependency
@@ -884,13 +737,13 @@ async def list_sessions(
 
     Example:
         ```
-        GET /api/v1/sessions?status=active&bundle_name=software-developer&project_path=projects/my-project&limit=10
+        GET /api/v1/sessions?status=active&assistant_name=software-developer&project_path=projects/my-project&limit=10
         ```
     """
     try:
         return service.list_sessions(
             status=status,
-            bundle_name=bundle_name,
+            assistant_name=assistant_name,
             project_path=project_path,
             limit=limit,
         )
@@ -1159,48 +1012,34 @@ async def cleanup_old_sessions(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-@router.get("/{session_id}/mount-plan", response_model=MountPlan)
+@router.get("/{session_id}/mount-plan")
 async def get_session_mount_plan(
     session_id: str,
     service: Annotated[SessionStateService, Depends(get_session_state_service)],
-) -> MountPlan:
-    """Get mount plan for session.
+) -> dict[str, Any]:
+    """Get the assistant config for a session.
 
-    Retrieves the complete mount plan that was used to initialize
-    this session.
-
-    Args:
-        session_id: Session identifier
-        service: Session state service dependency
-
-    Returns:
-        Complete mount plan with all resources
+    With the opencode backend this returns the session's assistant.json (assistant
+    name, manifest hash, opencode session binding), which replaces the old mount plan.
 
     Raises:
-        HTTPException:
-            - 404 if session or mount plan not found
-            - 500 for other errors
+        HTTPException: 404 if session or assistant config not found; 500 otherwise.
     """
     try:
-        # Check session exists
         if service.get_session(session_id) is None:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-        # Load mount plan from session directory
-        state_dir = get_state_dir()
-        mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
+        from lakehoused.opencode import session_config
 
-        if not mount_plan_path.exists():
-            raise HTTPException(status_code=404, detail=f"Mount plan not found for session {session_id}")
-
-        # Parse and return mount plan
-        mount_plan_data = json.loads(mount_plan_path.read_text())
-        return MountPlan.model_validate(mount_plan_data)
+        cfg = session_config.read(session_id)
+        if cfg is None:
+            raise HTTPException(status_code=404, detail=f"Assistant config not found for session {session_id}")
+        return cfg
 
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Failed to get mount plan for {session_id}: {exc}")
+        logger.error(f"Failed to get assistant config for {session_id}: {exc}")
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
@@ -1391,20 +1230,20 @@ async def get_session_events(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-@router.post("/{session_id}/change-bundle", response_model=SessionMetadata)
-async def change_session_bundle(
+@router.post("/{session_id}/change-assistant", response_model=SessionMetadata)
+async def change_session_assistant(
     session_id: str,
     session_service: Annotated[SessionStateService, Depends(get_session_state_service)],
-    bundle_name: str = Body(..., embed=True),
+    assistant_name: str = Body(..., embed=True),
 ) -> SessionMetadata:
-    """Change bundle for active session.
+    """Change assistant for active session.
 
     Waits for any in-flight execution to complete before switching.
     Session transcript and state are preserved.
 
     Args:
         session_id: Session identifier
-        bundle_name: New bundle to use (e.g., "software-developer")
+        assistant_name: New assistant to use (e.g., "software-developer")
         session_service: Session state service dependency
 
     Returns:
@@ -1412,14 +1251,14 @@ async def change_session_bundle(
 
     Raises:
         HTTPException:
-            - 400 if session not ACTIVE or bundle invalid
-            - 404 if session or bundle not found
-            - 500 for bundle change failures
+            - 400 if session not ACTIVE or assistant invalid
+            - 404 if session or assistant not found
+            - 500 for assistant change failures
 
     Example:
         ```json
         {
-            "bundle_name": "software-developer"
+            "assistant_name": "software-developer"
         }
         ```
     """
@@ -1432,117 +1271,46 @@ async def change_session_bundle(
         if metadata.status != SessionStatus.ACTIVE:
             raise HTTPException(
                 status_code=400,
-                detail=f"Can only change bundle for ACTIVE sessions, this session is {metadata.status}",
+                detail=f"Can only change assistant for ACTIVE sessions, this session is {metadata.status}",
             )
 
-        # 2. Generate new mount plan using bundle manager
-        from lakehoused.bundles import LakehouseBundleManager
-        from lakehoused.config.settings import load_config
+        # 2. Resolve the new assistant manifest.
+        from lakehoused.config.settings import load_config as load_settings
+        from lakehoused.opencode import LakehouseOpencodeManager
+        from lakehoused.opencode import session_config
 
-        from ..startup import get_registry_bundles
-
-        config = load_config()
-        data_path = Path(config.data_path)
-        # Use data_path if no project
+        settings = load_settings()
+        data_path = Path(settings.data_path)
         if metadata.project_path:
             absolute_project_path = (data_path / metadata.project_path).resolve()
         else:
             absolute_project_path = data_path.resolve()
 
-        bundle_manager = LakehouseBundleManager(registry_bundles=get_registry_bundles())
-
-        # Load secrets for API key injection
-        from ..config.loader import load_secrets
-
-        secrets = load_secrets()
-
+        assistant_manager = LakehouseOpencodeManager(settings.opencode_assistants_path or None)
         try:
-            new_mount_plan = await bundle_manager.generate_mount_plan(
-                bundle_ref=bundle_name,
-                session_id=session_id,
-                project_path=str(absolute_project_path),
-                api_keys=secrets.api_keys if secrets.api_keys else None,
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid bundle '{bundle_name}': {e}")
+            resolved = assistant_manager.resolve(assistant_name)
         except FileNotFoundError as e:
-            raise HTTPException(status_code=404, detail=f"Bundle '{bundle_name}' not found: {e}")
+            raise HTTPException(status_code=404, detail=f"Assistant '{assistant_name}' not found: {e}") from e
 
-        # Inject bundle name into mount plan settings for AI awareness
-        if "session" not in new_mount_plan:
-            new_mount_plan["session"] = {}
-        if "settings" not in new_mount_plan["session"]:
-            new_mount_plan["session"]["settings"] = {}
-        new_mount_plan["session"]["settings"]["bundle_name"] = bundle_name
-
-        # Note: Runtime config (working_dir, allowed_write_paths, API keys, log paths)
-        # is already injected by bundle_manager.generate_mount_plan()
-
-        # 3. Regenerate bundle context messages for new bundle (from mount_plan instruction)
-        # Extract source_base_paths from mount_plan (convert string paths back to Path objects)
-        source_base_paths = {ns: Path(p) for ns, p in new_mount_plan.get("source_base_paths", {}).items()}
-        bundle_context_messages = _generate_bundle_context_messages(
-            instruction=new_mount_plan.get("instruction"),
-            project_path=absolute_project_path,
-            data_dir=data_path,
-            source_base_paths=source_base_paths,
+        # 3. Rewrite assistant.json. Switching manifests means a fresh opencode
+        #    session (different agent roster), so opencode_session_id resets to None.
+        session_config.write(
+            session_id,
+            assistant_name=assistant_name,
+            manifest_hash=resolved.spec.content_hash,
+            directory=str(absolute_project_path),
+            agent=resolved.default_agent,
+            model=resolved.model,
+            opencode_session_id=None,
         )
 
-        # Save to session directory (wrapped with mount plan persistence below for error handling)
-
-        # 4. Change bundle in ExecutionRunner (blocks if execution in progress)
-        from ..services.session_stream_registry import change_session_profile as do_change
-
-        try:
-            await do_change(session_id, new_mount_plan)
-        except ValueError:
-            # No active runner - that's okay, bundle will be used when session starts
-            logger.info(f"No active runner for {session_id}, bundle will take effect on next message")
-        except Exception as e:
-            logger.error(f"Bundle change failed for {session_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Bundle change failed: {str(e)}")
-
-        # 5. Persist mount plan and bundle context to disk (critical for subsequent messages)
-        state_dir = get_state_dir()
-        mount_plan_path = state_dir / "sessions" / session_id / "mount_plan.json"
-        context_file = state_dir / "sessions" / session_id / "bundle_context_messages.json"
-
-        try:
-            # Write mount plan
-            mount_plan_path.write_text(json.dumps(new_mount_plan, indent=2))
-            logger.debug(f"Persisted new mount plan for {session_id} to {mount_plan_path}")
-
-            # Write or remove bundle context messages
-            if bundle_context_messages:
-                context_file.write_text(json.dumps([msg.model_dump() for msg in bundle_context_messages], indent=2))
-                logger.info(f"Updated {len(bundle_context_messages)} bundle context messages for bundle switch")
-            else:
-                # Remove old cache if new bundle has no mentions
-                if context_file.exists():
-                    context_file.unlink()
-                    logger.info("Removed bundle context messages (new bundle has none)")
-        except Exception as e:
-            logger.error(f"Failed to persist bundle change for {session_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to persist bundle change to disk: {str(e)}")
-
-        # 6. Update SessionStreamManager with new mount plan
-        from ..services.session_stream_registry import get_stream_registry
-
-        stream_registry = get_stream_registry()
-        try:
-            await stream_registry.update_mount_plan(session_id, new_mount_plan)
-            logger.debug(f"Updated SessionStreamManager mount plan for {session_id}")
-        except Exception as e:
-            logger.warning(f"Failed to update SessionStreamManager mount plan: {e}")
-            # Non-fatal - new mount plan will be used when manager is recreated
-
-        # 7. Update session metadata
+        # 4. Update session metadata.
         def update(meta: SessionMetadata) -> None:
-            meta.bundle_name = bundle_name
+            meta.assistant_name = assistant_name
 
         session_service._update_session(session_id, update)
 
-        logger.info(f"Changed session {session_id} bundle to {bundle_name}")
+        logger.info(f"Changed session {session_id} assistant to {assistant_name}")
         updated = session_service.get_session(session_id)
         if updated is None:
             raise HTTPException(status_code=404, detail=f"Session {session_id} not found after update")

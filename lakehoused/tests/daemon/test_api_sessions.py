@@ -24,7 +24,7 @@ def mock_session_metadata() -> SessionMetadata:
     return SessionMetadata(
         session_id="test_session_123",
         status=SessionStatus.ACTIVE,
-        bundle_name="foundation/base",
+        assistant_name="foundation/base",
         mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
         started_at=datetime.now(UTC),
@@ -88,11 +88,8 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata, tmp_path)
 
 
 @pytest.fixture
-def mock_project_service(mock_mount_plan: dict):
-    """Mock ProjectService and LakehouseBundleManager to bypass directory validation.
-
-    Args:
-        mock_mount_plan: Sample mount plan fixture
+def mock_project_service():
+    """Mock ProjectService to bypass directory validation.
 
     Yields:
         None
@@ -103,8 +100,8 @@ def mock_project_service(mock_mount_plan: dict):
 
     mock_project = Project(
         relative_path=".",
-        default_bundle="foundation/base",
-        metadata={"default_bundle": "foundation/base"},
+        default_assistant="foundation/base",
+        metadata={"default_assistant": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
         is_project=True,
@@ -113,38 +110,20 @@ def mock_project_service(mock_mount_plan: dict):
     mock_service = Mock()
     mock_service.get = Mock(return_value=mock_project)
 
-    # Create mock bundle manager
     import tempfile
     from pathlib import Path
 
-    # Create a temporary directory for bundles
+    # The real LakehouseOpencodeManager resolves assistant manifests from the
+    # autouse opencode_assistants_store fixture, so no manager mock is needed.
     with tempfile.TemporaryDirectory() as tmp_dir:
-        bundles_dir = Path(tmp_dir) / "bundles"
-        bundles_dir.mkdir(parents=True)
-
-        mock_bundle_manager = Mock()
-        mock_bundle_manager.bundles_dir = bundles_dir
-        mock_bundle_manager.home_dir = Path(tmp_dir)
-
-        async def mock_generate_mount_plan(*args, **kwargs):
-            return mock_mount_plan
-
-        mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
-
         # Create share directory for lakehouse context
         share_dir = Path(tmp_dir) / "share"
         share_dir.mkdir(parents=True)
 
         # Use unittest.mock.patch for reliable patching
-        with patch(
-            "lakehoused.services.project_service.ProjectService",
-            return_value=mock_service
-        ), patch(
-            "lakehoused.bundles.LakehouseBundleManager",
-            return_value=mock_bundle_manager
-        ), patch(
-            "lakehoused.storage.get_share_dir",
-            return_value=share_dir
+        with (
+            patch("lakehoused.services.project_service.ProjectService", return_value=mock_service),
+            patch("lakehoused.storage.get_share_dir", return_value=share_dir),
         ):
             yield
 
@@ -194,14 +173,14 @@ class TestSessionsAPI:
     def test_create_session_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/ creates session successfully."""
         # Make request
-        response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
+        response = client.post("/api/v1/sessions/", json={"assistant_name": "foundation/base"})
 
         # Assert response
         assert response.status_code == 201
         data = response.json()
         assert data["sessionId"] == "test_session_123"
         assert data["status"] == "active"
-        assert data["bundleName"] == "foundation/base"
+        assert data["assistantName"] == "foundation/base"
         assert data["startedAt"] is not None
 
         # Verify service was called
@@ -213,7 +192,7 @@ class TestSessionsAPI:
         response = client.post(
             "/api/v1/sessions/",
             json={
-                "bundle_name": "foundation/base",
+                "assistant_name": "foundation/base",
                 "settings_overrides": {"llm": {"model": "gpt-4"}},
             },
         )
@@ -222,37 +201,21 @@ class TestSessionsAPI:
         assert response.status_code == 201
         data = response.json()
         assert data["status"] == "active"
-        assert data["bundleName"] == "foundation/base"
+        assert data["assistantName"] == "foundation/base"
 
-    def test_create_session_invalid_bundle(
-        self, client: TestClient, mock_session_state_service: Mock, monkeypatch
+    def test_create_session_invalid_assistant(
+        self, client: TestClient, mock_session_state_service: Mock
     ) -> None:
-        """Test POST /api/v1/sessions/ returns 404 for invalid bundle."""
-        # Create a mock bundle manager that raises FileNotFoundError
-        import tempfile
-        from pathlib import Path
+        """Test POST /api/v1/sessions/ returns 404 for an unknown assistant.
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            mock_bundle_manager = Mock()
-            mock_bundle_manager.bundles_dir = Path(tmp_dir) / "bundles"
-            mock_bundle_manager.home_dir = Path(tmp_dir)
+        The real LakehouseOpencodeManager (backed by the autouse
+        opencode_assistants_store fixture) has no manifest named "nonexistent",
+        so resolve() raises FileNotFoundError and the endpoint returns 404.
+        """
+        response = client.post("/api/v1/sessions/", json={"assistant_name": "nonexistent"})
 
-            async def mock_generate_mount_plan_error(*args, **kwargs):
-                raise FileNotFoundError("Bundle 'nonexistent' not found")
-
-            mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
-
-            monkeypatch.setattr(
-                "lakehoused.bundles.LakehouseBundleManager",
-                lambda *args, **kwargs: mock_bundle_manager
-            )
-
-            # Make request
-            response = client.post("/api/v1/sessions/", json={"bundle_name": "nonexistent"})
-
-            # Assert
-            assert response.status_code == 404
-            assert "not found" in response.json()["detail"].lower()
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
     def test_start_session_success(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/{session_id}/start transitions to ACTIVE."""
@@ -276,9 +239,7 @@ class TestSessionsAPI:
         # Assert
         assert response.status_code == 404
 
-    def test_start_session_already_active_is_noop(
-        self, client: TestClient, mock_session_state_service: Mock
-    ) -> None:
+    def test_start_session_already_active_is_noop(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/{id}/start is no-op for ACTIVE sessions."""
         # Should succeed without error
         response = client.post("/api/v1/sessions/test_session_123/start")
@@ -286,13 +247,9 @@ class TestSessionsAPI:
         # Verify service method was called
         mock_session_state_service.start_session.assert_called_once_with("test_session_123")
 
-    def test_start_session_rejects_terminal_state(
-        self, client: TestClient, mock_session_state_service: Mock
-    ) -> None:
+    def test_start_session_rejects_terminal_state(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test POST /api/v1/sessions/{id}/start returns 400 for terminal state."""
-        mock_session_state_service.start_session.side_effect = ValueError(
-            "Cannot start session in terminal state"
-        )
+        mock_session_state_service.start_session.side_effect = ValueError("Cannot start session in terminal state")
         response = client.post("/api/v1/sessions/test_session_123/start")
         assert response.status_code == 400
         assert "terminal state" in response.json()["detail"].lower()
@@ -352,7 +309,7 @@ class TestSessionsAPI:
         data = response.json()
         assert data["sessionId"] == "test_session_123"
         assert data["status"] == "active"
-        assert data["bundleName"] == "foundation/base"
+        assert data["assistantName"] == "foundation/base"
 
     def test_get_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test GET /api/v1/sessions/{session_id} returns 404 for missing session."""
@@ -385,7 +342,7 @@ class TestSessionsAPI:
             "/api/v1/sessions/",
             params={
                 "status": "active",
-                "bundle_name": "foundation/base",
+                "assistant_name": "foundation/base",
                 "limit": 10,
             },
         )
@@ -396,7 +353,7 @@ class TestSessionsAPI:
         # Verify service was called with filters
         mock_session_state_service.list_sessions.assert_called_once_with(
             status=SessionStatus.ACTIVE,
-            bundle_name="foundation/base",
+            assistant_name="foundation/base",
             project_path=None,
             limit=10,
         )
@@ -545,35 +502,38 @@ class TestSessionsAPI:
         # Verify service was called with default (30 days)
         mock_session_state_service.cleanup_old_sessions.assert_called_once_with(older_than_days=30)
 
-    def test_get_mount_plan_success(
-        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
-    ) -> None:
-        """Test GET /api/v1/sessions/{session_id}/mount-plan returns mount plan."""
-        # Create mock mount plan file
+    def test_get_mount_plan_success(self, client: TestClient, mock_session_state_service: Mock, tmp_path) -> None:
+        """GET /{id}/mount-plan returns the session's assistant config (opencode)."""
         import json
 
         session_dir = tmp_path / "sessions" / "test_session_123"
         session_dir.mkdir(parents=True)
-        mount_plan_path = session_dir / "mount_plan.json"
-        mount_plan_path.write_text(json.dumps(mock_mount_plan))
+        (session_dir / "assistant.json").write_text(
+            json.dumps(
+                {
+                    "assistant_name": "foundation/base",
+                    "manifest_hash": "abc123",
+                    "directory": "/data/proj",
+                    "agent": "foundation",
+                    "model": "anthropic/claude-sonnet-4-5",
+                    "opencode_session_id": None,
+                }
+            )
+        )
 
-        # Mock get_state_dir to return tmp_path
+        # session_config.config_path() uses get_state_dir(); point it at tmp_path.
+        import lakehoused.opencode.session_config as sc
 
-        original_get_state_dir = lakehoused.routers.sessions.get_state_dir
-        lakehoused.routers.sessions.get_state_dir = lambda: tmp_path
-
+        original = sc.get_state_dir
+        sc.get_state_dir = lambda: tmp_path
         try:
-            # Make request
             response = client.get("/api/v1/sessions/test_session_123/mount-plan")
-
-            # Assert
             assert response.status_code == 200
             data = response.json()
-            assert data["session"]["sessionId"] == "test_session_123"
-            assert "mountPoints" in data
+            assert data["assistant_name"] == "foundation/base"
+            assert data["agent"] == "foundation"
         finally:
-            # Restore original function
-            lakehoused.routers.sessions.get_state_dir = original_get_state_dir
+            sc.get_state_dir = original
 
     def test_get_mount_plan_session_not_found(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test GET /api/v1/sessions/{session_id}/mount-plan returns 404 for missing session."""
@@ -591,30 +551,19 @@ class TestSessionsAPI:
     def test_create_session_unexpected_error(
         self, client: TestClient, mock_session_state_service: Mock, monkeypatch
     ) -> None:
-        """Test create_session with unexpected error during mount plan generation."""
-        import tempfile
-        from pathlib import Path
+        """Test create_session returns 500 on an unexpected error resolving the assistant."""
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create mock bundle manager that raises generic Exception
-            mock_bundle_manager = Mock()
-            mock_bundle_manager.bundles_dir = Path(tmp_dir) / "bundles"
-            mock_bundle_manager.home_dir = Path(tmp_dir)
+        def raising_manager(*args, **kwargs):
+            mgr = Mock()
+            mgr.resolve.side_effect = Exception("Unexpected error resolving assistant")
+            return mgr
 
-            async def mock_generate_mount_plan_error(*args, **kwargs):
-                raise Exception("Unexpected error in mount plan generation")
+        monkeypatch.setattr("lakehoused.opencode.LakehouseOpencodeManager", raising_manager)
 
-            mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan_error
+        response = client.post("/api/v1/sessions/", json={"assistant_name": "foundation/base"})
 
-            monkeypatch.setattr(
-                "lakehoused.bundles.LakehouseBundleManager",
-                lambda *args, **kwargs: mock_bundle_manager
-            )
-
-            response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
-
-            assert response.status_code == 500
-            assert "Failed to create session" in response.json()["detail"]
+        assert response.status_code == 500
+        assert "Failed to create session" in response.json()["detail"]
 
     def test_start_session_unexpected_error(self, client: TestClient, mock_session_state_service: Mock) -> None:
         """Test start_session with unexpected error in state service."""
@@ -676,7 +625,7 @@ class TestSessionsAPI:
         source_metadata = SessionMetadata(
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
-            bundle_name="foundation/base",
+            assistant_name="foundation/base",
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -692,7 +641,7 @@ class TestSessionsAPI:
                 return SessionMetadata(
                     session_id=created_session_id,
                     status=SessionStatus.ACTIVE,
-                    bundle_name="foundation/base",
+                    assistant_name="foundation/base",
                     mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                     created_at=datetime.now(UTC),
                     started_at=datetime.now(UTC),
@@ -706,7 +655,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=created_session_id or "unknown",
                 status=SessionStatus.ACTIVE,
-                bundle_name=kwargs.get("bundle_name", "foundation/base"),
+                assistant_name=kwargs.get("assistant_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -755,14 +704,13 @@ class TestSessionsAPI:
         source_dir.mkdir(parents=True)
         (source_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
         (source_dir / "transcript.jsonl").write_text(
-            '{"role": "user", "content": "Hello"}\n'
-            '{"role": "assistant", "content": "Hi there!"}\n'
+            '{"role": "user", "content": "Hello"}\n{"role": "assistant", "content": "Hi there!"}\n'
         )
         (source_dir / "events.jsonl").write_text(
             '{"event": "tool:pre", "ts": "2024-01-01T00:00:00Z"}\n'
             '{"event": "tool:post", "ts": "2024-01-01T00:00:01Z"}\n'
         )
-        (source_dir / "bundle_context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
+        (source_dir / "context_messages.json").write_text('[{"role": "system", "content": "Context"}]')
 
         # Mock get_state_dir
 
@@ -775,7 +723,7 @@ class TestSessionsAPI:
         source_metadata = SessionMetadata(
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
-            bundle_name="foundation/base",
+            assistant_name="foundation/base",
             mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -796,7 +744,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=created_session_id,
                 status=SessionStatus.ACTIVE,
-                bundle_name=kwargs.get("bundle_name", "foundation/base"),
+                assistant_name=kwargs.get("assistant_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -805,11 +753,12 @@ class TestSessionsAPI:
 
         mock_session_state_service.create_session.side_effect = mock_create_session
         mock_session_state_service.get_session.side_effect = lambda sid: (
-            source_metadata if sid == "test_session_123" else
-            SessionMetadata(
+            source_metadata
+            if sid == "test_session_123"
+            else SessionMetadata(
                 session_id=sid,
                 status=SessionStatus.ACTIVE,
-                bundle_name="foundation/base",
+                assistant_name="foundation/base",
                 mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -830,7 +779,7 @@ class TestSessionsAPI:
             new_dir = tmp_path / "sessions" / created_session_id
             assert (new_dir / "transcript.jsonl").exists()
             assert (new_dir / "events.jsonl").exists()
-            assert (new_dir / "bundle_context_messages.json").exists()
+            assert (new_dir / "context_messages.json").exists()
 
             # Verify content was copied
             transcript_content = (new_dir / "transcript.jsonl").read_text()
@@ -869,7 +818,7 @@ class TestSessionsAPI:
         parent_metadata = SessionMetadata(
             session_id="parent_session",
             status=SessionStatus.ACTIVE,
-            bundle_name="foundation/base",
+            assistant_name="foundation/base",
             mount_plan_path="state/sessions/parent_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -880,7 +829,7 @@ class TestSessionsAPI:
         child_metadata = SessionMetadata(
             session_id="child_session",
             status=SessionStatus.ACTIVE,
-            bundle_name="foundation/base",
+            assistant_name="foundation/base",
             mount_plan_path="state/sessions/child_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
@@ -901,7 +850,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=session_id,
                 status=SessionStatus.ACTIVE,
-                bundle_name=kwargs.get("bundle_name", "foundation/base"),
+                assistant_name=kwargs.get("assistant_name", "foundation/base"),
                 mount_plan_path=f"state/sessions/{session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
@@ -918,7 +867,7 @@ class TestSessionsAPI:
             return SessionMetadata(
                 session_id=sid,
                 status=SessionStatus.ACTIVE,
-                bundle_name="foundation/base",
+                assistant_name="foundation/base",
                 mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),

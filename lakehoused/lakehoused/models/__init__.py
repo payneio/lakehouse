@@ -3,26 +3,19 @@
 This module defines request and response models for the REST API.
 """
 
-from .bundles import BundleDetails
-from .bundles import BundleListItem
-from .bundles import BundleSource
-from .bundles import CopyBundleRequest
-from .bundles import CreateBundleRequest
-from .bundles import ModuleRef
-from .bundles import ResolvedBundle
-from .bundles import ResolvedModuleRef
-from .bundles import UpdateBundleRequest
+from .assistants import AssistantDetails
+from .assistants import AssistantListItem
+from .assistants import AssistantSource
+from .assistants import CopyAssistantRequest
+from .assistants import CreateAssistantRequest
+from .assistants import ModuleRef
+from .assistants import ResolvedAssistant
+from .assistants import ResolvedModuleRef
+from .assistants import UpdateAssistantRequest
 from .errors import ErrorResponse
 from .errors import ValidationErrorDetail
 from .modules import ModuleDetails
 from .modules import ModuleInfo
-from .mount_plans import EmbeddedMount
-from .mount_plans import MountPlan
-from .mount_plans import MountPlanRequest
-from .mount_plans import MountPlanSummary
-from .mount_plans import MountPoint
-from .mount_plans import ReferencedMount
-from .mount_plans import SessionConfig
 from .profiles import ModuleConfig
 from .profiles import ProfileDetails
 from .profiles import ProfileInfo
@@ -47,16 +40,16 @@ from .sessions import SessionQuery
 from .sessions import SessionStatus
 
 __all__ = [
-    # Bundle models
-    "BundleListItem",
-    "BundleDetails",
-    "BundleSource",
-    "ResolvedBundle",
+    # Assistant models
+    "AssistantListItem",
+    "AssistantDetails",
+    "AssistantSource",
+    "ResolvedAssistant",
     "ResolvedModuleRef",
     "ModuleRef",
-    "CreateBundleRequest",
-    "CopyBundleRequest",
-    "UpdateBundleRequest",
+    "CreateAssistantRequest",
+    "CopyAssistantRequest",
+    "UpdateAssistantRequest",
     # Project models
     "Project",
     "ProjectCreate",
@@ -83,14 +76,6 @@ __all__ = [
     # Modules
     "ModuleInfo",
     "ModuleDetails",
-    # Mount plans
-    "EmbeddedMount",
-    "ReferencedMount",
-    "MountPoint",
-    "SessionConfig",
-    "MountPlan",
-    "MountPlanRequest",
-    "MountPlanSummary",
     # Sessions
     "SessionStatus",
     "SessionMetadata",

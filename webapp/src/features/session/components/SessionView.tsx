@@ -1,5 +1,5 @@
-import { listBundles } from "@/api/bundles";
-import { cancelExecution, changeBundle, cloneSession, deleteLastMessage, sendMessage } from "@/api/sessions";
+import { listAssistants } from "@/api/assistants";
+import { cancelExecution, changeAssistant, cloneSession, deleteLastMessage, sendMessage } from "@/api/sessions";
 import { FileBrowserPanel } from "@/components/FileBrowserPanel";
 import { SessionNameEdit } from "@/features/projects/components/SessionNameEdit";
 import { useEventStream } from "@/hooks/useEventStream";
@@ -77,34 +77,34 @@ export function SessionView() {
   // Auto-mark session as read after viewing for 2 seconds
   useMarkSessionRead(sessionId);
 
-  // Fetch available bundles
-  const { data: bundles } = useQuery({
-    queryKey: ["bundles"],
-    queryFn: listBundles,
+  // Fetch available assistants
+  const { data: assistants } = useQuery({
+    queryKey: ["assistants"],
+    queryFn: listAssistants,
   });
 
-  // Build sorted list of bundle names
-  const bundleOptions = React.useMemo(() => {
-    if (!bundles) return [];
-    return bundles.map((bundle) => bundle.name).sort();
-  }, [bundles]);
+  // Build sorted list of assistant names
+  const assistantOptions = React.useMemo(() => {
+    if (!assistants) return [];
+    return assistants.map((assistant) => assistant.name).sort();
+  }, [assistants]);
 
-  // Bundle change mutation
-  const changeBundleMutation = useMutation({
+  // Assistant change mutation
+  const changeAssistantMutation = useMutation({
     mutationFn: ({
       sessionId,
-      bundleName,
+      assistantName,
     }: {
       sessionId: string;
-      bundleName: string;
-    }) => changeBundle(sessionId, bundleName),
+      assistantName: string;
+    }) => changeAssistant(sessionId, assistantName),
     onSuccess: () => {
       // Refresh session data
       queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
     },
     onError: (error: Error) => {
-      console.error("Failed to change bundle:", error);
-      alert(`Failed to change bundle: ${error.message}`);
+      console.error("Failed to change assistant:", error);
+      alert(`Failed to change assistant: ${error.message}`);
     },
   });
 
@@ -286,7 +286,7 @@ export function SessionView() {
     try {
       // POST to send-message (triggers execution, returns immediately)
       // All events come via persistent /stream connection
-      await sendMessage(sessionId, message);
+      await sendMessage(sessionId || "", message);
 
       // Execution triggered in background
       // All events (user_message_saved, content, assistant_message_complete) come via /stream
@@ -332,22 +332,22 @@ export function SessionView() {
     }
   };
 
-  // Handle bundle change
-  const handleBundleChange = (newBundleName: string) => {
+  // Handle assistant change
+  const handleAssistantChange = (newAssistantName: string) => {
     if (!sessionId) return;
 
-    // Only allow bundle change if session is active
+    // Only allow assistant change if session is active
     if (session?.status !== "active") {
-      alert("Can only change bundle for active sessions");
+      alert("Can only change assistant for active sessions");
       return;
     }
 
     if (
       confirm(
-        `Switch to bundle "${newBundleName}"? This will reload the session configuration.`
+        `Switch to assistant "${newAssistantName}"? This will reload the session configuration.`
       )
     ) {
-      changeBundleMutation.mutate({ sessionId, bundleName: newBundleName });
+      changeAssistantMutation.mutate({ sessionId, assistantName: newAssistantName });
     }
   };
 
@@ -368,7 +368,7 @@ export function SessionView() {
   }
 
   const needsStart = session.status === "created";
-  const canChangeBundle = session.status === "active";
+  const canChangeAssistant = session.status === "active";
 
   return (
     <div className="flex flex-col h-full">
@@ -396,28 +396,28 @@ export function SessionView() {
               createdAt={session.createdAt}
             />
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {/* Bundle dropdown - compact on mobile (no label) */}
-              <span className="hidden sm:inline flex-shrink-0">Bundle:</span>
+              {/* Assistant dropdown - compact on mobile (no label) */}
+              <span className="hidden sm:inline flex-shrink-0">Assistant:</span>
               <select
-                value={session.bundleName}
-                onChange={(e) => handleBundleChange(e.target.value)}
+                value={session.assistantName}
+                onChange={(e) => handleAssistantChange(e.target.value)}
                 disabled={
-                  !canChangeBundle || changeBundleMutation.isPending
+                  !canChangeAssistant || changeAssistantMutation.isPending
                 }
                 className="bg-background border border-border rounded px-2 py-1 text-sm max-w-[100px] sm:max-w-[150px] truncate disabled:opacity-50 disabled:cursor-not-allowed hover:border-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 title={
-                  !canChangeBundle
-                    ? "Bundle can only be changed for active sessions"
-                    : `Bundle: ${session.bundleName}`
+                  !canChangeAssistant
+                    ? "Assistant can only be changed for active sessions"
+                    : `Assistant: ${session.assistantName}`
                 }
               >
-                {bundleOptions.map((name) => (
+                {assistantOptions.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
                 ))}
               </select>
-              {changeBundleMutation.isPending && (
+              {changeAssistantMutation.isPending && (
                 <RefreshCw className="h-4 w-4 animate-spin flex-shrink-0" />
               )}
 
@@ -441,7 +441,7 @@ export function SessionView() {
                 </span>
               )}
 
-              {/* Action buttons - on same row as bundle */}
+              {/* Action buttons - on same row as assistant */}
               <div className="flex items-center gap-1 ml-auto flex-shrink-0">
                 <button
                   onClick={() => cloneMutation.mutate()}

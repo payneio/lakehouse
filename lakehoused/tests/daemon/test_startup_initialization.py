@@ -21,20 +21,20 @@ class TestStartupInitialization:
         return root
 
     @pytest.fixture
-    def service(self, test_root: Path) -> ProjectService:
-        """Create service instance with test root."""
+    def service(self, test_root: Path, mock_storage_env: Path) -> ProjectService:
+        """Create service instance with test root and isolated state (registry)."""
         return ProjectService(test_root)
 
     def test_root_auto_amplified_on_startup(self, service: ProjectService, test_root: Path) -> None:
         """Test that root directory is auto-amplified on daemon startup."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
+            default_assistant = os.getenv("LAKEHOUSED_DEFAULT_ASSISTANT", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle=default_bundle,
+                    default_assistant=default_assistant,
                     metadata={
                         "name": "root",
                         "description": "Root amplified directory (auto-created)",
@@ -52,24 +52,24 @@ class TestStartupInitialization:
         assert root_dir is not None
         assert root_dir.metadata["name"] == "root"
         assert root_dir.metadata["auto_created"] is True
-        assert "default_bundle" in root_dir.metadata
+        assert "default_assistant" in root_dir.metadata
 
         # Verify marker exists
         marker_path = test_root / PROJECT_MARKER_DIR
         assert marker_path.exists()
         assert marker_path.is_dir()
 
-    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_BUNDLE": "custom/profile"})
+    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_ASSISTANT": "custom/profile"})
     def test_root_uses_env_var_bundle(self, service: ProjectService) -> None:
-        """Test that root uses LAKEHOUSED_DEFAULT_BUNDLE environment variable."""
+        """Test that root uses LAKEHOUSED_DEFAULT_ASSISTANT environment variable."""
         # Simulate startup logic
         if not service.is_project("."):
-            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
+            default_assistant = os.getenv("LAKEHOUSED_DEFAULT_ASSISTANT", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle=default_bundle,
+                    default_assistant=default_assistant,
                     metadata={
                         "name": "root",
                         "description": "Root amplified directory (auto-created)",
@@ -81,7 +81,7 @@ class TestStartupInitialization:
         # Verify bundle from environment
         root_dir = service.get(".")
         assert root_dir is not None
-        assert root_dir.metadata["default_bundle"] == "custom/profile"
+        assert root_dir.metadata["default_assistant"] == "custom/profile"
 
     def test_startup_idempotent(self, service: ProjectService) -> None:
         """Test that startup logic is idempotent (safe to run multiple times)."""
@@ -90,7 +90,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle="foundation/foundation",
+                    default_assistant="foundation/foundation",
                     metadata={
                         "name": "root",
                         "auto_created": True,
@@ -109,7 +109,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle="foundation/foundation",
+                    default_assistant="foundation/foundation",
                     metadata={
                         "name": "root",
                         "auto_created": True,
@@ -128,7 +128,7 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_bundle="existing/profile",
+                default_assistant="existing/profile",
                 metadata={"name": "Existing Root"},
             )
         )
@@ -165,7 +165,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle="foundation/foundation",
+                    default_assistant="foundation/foundation",
                     metadata={"name": "root"},
                     create_marker=True,
                 )
@@ -181,19 +181,19 @@ class TestStartupInitialization:
         assert metadata_path.is_file()
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_startup_default_bundle_fallback(self, service: ProjectService) -> None:
+    def test_startup_default_assistant_fallback(self, service: ProjectService) -> None:
         """Test that startup uses fallback bundle when env var not set."""
-        # Ensure LAKEHOUSED_DEFAULT_BUNDLE is not set
-        assert "LAKEHOUSED_DEFAULT_BUNDLE" not in os.environ
+        # Ensure LAKEHOUSED_DEFAULT_ASSISTANT is not set
+        assert "LAKEHOUSED_DEFAULT_ASSISTANT" not in os.environ
 
         # Simulate startup
         if not service.is_project("."):
-            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
+            default_assistant = os.getenv("LAKEHOUSED_DEFAULT_ASSISTANT", "foundation/foundation")
 
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle=default_bundle,
+                    default_assistant=default_assistant,
                     metadata={"name": "root"},
                 )
             )
@@ -201,7 +201,7 @@ class TestStartupInitialization:
         # Verify fallback was used
         root_dir = service.get(".")
         assert root_dir is not None
-        assert root_dir.metadata["default_bundle"] == "foundation/foundation"
+        assert root_dir.metadata["default_assistant"] == "foundation/foundation"
 
     def test_startup_preserves_existing_root_metadata(self, service: ProjectService) -> None:
         """Test that startup doesn't overwrite existing root metadata."""
@@ -209,7 +209,7 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_bundle="custom/profile",
+                default_assistant="custom/profile",
                 metadata={
                     "name": "Custom Root",
                     "version": 1,
@@ -228,7 +228,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle="foundation/foundation",
+                    default_assistant="foundation/foundation",
                     metadata={"name": "root"},
                 )
             )
@@ -247,7 +247,7 @@ class TestStartupInitialization:
         service.create(
             ProjectCreate(
                 relative_path=".",
-                default_bundle="root/profile",
+                default_assistant="root/profile",
                 metadata={"name": "root"},
             )
         )
@@ -260,7 +260,7 @@ class TestStartupInitialization:
         )
 
         # Verify child inherited from root
-        assert child.metadata["default_bundle"] == "root/profile"
+        assert child.metadata["default_assistant"] == "root/profile"
 
     def test_startup_error_doesnt_crash_daemon(self, service: ProjectService, test_root: Path) -> None:
         """Test that startup errors don't crash the daemon."""
@@ -274,7 +274,7 @@ class TestStartupInitialization:
                     service.create(
                         ProjectCreate(
                             relative_path=".",
-                            default_bundle="foundation/foundation",
+                            default_assistant="foundation/foundation",
                             metadata={"name": "root"},
                         )
                     )
@@ -296,7 +296,7 @@ class TestStartupInitialization:
             service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle="foundation/foundation",
+                    default_assistant="foundation/foundation",
                     metadata={"name": "root", "startup_count": 1},
                 )
             )
@@ -316,4 +316,4 @@ class TestStartupInitialization:
         # Verify state is consistent
         assert state_after_multiple.relative_path == state_after_first.relative_path
         assert state_after_multiple.metadata["name"] == state_after_first.metadata["name"]
-        assert state_after_multiple.metadata["default_bundle"] == state_after_first.metadata["default_bundle"]
+        assert state_after_multiple.metadata["default_assistant"] == state_after_first.metadata["default_assistant"]

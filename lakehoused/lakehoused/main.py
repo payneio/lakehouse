@@ -21,19 +21,19 @@ from lakehoused.config.settings import load_config
 from .auth import auth_required as _auth_required
 from .auth import verify_token as _verify_token
 from .config.loader import load_config as load_daemon_config
+from .routers import assistants_router
 from .routers import auth_router
 from .routers import automations_router
-from .routers import bundles_router
 from .routers import events_router
 from .routers import files_router
 from .routers import messages_router
 from .routers import modules_router
-from .routers import mount_plans_router
 from .routers import projects_router
 from .routers import sessions_router
 from .routers import settings_router
 from .routers import status_router
 from .routers import stream_router
+from .startup import handle_startup_updates
 
 # Configure logging
 logging.basicConfig(
@@ -69,13 +69,13 @@ async def lifespan(app: FastAPI):
 
         # Ensure root is a project
         if not project_service.is_project("."):
-            default_bundle = os.getenv("LAKEHOUSED_DEFAULT_BUNDLE", "foundation/foundation")
-            logger.info(f"Auto-creating root project with profile: {default_bundle}")
+            default_assistant = os.getenv("LAKEHOUSED_DEFAULT_ASSISTANT", "foundation/foundation")
+            logger.info(f"Auto-creating root project with assistant: {default_assistant}")
 
             project_service.create(
                 ProjectCreate(
                     relative_path=".",
-                    default_bundle=default_bundle,
+                    default_assistant=default_assistant,
                     metadata={
                         "name": "root",
                         "description": "Root project (auto-created)",
@@ -94,36 +94,32 @@ async def lifespan(app: FastAPI):
     # Handle cache updates based on startup configuration
     daemon_config = None
     try:
-        from .config.loader import load_config as load_daemon_config
-        from .startup import handle_startup_updates
-
         daemon_config = load_daemon_config()
         await handle_startup_updates(daemon_config.startup)
     except Exception as e:
         logger.error(f"Startup cache handling failed: {e}")
         # Don't fail startup, just log the error
 
-    # Initialize module resolver (Foundation's BundleModuleResolver)
+    # Initialize the opencode server registry (pooled `opencode serve` processes).
+    opencode_servers = None
     try:
-        from amplifier_foundation.modules.activator import ModuleActivator
+        from lakehoused.config.settings import load_config as load_settings
+        from lakehoused.opencode import OpencodeServerRegistry
 
-        from lakehoused.storage.paths import get_cache_dir
-
-        cache_dir = get_cache_dir()
-        activator = ModuleActivator(cache_dir=cache_dir, install_deps=True)
-
-        # Create an empty resolver - PreparedBundles will populate it with their module paths
-        # For now, we just need the activator functionality for git-based modules
-        from amplifier_foundation.bundle import BundleModuleResolver
-
-        resolver = BundleModuleResolver(module_paths={}, activator=activator)
-
-        # Store resolver in app state for access from routers
-        app.state.module_resolver = resolver
-        logger.info(f"Initialized BundleModuleResolver with cache_dir={cache_dir}")
+        settings = load_settings()
+        opencode_servers = OpencodeServerRegistry(
+            opencode_bin=settings.opencode_bin,
+            max_servers=settings.opencode_max_servers,
+        )
+        app.state.opencode_servers = opencode_servers
+        logger.info(
+            "Initialized OpencodeServerRegistry (bin=%s, max_servers=%d)",
+            settings.opencode_bin,
+            settings.opencode_max_servers,
+        )
     except Exception as e:
-        logger.error(f"Failed to initialize module resolver: {e}")
-        resolver = None  # Ensure resolver is always bound
+        logger.error(f"Failed to initialize opencode server registry: {e}")
+        app.state.opencode_servers = None
 
     # Initialize automation scheduler
     scheduler = None
@@ -145,7 +141,7 @@ async def lifespan(app: FastAPI):
             automation_manager=automation_manager,
             session_manager=session_manager,
             timezone=scheduler_timezone,
-            module_resolver=resolver,
+            opencode_servers=opencode_servers,
         )
         await scheduler.start()
         logger.info(f"Automation scheduler started with timezone: {scheduler_timezone}")
@@ -168,6 +164,14 @@ async def lifespan(app: FastAPI):
             logger.info("Automation scheduler stopped")
         except Exception as e:
             logger.error(f"Failed to stop automation scheduler: {e}")
+
+    # Shut down opencode servers
+    if opencode_servers is not None:
+        try:
+            await opencode_servers.close_all()
+            logger.info("Closed all opencode servers")
+        except Exception as e:
+            logger.error(f"Failed to close opencode servers: {e}")
 
 
 # Create FastAPI application
@@ -233,14 +237,13 @@ app.add_middleware(
 logger.info(f"CORS enabled for origins: {daemon_config.daemon.cors_origins}")
 
 # Include routers
+app.include_router(assistants_router)
 app.include_router(auth_router)
 app.include_router(automations_router)
-app.include_router(bundles_router)
 app.include_router(events_router)
 app.include_router(files_router)
 app.include_router(messages_router)
 app.include_router(modules_router)
-app.include_router(mount_plans_router)
 app.include_router(projects_router)
 app.include_router(sessions_router)
 app.include_router(settings_router)
@@ -273,7 +276,7 @@ async def info() -> dict[str, str | int]:
     }
 
 
-# --- Static file serving for bundled SPA ---
+# --- Static file serving for packaged SPA ---
 # When webapp_dist/ exists (production/Nixpacks build), serve the frontend
 # from FastAPI. In dev mode (no webapp_dist/), this is skipped entirely.
 #
@@ -297,7 +300,7 @@ if _nixpacks_source not in _webapp_dist_candidates:
 _webapp_dist = next((p for p in _webapp_dist_candidates if p.exists() and p.is_dir()), None)
 
 if _webapp_dist is not None:
-    logger.info("Serving bundled webapp from %s", _webapp_dist)
+    logger.info("Serving packaged webapp from %s", _webapp_dist)
 
     # Serve static assets (JS, CSS, images) directly
     app.mount("/assets", StaticFiles(directory=_webapp_dist / "assets"), name="static-assets")

@@ -128,4 +128,4 @@ See @Makefile for complete list of targets.
 
 ## Testing
 
-The webapp is run by the vite dev server and will restart whenever changes are made. There is no need to manually restart it when testing. The daemon should be restarted with `lakehouse restart --daemon-only`. This will correctly stop and restart the daemon on port 8420. Avoid starting up new daemons and webapps for testing.
+The webapp is run by the vite dev server and will restart whenever changes are made. There is no need to manually restart it when testing. The daemon lifecycle is managed outside this CLI/project. On the deployment where it runs under systemd, restart it with `systemctl --user restart castle-lakehouse-api.service` (this preserves the service environment, e.g. `LAKEHOUSED_DATA_PATH`; the daemon listens on port 7777). Do NOT use `lakehouse start/stop/restart` — those commands were removed, and previously they detached the daemon from systemd and lost its environment. Avoid starting up new daemons and webapps for testing.

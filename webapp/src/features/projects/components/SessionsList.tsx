@@ -1,9 +1,22 @@
 import * as api from "@/api";
 import type { Session } from "@/types/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Bot, Check, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useSessions } from "../hooks/useProjects";
+
+/** Extract a human-readable message from an API error (FastAPI sends {"detail": ...}). */
+function errorDetail(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.detail === "string") return parsed.detail;
+  } catch {
+    // not JSON — fall through
+  }
+  return raw;
+}
 
 interface SessionsListProps {
   directoryPath: string;
@@ -22,6 +35,8 @@ interface SessionCardProps {
   onNavigate: () => void;
   onDelete: () => void;
   isDeleting: boolean;
+  isSelected: boolean;
+  onToggleSelect: (modifiers: { shiftKey: boolean }) => void;
 }
 
 function SessionCard({
@@ -30,14 +45,27 @@ function SessionCard({
   onNavigate,
   onDelete,
   isDeleting,
+  isSelected,
+  onToggleSelect,
 }: SessionCardProps) {
   return (
     <div
-      className={`border rounded-lg p-4 hover:bg-accent transition-colors ${
-        isSubsession ? "ml-6 border-dashed border-muted-foreground/30" : ""
-      }`}
+      className={`border rounded-lg p-4 transition-colors ${
+        isSelected ? "bg-accent border-primary" : "hover:bg-accent"
+      } ${isSubsession ? "ml-6 border-dashed border-muted-foreground/30" : ""}`}
     >
       <div className="flex items-start justify-between gap-4">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => {}}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect({ shiftKey: e.shiftKey });
+          }}
+          className="mt-1 h-4 w-4 flex-shrink-0 cursor-pointer accent-primary"
+          aria-label="Select session"
+        />
         <button onClick={onNavigate} className="flex-1 text-left">
           <div className="flex items-center gap-2">
             {session.isUnread && (
@@ -129,7 +157,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   const navigate = useNavigate();
 
   const createSession = useMutation({
-    mutationFn: (data: { bundle_name?: string; project_path?: string }) =>
+    mutationFn: (data: { assistant_name?: string; project_path?: string }) =>
       api.createSession(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
@@ -144,7 +172,83 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
     },
   });
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+
+  const deleteSelected = useMutation({
+    mutationFn: (sessionIds: string[]) =>
+      Promise.all(sessionIds.map((id) => api.deleteSession(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-counts"] });
+      setSelectedIds(new Set());
+    },
+  });
+
+  const toggleSelect = (
+    sessionId: string,
+    { shiftKey }: { shiftKey: boolean },
+  ) => {
+    // Flat list of every session id in display order (parents then their children).
+    const ordered = organizeSessionHierarchy(sessions).flatMap((s) => [
+      s.sessionId,
+      ...s.children.map((c) => c.sessionId),
+    ]);
+
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const anchorIndex = anchorId ? ordered.indexOf(anchorId) : -1;
+      const targetIndex = ordered.indexOf(sessionId);
+
+      if (shiftKey && anchorIndex !== -1 && targetIndex !== -1) {
+        // Range select: add everything between the anchor and the clicked row.
+        const [lo, hi] =
+          anchorIndex < targetIndex
+            ? [anchorIndex, targetIndex]
+            : [targetIndex, anchorIndex];
+        for (let i = lo; i <= hi; i++) next.add(ordered[i]);
+      } else if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+
+    // Plain/ctrl clicks move the anchor; shift extends from the existing anchor.
+    if (!shiftKey) {
+      setAnchorId(sessionId);
+    }
+  };
+
+  const markSelectedRead = useMutation({
+    mutationFn: (sessionIds: string[]) =>
+      Promise.all(sessionIds.map((id) => api.markSessionRead(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["unread-counts"] });
+      setSelectedIds(new Set());
+    },
+  });
+
+  const handleMarkSelectedRead = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    markSelectedRead.mutate(ids);
+  };
+
+  const handleDeleteSelected = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (confirm(`Delete ${ids.length} session${ids.length === 1 ? "" : "s"}?`)) {
+      deleteSelected.mutate(ids);
+    }
+  };
+
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const handleCreateSession = async () => {
+    setCreateError(null);
     try {
       const newSession = await createSession.mutateAsync({
         project_path: directoryPath,
@@ -152,6 +256,7 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
       navigate(`/projects/sessions/${newSession.sessionId}`);
     } catch (error) {
       console.error("Failed to create session:", error);
+      setCreateError(errorDetail(error));
     }
   };
 
@@ -160,6 +265,16 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
   }
 
   const hierarchicalSessions = organizeSessionHierarchy(sessions);
+  const allSessionIds = hierarchicalSessions.flatMap((session) => [
+    session.sessionId,
+    ...session.children.map((c) => c.sessionId),
+  ]);
+  const allSelected =
+    allSessionIds.length > 0 && selectedIds.size === allSessionIds.length;
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(allSessionIds));
+  };
 
   return (
     <div className="space-y-4">
@@ -175,6 +290,56 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
         </button>
       </div>
 
+      {createError && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          Failed to create session: {createError}
+        </div>
+      )}
+
+      {allSessionIds.length > 0 && (
+        <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/40 px-3 py-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 cursor-pointer accent-primary"
+            />
+            {selectedIds.size > 0
+              ? `${selectedIds.size} selected`
+              : "Select all"}
+          </label>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-sm rounded-md hover:bg-accent"
+              >
+                Clear
+              </button>
+              <button
+                onClick={handleMarkSelectedRead}
+                disabled={markSelectedRead.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md border hover:bg-accent disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" />
+                {markSelectedRead.isPending ? "Marking..." : "Mark read"}
+              </button>
+              <button
+                onClick={handleDeleteSelected}
+                disabled={deleteSelected.isPending}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleteSelected.isPending
+                  ? "Deleting..."
+                  : `Delete ${selectedIds.size}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {hierarchicalSessions.length === 0 ? (
         <div className="text-muted-foreground text-center py-8">
           No sessions found. Create one to get started.
@@ -188,6 +353,8 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                 <SessionCard
                   session={session}
                   isSubsession={isSubsession}
+                  isSelected={selectedIds.has(session.sessionId)}
+                  onToggleSelect={(m) => toggleSelect(session.sessionId, m)}
                   onNavigate={() =>
                     navigate(`/projects/sessions/${session.sessionId}`)
                   }
@@ -205,6 +372,8 @@ export function SessionsList({ directoryPath }: SessionsListProps) {
                         key={child.sessionId}
                         session={child}
                         isSubsession={true}
+                        isSelected={selectedIds.has(child.sessionId)}
+                        onToggleSelect={(m) => toggleSelect(child.sessionId, m)}
                         onNavigate={() =>
                           navigate(`/projects/sessions/${child.sessionId}`)
                         }

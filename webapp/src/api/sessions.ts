@@ -3,13 +3,13 @@ import type { Session, SessionMessage, CreateSessionRequest } from '@/types/api'
 
 export const listSessions = (params?: {
   status?: string;
-  bundle_name?: string;
+  assistant_name?: string;
   project_path?: string;
   limit?: number;
 }) => {
   const searchParams = new URLSearchParams();
   if (params?.status) searchParams.set('status', params.status);
-  if (params?.bundle_name) searchParams.set('bundle_name', params.bundle_name);
+  if (params?.assistant_name) searchParams.set('assistant_name', params.assistant_name);
   if (params?.project_path) searchParams.set('project_path', params.project_path);
   if (params?.limit) searchParams.set('limit', String(params.limit));
 
@@ -34,6 +34,11 @@ export const startSession = (sessionId: string) =>
 export const deleteSession = (sessionId: string) =>
   fetchApi<void>(`/api/v1/sessions/${sessionId}`, {
     method: 'DELETE',
+  });
+
+export const markSessionRead = (sessionId: string) =>
+  fetchApi<void>(`/api/v1/sessions/${sessionId}/mark-read`, {
+    method: 'POST',
   });
 
 export const getTranscript = (sessionId: string, limit?: number) => {
@@ -64,10 +69,10 @@ export const deleteLastMessage = (sessionId: string) =>
     { method: 'DELETE' }
   );
 
-export const changeBundle = (sessionId: string, bundleName: string) =>
-  fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-bundle`, {
+export const changeAssistant = (sessionId: string, assistantName: string) =>
+  fetchApi<Session>(`/api/v1/sessions/${sessionId}/change-assistant`, {
     method: 'POST',
-    body: JSON.stringify({ bundle_name: bundleName }),
+    body: JSON.stringify({ assistant_name: assistantName }),
   });
 
 export const cloneSession = (sessionId: string) =>

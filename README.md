@@ -47,62 +47,10 @@ uv tool install -e .
 
 ### Usage
 
-#### Using the Lakehouse CLI (Recommended)
+#### Running the stack
 
-```bash
-# Start both daemon and webapp (runs in background)
-lakehouse start
-
-# Check status
-lakehouse status
-
-# View logs
-lakehouse logs              # Show both daemon and webapp logs
-lakehouse logs --daemon     # Show daemon logs only
-lakehouse logs -f --webapp  # Follow webapp logs live
-
-# Restart services
-lakehouse restart
-
-# Stop services
-lakehouse stop
-
-# Open webapp in browser
-lakehouse open
-```
-
-**Note:** Services run in the background and logs are written to `.lakehoused/logs/` (in your daemon's state directory).
-
-**Keep it running after disconnect:**
-
-Services already run in the background, but will stop if your SSH session ends. To keep them running:
-
-**Option 1: nohup (Simplest)**
-```bash
-# Start services that survive disconnect
-nohup lakehouse start &
-
-# Check status
-lakehouse status
-
-# View logs
-lakehouse logs -f
-```
-
-**Option 2: tmux (Better for control)**
-```bash
-# Run in tmux session
-tmux new -s lakehouse
-lakehouse start
-# Press Ctrl+B, then D to detach
-
-# Reconnect later
-tmux attach -t lakehouse
-```
-
-**For auto-starting on reboot**, see [DEPLOYMENT.md](./DEPLOYMENT.md).
-
-#### Using Make Commands (Alternative)
+Service lifecycle (start/stop/restart) is managed **outside** the CLI. Use `make` for local
+development, or a process manager such as systemd for a long-running deployment.
 
 ```bash
 # Run daemon only (in foreground)
@@ -114,6 +62,27 @@ make webapp-dev
 # Run both (daemon in background, webapp in foreground)
 make dev
 ```
+
+**For auto-starting on reboot / long-running deployments**, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+#### Inspecting the stack with the Lakehouse CLI
+
+The CLI provides read-only helpers (it does not start or stop services):
+
+```bash
+# Check status
+lakehouse status
+
+# View logs
+lakehouse logs              # Show both daemon and webapp logs
+lakehouse logs --daemon     # Show daemon logs only
+lakehouse logs -f --webapp  # Follow webapp logs live
+
+# Open webapp in browser
+lakehouse open
+```
+
+**Note:** Logs are written to `.lakehoused/logs/` (in your daemon's state directory).
 
 ### Access the Application
 
@@ -160,11 +129,9 @@ daemon:
 
 **For LAN/network access configuration:** See [LAN.md](LAN.md)
 
-After changing configuration, restart the daemon:
-```bash
-lakehouse stop
-lakehouse start
-```
+After changing configuration, restart the daemon using whatever manages its lifecycle
+(e.g. `make daemon-dev` in development, or `systemctl --user restart <service>` in a
+systemd deployment — see [DEPLOYMENT.md](./DEPLOYMENT.md)).
 
 ### Common Tasks
 
@@ -181,18 +148,10 @@ lakehouse logs -f --webapp  # Follow webapp logs live (Ctrl+C to exit)
 lakehouse logs -n 100       # Show last 100 lines
 ```
 
-**Restart services:**
-```bash
-lakehouse restart              # Restart both
-lakehouse restart --daemon-only  # Restart only daemon
-```
+**Start/stop/restart services:**
 
-**Start/stop individual services:**
-```bash
-lakehouse start --daemon-only   # Start only daemon
-lakehouse start --webapp-only   # Start only webapp
-lakehouse stop --daemon-only    # Stop only daemon
-```
+Lifecycle is managed outside the CLI — use `make` (development) or your process manager
+(e.g. systemd) as described in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 **Log files location:**
 ```

@@ -52,7 +52,7 @@ class SessionMetadata(CamelCaseModel):
     created_at: datetime = Field(description="Session creation timestamp")
     started_at: datetime | None = Field(default=None, description="Session start timestamp (ACTIVE)")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp (final state)")
-    bundle_name: str = Field(default="", description="Bundle used for this session")
+    assistant_name: str = Field(default="", description="Assistant used for this session")
     mount_plan_path: str = Field(description="Relative path to mount_plan.json")
     message_count: int = Field(default=0, description="Number of messages exchanged")
     agent_invocations: int = Field(default=0, description="Number of agent invocations")
@@ -81,13 +81,13 @@ class SessionIndexEntry(CamelCaseModel):
     """Lightweight entry in session index.
 
     Used for fast lookups without loading full session metadata.
-    Enables queries like "list all active sessions" or "find sessions by bundle".
+    Enables queries like "list all active sessions" or "find sessions by assistant".
     """
 
     session_id: str = Field(description="Session identifier")
     project_path: str = Field(default=".", description="Relative path to project directory")
     status: SessionStatus = Field(description="Current session status")
-    bundle_name: str = Field(default="", description="Bundle used for this session")
+    assistant_name: str = Field(default="", description="Assistant used for this session")
     created_at: datetime = Field(description="Session creation timestamp")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp")
     message_count: int = Field(default=0, description="Number of messages exchanged")
@@ -112,7 +112,7 @@ class SessionQuery(CamelCaseModel):
     """
 
     status: SessionStatus | None = Field(default=None, description="Filter by session status")
-    bundle_name: str | None = Field(default=None, description="Filter by bundle name")
+    assistant_name: str | None = Field(default=None, description="Filter by assistant name")
     since: datetime | None = Field(default=None, description="Filter sessions created after this time")
     limit: int | None = Field(default=None, description="Maximum number of results to return")
 

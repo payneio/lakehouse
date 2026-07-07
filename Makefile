@@ -67,8 +67,9 @@ typecheck: daemon-typecheck webapp-typecheck
 check: lint typecheck test
 	@echo "All validation checks passed"
 
-build: daemon-build
-	@echo "All build artifacts created"
+build: webapp-build
+	@echo "Frontend built to webapp/dist (served by the Castle 'lakehouse' static site)."
+	@echo "The daemon is API-only. Deploy with: castle build lakehouse-web && castle apply"
 
 clean: daemon-clean webapp-clean notebooks-clean
 	@echo "All build artifacts cleaned"
@@ -101,14 +102,14 @@ daemon-typecheck:
 daemon-check: daemon-lint daemon-typecheck daemon-test
 	@echo "Daemon validation complete"
 
-# Bundle the webapp into the daemon's served path. The daemon serves the SPA
-# from lakehoused/lakehoused/webapp_dist (see lakehoused/main.py), so this is
-# the daemon's build artifact. Depends on webapp-build (vite -> webapp/dist).
-daemon-build: webapp-build
-	@echo "Bundling webapp into daemon served path..."
+# Deprecated: the frontend is now served as a separate Castle static site
+# (Caddy -> webapp/dist), not bundled into the daemon. The daemon serves the SPA
+# only if lakehoused/lakehoused/webapp_dist exists (see lakehoused/main.py), so
+# this target just removes any stale bundle to keep the daemon API-only.
+# Use `make webapp-build` to produce webapp/dist for the static site.
+daemon-build:
+	@echo "Frontend is served separately; removing any bundled webapp_dist (daemon stays API-only)..."
 	rm -rf lakehoused/lakehoused/webapp_dist
-	cp -r webapp/dist lakehoused/lakehoused/webapp_dist
-	@echo "Webapp bundled into lakehoused/lakehoused/webapp_dist"
 
 daemon-install:
 	@echo "Installing daemon dependencies..."

@@ -20,13 +20,21 @@ class TestStatusAPI:
     """Test status API endpoints."""
 
     def test_root_endpoint_serves_spa(self, client: TestClient) -> None:
-        """Test GET / serves the SPA index.html (or 404 when no webapp_dist)."""
+        """Test GET /.
+
+        The daemon runs API-only by default (frontend served separately), so no
+        webapp_dist is packaged and ``/`` returns 404. When a webapp_dist bundle
+        is present, ``/`` instead serves the SPA index.html.
+        """
         response = client.get("/")
 
-        assert response.status_code == 200
-        # When webapp_dist exists, serves HTML; otherwise would 404
-        content_type = response.headers.get("content-type", "")
-        assert "text/html" in content_type or "application/json" in content_type
+        if response.status_code == 200:
+            # webapp_dist present: SPA index.html is served.
+            content_type = response.headers.get("content-type", "")
+            assert "text/html" in content_type or "application/json" in content_type
+        else:
+            # API-only mode: no packaged SPA.
+            assert response.status_code == 404
 
     def test_status_endpoint_returns_running(self, client: TestClient) -> None:
         """Test GET /api/v1/status returns status information."""

@@ -41,7 +41,7 @@ class SessionManager:
     def create_session(
         self,
         session_id: str,
-        bundle_name: str,
+        assistant_name: str,
         mount_plan: Any = None,
         parent_session_id: str | None = None,
         project_path: str = ".",
@@ -52,7 +52,7 @@ class SessionManager:
 
         Args:
             session_id: Unique session identifier
-            bundle_name: Bundle name for this session
+            assistant_name: Assistant name for this session
             mount_plan: Complete mount plan to persist
             parent_session_id: Optional parent session for sub-sessions
             project_path: Relative path to project directory (defaults to ".")
@@ -100,7 +100,7 @@ class SessionManager:
                 session_id=session_id,
                 name=name,  # Optional human-readable name
                 project_path=project_path,
-                bundle_name=bundle_name,
+                assistant_name=assistant_name,
                 status=SessionStatus.ACTIVE,  # Start active immediately
                 created_at=now,
                 started_at=now,  # Set started_at to creation time
@@ -129,7 +129,7 @@ class SessionManager:
             # Update index
             self._update_index(metadata)
 
-            logger.info(f"Created session {session_id} with bundle {bundle_name}")
+            logger.info(f"Created session {session_id} with assistant {assistant_name}")
             return metadata
 
         except Exception as e:
@@ -359,7 +359,7 @@ class SessionManager:
     def list_sessions(
         self,
         status: SessionStatus | None = None,
-        bundle_name: str | None = None,
+        assistant_name: str | None = None,
         project_path: str | None = None,
         since: datetime | None = None,
         limit: int | None = None,
@@ -371,7 +371,7 @@ class SessionManager:
 
         Args:
             status: Optional filter by session status
-            bundle_name: Optional filter by bundle name
+            assistant_name: Optional filter by assistant name
             project_path: Optional filter by project path
             since: Optional filter by creation time
             limit: Optional maximum number of results
@@ -388,7 +388,7 @@ class SessionManager:
         for entry in index.sessions.values():
             if status is not None and entry.status != status:
                 continue
-            if bundle_name is not None and entry.bundle_name != bundle_name:
+            if assistant_name is not None and entry.assistant_name != assistant_name:
                 continue
             if project_path is not None and entry.project_path != project_path:
                 continue
@@ -553,7 +553,7 @@ class SessionManager:
         entry = SessionIndexEntry(
             session_id=metadata.session_id,
             project_path=metadata.project_path,
-            bundle_name=metadata.bundle_name,
+            assistant_name=metadata.assistant_name,
             status=metadata.status,
             created_at=metadata.created_at,
             ended_at=metadata.ended_at,

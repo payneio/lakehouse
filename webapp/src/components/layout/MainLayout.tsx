@@ -72,7 +72,7 @@ function MainLayoutContent() {
             </li>
             <li>
               <NavLink
-                to="/bundles"
+                to="/assistants"
                 onClick={close}
                 className={({ isActive }) =>
                   cn(
@@ -84,7 +84,7 @@ function MainLayoutContent() {
                 }
               >
                 <Package className="h-4 w-4" />
-                <span>Bundles</span>
+                <span>Assistants</span>
               </NavLink>
             </li>
             <li>

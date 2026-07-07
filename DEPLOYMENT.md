@@ -23,7 +23,7 @@ This guide covers different methods for keeping Lakehouse running after disconne
 
 ```bash
 # Start both daemon and webapp in background
-nohup lakehouse start > lakehouse.log 2>&1 &
+nohup make dev > lakehouse.log 2>&1 &
 
 # Check status
 lakehouse status
@@ -31,8 +31,8 @@ lakehouse status
 # View logs
 tail -f lakehouse.log
 
-# Stop services
-lakehouse stop
+# Stop services (the CLI no longer stops them)
+pkill -f 'python -m lakehoused'; pkill -f vite
 ```
 
 **Pros:**
@@ -58,7 +58,7 @@ lakehouse stop
 tmux new -s lakehouse
 
 # Start services
-lakehouse start
+make dev
 
 # Detach: Press Ctrl+B, then D
 
@@ -79,7 +79,7 @@ tmux kill-session -t lakehouse
 screen -S lakehouse
 
 # Start services
-lakehouse start
+make dev
 
 # Detach: Press Ctrl+A, then D
 

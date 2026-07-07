@@ -11,9 +11,6 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 from lakehoused.main import app
-from lakehoused.models.mount_plans import EmbeddedMount
-from lakehoused.models.mount_plans import MountPlan
-from lakehoused.models.mount_plans import SessionConfig
 from lakehoused.models.sessions import SessionMessage
 from lakehoused.models.sessions import SessionMetadata
 from lakehoused.models.sessions import SessionStatus
@@ -50,28 +47,29 @@ def mock_session_manager(mock_session: Mock) -> Mock:
 
 
 @pytest.fixture
-def mock_mount_plan() -> MountPlan:
+def mock_mount_plan() -> dict:
     """Sample mount plan for testing.
 
     Returns:
         Sample mount plan with basic structure
     """
-    return MountPlan(
-        format_version="1.0",
-        session=SessionConfig(
-            session_id="test_session_123",
-            bundle_id="foundation/base",
-            created_at=datetime.now(UTC).isoformat(),
-            settings={},
-        ),
-        mount_points=[
-            EmbeddedMount(
-                module_id="foundation/base.agents.test-agent",
-                module_type="agent",
-                content="# Test Agent",
-            )
+    return {
+        "format_version": "1.0",
+        "session": {
+            "session_id": "test_session_123",
+            "bundle_id": "foundation/base",
+            "created_at": datetime.now(UTC).isoformat(),
+            "settings": {},
+        },
+        "mount_points": [
+            {
+                "mount_type": "embedded",
+                "module_id": "foundation/base.agents.test-agent",
+                "module_type": "agent",
+                "content": "# Test Agent",
+            }
         ],
-    )
+    }
 
 
 @pytest.fixture
@@ -84,7 +82,7 @@ def mock_session_metadata() -> SessionMetadata:
     return SessionMetadata(
         session_id="test_session_123",
         status=SessionStatus.CREATED,
-        bundle_name="foundation/base",
+        assistant_name="foundation/base",
         mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
     )
@@ -109,25 +107,20 @@ def mock_session_state_service(mock_session_metadata: SessionMetadata) -> Mock:
 
 
 @pytest.fixture
-def mock_project_service(mock_mount_plan: MountPlan):
-    """Mock ProjectService and LakehouseBundleManager to bypass directory validation.
-
-    Args:
-        mock_mount_plan: Sample mount plan fixture
+def mock_project_service():
+    """Mock ProjectService to bypass directory validation.
 
     Yields:
         None
     """
-    import tempfile
-    from pathlib import Path
     from unittest.mock import patch
 
     from lakehoused.models.projects import Project
 
     mock_project = Project(
         relative_path=".",
-        default_bundle="foundation/base",
-        metadata={"default_bundle": "foundation/base"},
+        default_assistant="foundation/base",
+        metadata={"default_assistant": "foundation/base"},
         created_at=datetime.now(UTC),
         path="/data",
         is_project=True,
@@ -136,29 +129,10 @@ def mock_project_service(mock_mount_plan: MountPlan):
     mock_service = Mock()
     mock_service.get = Mock(return_value=mock_project)
 
-    # Create mock bundle manager
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        bundles_dir = Path(tmp_dir) / "bundles"
-        bundles_dir.mkdir(parents=True)
-
-        mock_bundle_manager = Mock()
-        mock_bundle_manager.bundles_dir = bundles_dir
-        mock_bundle_manager.home_dir = Path(tmp_dir)
-
-        async def mock_generate_mount_plan(*args, **kwargs):
-            return mock_mount_plan.model_dump()
-
-        mock_bundle_manager.generate_mount_plan = mock_generate_mount_plan
-
-        # Use unittest.mock.patch for reliable patching
-        with patch(
-            "lakehoused.services.project_service.ProjectService",
-            return_value=mock_service
-        ), patch(
-            "lakehoused.bundles.LakehouseBundleManager",
-            return_value=mock_bundle_manager
-        ):
-            yield
+    # The real LakehouseOpencodeManager resolves assistant manifests from the
+    # autouse opencode_assistants_store fixture, so no manager mock is needed.
+    with patch("lakehoused.services.project_service.ProjectService", return_value=mock_service):
+        yield
 
 
 @pytest.fixture
@@ -210,7 +184,7 @@ def session_id(client: TestClient) -> str:
     Returns:
         Session ID
     """
-    response = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"})
+    response = client.post("/api/v1/sessions/", json={"assistant_name": "foundation/base"})
     if response.status_code != 201:
         raise RuntimeError(f"Failed to create session: {response.status_code} - {response.json()}")
     return response.json()["sessionId"]
@@ -334,7 +308,7 @@ class TestMessagesAPI:
             return SessionMetadata(
                 session_id=f"test_session_{session_counter[0]}",
                 status=SessionStatus.CREATED,
-                bundle_name="foundation/base",
+                assistant_name="foundation/base",
                 mount_plan_path=f"state/sessions/test_session_{session_counter[0]}/mount_plan.json",
                 created_at=datetime.now(UTC),
             )
@@ -342,9 +316,9 @@ class TestMessagesAPI:
         mock_session_state_service.create_session.side_effect = create_session_side_effect
 
         # Create two sessions
-        session1 = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"}).json()["sessionId"]
+        session1 = client.post("/api/v1/sessions/", json={"assistant_name": "foundation/base"}).json()["sessionId"]
 
-        session2 = client.post("/api/v1/sessions/", json={"bundle_name": "foundation/base"}).json()["sessionId"]
+        session2 = client.post("/api/v1/sessions/", json={"assistant_name": "foundation/base"}).json()["sessionId"]
 
         # Add messages to session1
         client.post(f"/api/v1/sessions/{session1}/messages", json={"role": "user", "content": "Session 1 message"})

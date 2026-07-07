@@ -256,7 +256,7 @@ class TestDaemonSettingsPathExpansion:
         assert new_dir.exists()
         assert new_dir.is_dir()
         # Check permissions (700 = owner rwx only)
-        assert oct(new_dir.stat().st_mode)[-3:] == '700'
+        assert oct(new_dir.stat().st_mode)[-3:] == "700"
 
     def test_data_path_fails_if_file_exists(self, tmp_path: Path) -> None:
         """data_path should fail if path exists as a file."""

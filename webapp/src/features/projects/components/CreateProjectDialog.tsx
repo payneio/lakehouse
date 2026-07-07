@@ -1,4 +1,4 @@
-import { listBundles } from "@/api/bundles";
+import { listAssistants } from "@/api/assistants";
 import {
   Dialog,
   DialogContent,
@@ -29,13 +29,13 @@ export function CreateProjectDialog({
   error,
   initialPath = "",
 }: CreateProjectDialogProps) {
-  const { data: bundles = [] } = useQuery({
-    queryKey: ["bundles"],
-    queryFn: listBundles,
+  const { data: assistants = [] } = useQuery({
+    queryKey: ["assistants"],
+    queryFn: listAssistants,
   });
   const [formData, setFormData] = useState({
     relative_path: "",
-    default_bundle: "",
+    default_assistant: "",
     name: "",
     description: "",
   });
@@ -70,8 +70,8 @@ export function CreateProjectDialog({
       create_marker: true,
     };
 
-    if (formData.default_bundle) {
-      submitData.default_bundle = formData.default_bundle;
+    if (formData.default_assistant) {
+      submitData.default_assistant = formData.default_assistant;
     }
 
     const metadata: Record<string, unknown> = {};
@@ -92,7 +92,7 @@ export function CreateProjectDialog({
     if (!isLoading) {
       setFormData({
         relative_path: initialPath,
-        default_bundle: "",
+        default_assistant: "",
         name: "",
         description: "",
       });
@@ -131,41 +131,41 @@ export function CreateProjectDialog({
             </p>
           </div>
 
-          {/* Default Bundle Field */}
+          {/* Default Assistant Field */}
           <div>
             <label
-              htmlFor="default_bundle"
+              htmlFor="default_assistant"
               className="block text-sm font-medium mb-1"
             >
-              Default Bundle
+              Default Assistant
             </label>
-            {bundles.length > 0 ? (
+            {assistants.length > 0 ? (
               <select
-                id="default_bundle"
-                value={formData.default_bundle}
+                id="default_assistant"
+                value={formData.default_assistant}
                 onChange={(e) =>
-                  setFormData({ ...formData, default_bundle: e.target.value })
+                  setFormData({ ...formData, default_assistant: e.target.value })
                 }
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {bundles.map((bundle) => (
-                  <option key={bundle.name} value={bundle.name}>
-                    {bundle.name}
+                {assistants.map((assistant) => (
+                  <option key={assistant.name} value={assistant.name}>
+                    {assistant.name}
                   </option>
                 ))}
               </select>
             ) : (
               <input
-                id="default_bundle"
+                id="default_assistant"
                 type="text"
-                value={formData.default_bundle}
+                value={formData.default_assistant}
                 onChange={(e) =>
-                  setFormData({ ...formData, default_bundle: e.target.value })
+                  setFormData({ ...formData, default_assistant: e.target.value })
                 }
                 className="w-full px-3 py-2 border rounded-md"
-                placeholder="bundle-name"
+                placeholder="assistant-name"
                 disabled={isLoading}
               />
             )}

@@ -61,9 +61,7 @@ class TestAuthGate:
         resp = client.get("/api/v1/status", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
 
-    def test_protected_endpoint_allowed_with_token_query_param(
-        self, client: TestClient, gate_enabled: str
-    ) -> None:
+    def test_protected_endpoint_allowed_with_token_query_param(self, client: TestClient, gate_enabled: str) -> None:
         """A valid token passed as a query param grants access (used by SSE)."""
         token = client.post("/api/v1/auth/login", json={"password": gate_enabled}).json()["token"]
         resp = client.get(f"/api/v1/status?token={token}")

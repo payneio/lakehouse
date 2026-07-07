@@ -247,9 +247,7 @@ class TestAutomationLifecycle:
         # Scheduler should NOT be called for disabled automation
         mock_automation_scheduler.schedule_automation.assert_not_called()
 
-    def test_create_automation_with_interval_schedule(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_create_automation_with_interval_schedule(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test POST /automations/ creates automation with interval schedule."""
         # Mock manager to return automation with interval schedule
         interval_automation = Automation(
@@ -310,9 +308,7 @@ class TestAutomationLifecycle:
         data = response.json()
         assert data["automation"]["schedule"]["type"] == "once"
 
-    def test_create_automation_invalid_cron_expression(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_create_automation_invalid_cron_expression(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test POST /automations/ returns 422 for invalid cron expression (validation error)."""
         # Invalid cron expression is caught by Pydantic validation before hitting manager
         response = client.post(
@@ -816,9 +812,7 @@ class TestExecutionHistory:
 
         mock_automation_manager.get_execution_history.assert_called()
 
-    def test_get_execution_history_filter_status(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_get_execution_history_filter_status(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test GET /automations/{id}/executions?status=success filters by status."""
         response = client.get("/api/v1/projects/test-project/automations/auto-123/executions?status=success")
 
@@ -828,9 +822,7 @@ class TestExecutionHistory:
         call_kwargs = mock_automation_manager.get_execution_history.call_args[1]
         assert call_kwargs["status"] == "success"
 
-    def test_get_execution_history_with_pagination(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_get_execution_history_with_pagination(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test GET /automations/{id}/executions applies limit and offset."""
         response = client.get("/api/v1/projects/test-project/automations/auto-123/executions?limit=20&offset=10")
 
@@ -840,9 +832,9 @@ class TestExecutionHistory:
         # once with pagination params and once with limit=10000 for total count
         # Check that at least one call had the correct parameters
         calls = mock_automation_manager.get_execution_history.call_args_list
-        assert any(
-            call[1]["limit"] == 20 and call[1]["offset"] == 10 for call in calls
-        ), f"Expected call with limit=20, offset=10 in {calls}"
+        assert any(call[1]["limit"] == 20 and call[1]["offset"] == 10 for call in calls), (
+            f"Expected call with limit=20, offset=10 in {calls}"
+        )
 
     def test_get_execution_history_automation_not_found(
         self, client: TestClient, mock_automation_manager: Mock
@@ -854,9 +846,7 @@ class TestExecutionHistory:
 
         assert response.status_code == 404
 
-    def test_get_execution_history_wrong_project(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_get_execution_history_wrong_project(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test GET /automations/{id}/executions returns 404 for wrong project."""
         # Mock automation with different project_id
         wrong_project_automation = Automation(
@@ -892,9 +882,7 @@ class TestExecutionHistory:
 class TestErrorHandling:
     """Test error handling and edge cases."""
 
-    def test_create_automation_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_create_automation_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test POST /automations/ returns 500 for unexpected errors."""
         mock_automation_manager.create_automation.side_effect = Exception("Unexpected error")
 
@@ -911,9 +899,7 @@ class TestErrorHandling:
         assert response.status_code == 500
         assert "Internal server error" in response.json()["detail"]
 
-    def test_update_automation_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_update_automation_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test PATCH /automations/{id} returns 500 for unexpected errors."""
         mock_automation_manager.update_automation.side_effect = Exception("Unexpected error")
 
@@ -924,9 +910,7 @@ class TestErrorHandling:
 
         assert response.status_code == 500
 
-    def test_delete_automation_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_delete_automation_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test DELETE /automations/{id} returns 500 for unexpected errors."""
         mock_automation_manager.delete_automation.side_effect = Exception("Unexpected error")
 
@@ -934,9 +918,7 @@ class TestErrorHandling:
 
         assert response.status_code == 500
 
-    def test_list_automations_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_list_automations_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test GET /automations/ returns 500 for unexpected errors."""
         mock_automation_manager.list_automations.side_effect = Exception("Unexpected error")
 
@@ -944,9 +926,7 @@ class TestErrorHandling:
 
         assert response.status_code == 500
 
-    def test_toggle_automation_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_toggle_automation_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test PATCH /automations/{id}/toggle returns 500 for unexpected errors."""
         mock_automation_manager.update_automation.side_effect = Exception("Unexpected error")
 
@@ -957,9 +937,7 @@ class TestErrorHandling:
 
         assert response.status_code == 500
 
-    def test_get_execution_history_unexpected_error(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_get_execution_history_unexpected_error(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test GET /automations/{id}/executions returns 500 for unexpected errors."""
         mock_automation_manager.get_execution_history.side_effect = Exception("Unexpected error")
 
@@ -998,9 +976,7 @@ class TestExecuteAutomation:
         finally:
             app.dependency_overrides.clear()
 
-    def test_execute_automation_not_found(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_execute_automation_not_found(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test POST /automations/{id}/execute returns 404 for missing automation."""
         mock_automation_manager.get_automation.return_value = None
 
@@ -1015,9 +991,7 @@ class TestExecuteAutomation:
         finally:
             app.dependency_overrides.clear()
 
-    def test_execute_automation_wrong_project(
-        self, client: TestClient, mock_automation_manager: Mock
-    ) -> None:
+    def test_execute_automation_wrong_project(self, client: TestClient, mock_automation_manager: Mock) -> None:
         """Test POST /automations/{id}/execute returns 404 for wrong project."""
         # Mock automation with different project_id
         wrong_project_automation = Automation(

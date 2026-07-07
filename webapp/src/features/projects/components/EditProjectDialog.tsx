@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { listBundles } from '@/api/bundles';
+import { listAssistants } from '@/api/assistants';
 import type { Project } from '@/types/api';
 
 interface EditDirectoryDialogProps {
   open: boolean;
   directory: Project | null;
   onClose: () => void;
-  onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;
+  onSubmit: (data: { name?: string; description?: string; default_assistant?: string }) => void;
   isLoading?: boolean;
   error?: string;
 }
@@ -22,9 +22,9 @@ export function EditProjectDialog({
   isLoading = false,
   error,
 }: EditDirectoryDialogProps) {
-  const { data: bundles = [] } = useQuery({
-    queryKey: ['bundles'],
-    queryFn: listBundles,
+  const { data: assistants = [] } = useQuery({
+    queryKey: ['assistants'],
+    queryFn: listAssistants,
   });
 
   if (!directory) {
@@ -37,7 +37,7 @@ export function EditProjectDialog({
       key={directory.relative_path}
       open={open}
       directory={directory}
-      bundles={bundles}
+      assistants={assistants}
       onClose={onClose}
       onSubmit={onSubmit}
       isLoading={isLoading}
@@ -49,7 +49,7 @@ export function EditProjectDialog({
 function EditDirectoryForm({
   open,
   directory,
-  bundles,
+  assistants,
   onClose,
   onSubmit,
   isLoading,
@@ -57,16 +57,16 @@ function EditDirectoryForm({
 }: {
   open: boolean;
   directory: Project;
-  bundles: Array<{ name: string }>;
+  assistants: Array<{ name: string }>;
   onClose: () => void;
-  onSubmit: (data: { name?: string; description?: string; default_bundle?: string }) => void;
+  onSubmit: (data: { name?: string; description?: string; default_assistant?: string }) => void;
   isLoading: boolean;
   error?: string;
 }) {
   const [formData, setFormData] = useState({
     name: (directory?.metadata?.name as string) || '',
     description: (directory?.metadata?.description as string) || '',
-    default_bundle: directory?.default_bundle || '',
+    default_assistant: directory?.default_assistant || '',
   });
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -77,11 +77,11 @@ function EditDirectoryForm({
     if (formData.description.length > 500) {
       return 'Description must be 500 characters or less';
     }
-    if (formData.default_bundle) {
-      // Build list of valid bundle identifiers
-      const validBundleIds = bundles.map(b => b.name);
-      if (!validBundleIds.includes(formData.default_bundle)) {
-        return 'Invalid bundle selection';
+    if (formData.default_assistant) {
+      // Build list of valid assistant identifiers
+      const validAssistantIds = assistants.map(b => b.name);
+      if (!validAssistantIds.includes(formData.default_assistant)) {
+        return 'Invalid assistant selection';
       }
     }
     return null;
@@ -98,7 +98,7 @@ function EditDirectoryForm({
 
     setValidationError(null);
 
-    const submitData: { name?: string; description?: string; default_bundle?: string } = {};
+    const submitData: { name?: string; description?: string; default_assistant?: string } = {};
 
     if (formData.name) {
       submitData.name = formData.name.trim();
@@ -106,8 +106,8 @@ function EditDirectoryForm({
     if (formData.description) {
       submitData.description = formData.description.trim();
     }
-    if (formData.default_bundle) {
-      submitData.default_bundle = formData.default_bundle;
+    if (formData.default_assistant) {
+      submitData.default_assistant = formData.default_assistant;
     }
 
     onSubmit(submitData);
@@ -141,40 +141,40 @@ function EditDirectoryForm({
             </p>
           </div>
 
-          {/* Default Bundle Field */}
+          {/* Default Assistant Field */}
           <div>
-            <label htmlFor="default_bundle" className="block text-sm font-medium mb-1">
-              Default Bundle
+            <label htmlFor="default_assistant" className="block text-sm font-medium mb-1">
+              Default Assistant
             </label>
-            {bundles.length > 0 ? (
+            {assistants.length > 0 ? (
               <select
-                id="default_bundle"
-                value={formData.default_bundle}
+                id="default_assistant"
+                value={formData.default_assistant}
                 onChange={(e) => {
-                  setFormData({ ...formData, default_bundle: e.target.value });
+                  setFormData({ ...formData, default_assistant: e.target.value });
                   setValidationError(null);
                 }}
                 className="w-full px-3 py-2 border rounded-md"
                 disabled={isLoading}
               >
                 <option value="">None (inherit from parent)</option>
-                {bundles.map((bundle) => (
-                  <option key={bundle.name} value={bundle.name}>
-                    {bundle.name}
+                {assistants.map((assistant) => (
+                  <option key={assistant.name} value={assistant.name}>
+                    {assistant.name}
                   </option>
                 ))}
               </select>
             ) : (
               <input
-                id="default_bundle"
+                id="default_assistant"
                 type="text"
-                value={formData.default_bundle}
+                value={formData.default_assistant}
                 onChange={(e) => {
-                  setFormData({ ...formData, default_bundle: e.target.value });
+                  setFormData({ ...formData, default_assistant: e.target.value });
                   setValidationError(null);
                 }}
                 className="w-full px-3 py-2 border rounded-md"
-                placeholder="bundle-name"
+                placeholder="assistant-name"
                 disabled={isLoading}
               />
             )}

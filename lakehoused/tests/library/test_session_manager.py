@@ -20,41 +20,41 @@ class TestSessionManager:
     def test_create_session_with_explicit_id(self, session_manager: SessionManager) -> None:
         """Test create_session with explicit session ID."""
         session_id = str(uuid.uuid4())
-        session = session_manager.create_session(session_id=session_id, bundle_name="default")
+        session = session_manager.create_session(session_id=session_id, assistant_name="default")
 
         assert session.session_id == session_id
-        assert session.bundle_name == "default"
+        assert session.assistant_name == "default"
 
     def test_create_session_raises_on_duplicate_id(self, session_manager: SessionManager) -> None:
         """Test create_session raises error for duplicate session ID."""
         session_id = str(uuid.uuid4())
-        session_manager.create_session(session_id=session_id, bundle_name="default")
+        session_manager.create_session(session_id=session_id, assistant_name="default")
 
         with pytest.raises(ValueError, match="already exists"):
-            session_manager.create_session(session_id=session_id, bundle_name="default")
+            session_manager.create_session(session_id=session_id, assistant_name="default")
 
     def test_create_session_sets_profile(self, session_manager: SessionManager) -> None:
         """Test create_session sets the correct profile."""
-        session = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="test-profile")
-        assert session.bundle_name == "test-profile"
+        session = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="test-profile")
+        assert session.assistant_name == "test-profile"
 
     def test_create_session_sets_timestamps(self, session_manager: SessionManager) -> None:
         """Test create_session sets created_at timestamp."""
         before = datetime.now(UTC)
-        session = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="default")
+        session = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="default")
         after = datetime.now(UTC)
 
         assert before <= session.created_at <= after
 
     def test_create_session_initializes_message_count(self, session_manager: SessionManager) -> None:
         """Test create_session sets message_count to 0."""
-        session = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="default")
+        session = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="default")
         assert session.message_count == 0
 
     def test_create_session_persists_to_storage(self, session_manager: SessionManager) -> None:
         """Test create_session saves session to storage immediately."""
         session_id = str(uuid.uuid4())
-        session_manager.create_session(session_id=session_id, bundle_name="default")
+        session_manager.create_session(session_id=session_id, assistant_name="default")
 
         session_dir = session_manager.storage_dir / session_id
         assert session_dir.exists()
@@ -67,7 +67,7 @@ class TestSessionManager:
 
         assert loaded is not None
         assert loaded.session_id == sample_session.session_id
-        assert loaded.bundle_name == sample_session.bundle_name
+        assert loaded.assistant_name == sample_session.assistant_name
 
     def test_get_session_returns_none_for_nonexistent(self, session_manager: SessionManager) -> None:
         """Test get_session returns None for nonexistent session."""
@@ -76,8 +76,8 @@ class TestSessionManager:
 
     def test_list_sessions_returns_all(self, session_manager: SessionManager) -> None:
         """Test list_sessions returns all created sessions."""
-        session1 = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="profile1")
-        session2 = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="profile2")
+        session1 = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="profile1")
+        session2 = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="profile2")
 
         sessions = session_manager.list_sessions()
 
@@ -88,8 +88,8 @@ class TestSessionManager:
 
     def test_list_sessions_sorted_by_created_at(self, session_manager: SessionManager) -> None:
         """Test list_sessions returns sessions sorted by created_at (newest first)."""
-        session1 = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="first")
-        session2 = session_manager.create_session(session_id=str(uuid.uuid4()), bundle_name="second")
+        session1 = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="first")
+        session2 = session_manager.create_session(session_id=str(uuid.uuid4()), assistant_name="second")
 
         sessions = session_manager.list_sessions()
 
@@ -160,7 +160,7 @@ class TestSessionManager:
         """Test complete session lifecycle: create, append, load, delete."""
         # Create
         session_id = str(uuid.uuid4())
-        session_manager.create_session(session_id=session_id, bundle_name="lifecycle-test")
+        session_manager.create_session(session_id=session_id, assistant_name="lifecycle-test")
 
         # Verify exists
         session_dir = session_manager.storage_dir / session_id
@@ -182,17 +182,13 @@ class TestSessionManager:
         """Test delete_session also deletes all child subsessions."""
         # Create parent session
         parent_id = str(uuid.uuid4())
-        session_manager.create_session(session_id=parent_id, bundle_name="parent")
+        session_manager.create_session(session_id=parent_id, assistant_name="parent")
 
         # Create child subsessions
         child1_id = str(uuid.uuid4())
         child2_id = str(uuid.uuid4())
-        session_manager.create_session(
-            session_id=child1_id, bundle_name="child1", parent_session_id=parent_id
-        )
-        session_manager.create_session(
-            session_id=child2_id, bundle_name="child2", parent_session_id=parent_id
-        )
+        session_manager.create_session(session_id=child1_id, assistant_name="child1", parent_session_id=parent_id)
+        session_manager.create_session(session_id=child2_id, assistant_name="child2", parent_session_id=parent_id)
 
         # Verify all exist
         assert session_manager.get_session(parent_id) is not None
@@ -215,13 +211,9 @@ class TestSessionManager:
         parent_id = str(uuid.uuid4())
         child_id = str(uuid.uuid4())
 
-        session_manager.create_session(session_id=grandparent_id, bundle_name="grandparent")
-        session_manager.create_session(
-            session_id=parent_id, bundle_name="parent", parent_session_id=grandparent_id
-        )
-        session_manager.create_session(
-            session_id=child_id, bundle_name="child", parent_session_id=parent_id
-        )
+        session_manager.create_session(session_id=grandparent_id, assistant_name="grandparent")
+        session_manager.create_session(session_id=parent_id, assistant_name="parent", parent_session_id=grandparent_id)
+        session_manager.create_session(session_id=child_id, assistant_name="child", parent_session_id=parent_id)
 
         # Verify all exist
         assert session_manager.get_session(grandparent_id) is not None
@@ -244,13 +236,9 @@ class TestSessionManager:
         child1_id = str(uuid.uuid4())
         child2_id = str(uuid.uuid4())
 
-        session_manager.create_session(session_id=parent_id, bundle_name="parent")
-        session_manager.create_session(
-            session_id=child1_id, bundle_name="child1", parent_session_id=parent_id
-        )
-        session_manager.create_session(
-            session_id=child2_id, bundle_name="child2", parent_session_id=parent_id
-        )
+        session_manager.create_session(session_id=parent_id, assistant_name="parent")
+        session_manager.create_session(session_id=child1_id, assistant_name="child1", parent_session_id=parent_id)
+        session_manager.create_session(session_id=child2_id, assistant_name="child2", parent_session_id=parent_id)
 
         # Delete only child1
         result = session_manager.delete_session(child1_id)

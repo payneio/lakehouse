@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useEventStream } from '@/hooks/useEventStream';
-import { BASE_URL } from '@/api/client';
+import { fetchApi } from '@/api/client';
 
 interface ApprovalPrompt {
   approval_id: string;
@@ -46,21 +46,15 @@ export function ApprovalDialog({ sessionId }: ApprovalDialogProps) {
 
     setSubmitting(true);
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/v1/sessions/${sessionId}/approval-response`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            approval_id: prompt.approval_id,
-            response: option,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to submit approval response');
-      }
+      // Route through fetchApi so the auth token is attached (raw fetch 401s
+      // against the password gate).
+      await fetchApi(`/api/v1/sessions/${sessionId}/approval-response`, {
+        method: 'POST',
+        body: JSON.stringify({
+          approval_id: prompt.approval_id,
+          response: option,
+        }),
+      });
 
       setPrompt(null);
     } catch (error) {

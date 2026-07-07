@@ -200,7 +200,7 @@ class TestAutomationExecution:
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         (project_dir / PROJECT_MARKER_DIR).mkdir()
-        (project_dir / PROJECT_MARKER_DIR / "metadata.json").write_text('{"default_bundle": "foundation/foundation"}')
+        (project_dir / PROJECT_MARKER_DIR / "metadata.json").write_text('{"default_assistant": "foundation/foundation"}')
 
         # Create automation
         automation = automation_manager.create_automation(
@@ -211,71 +211,35 @@ class TestAutomationExecution:
             enabled=True,
         )
 
-        # Mock dependencies (using correct import paths from _execute_automation)
+        # Provide a mock opencode server registry and patch OpencodeRunner so no
+        # real `opencode serve` process or LLM call happens. The assistant
+        # "foundation/foundation" is provided by the autouse assistant-store fixture.
+        scheduler.opencode_servers = MagicMock()
+        scheduler.opencode_servers.get_or_create = AsyncMock(return_value=MagicMock())
+
+        async def mock_execute_stream(*args, **kwargs):
+            yield "Test response"
+
+        mock_runner = MagicMock()
+        mock_runner.execute_stream = mock_execute_stream
+
         with (
             patch("lakehoused.services.project_service.ProjectService") as mock_project_service,
-            patch("lakehoused.bundles.LakehouseBundleManager") as mock_bundle_manager,
             patch("lakehoused.config.loader.load_config") as mock_config,
-            patch("lakehoused.services.session_stream_registry.get_stream_registry") as mock_registry,
             patch("lakehoused.services.mention_resolver.MentionResolver") as mock_resolver,
-            patch("lakehoused.config.loader.load_secrets") as mock_secrets,
+            patch("lakehoused.opencode.OpencodeRunner", return_value=mock_runner),
         ):
-            # Setup mocks
             mock_config.return_value.data_path = str(tmp_path)
-            mock_secrets.return_value.api_keys = {}
 
             mock_project = MagicMock()
-            mock_project.metadata = {"default_bundle": "foundation/foundation"}
-
-            # Mock the ProjectService instance and its get method
+            mock_project.metadata = {"default_assistant": "foundation/foundation"}
             mock_service_instance = MagicMock()
             mock_service_instance.get.return_value = mock_project
             mock_project_service.return_value = mock_service_instance
 
-            # Mock the bundle manager
-            mock_bundle_instance = MagicMock()
-            mock_bundle_instance.bundles_dir = tmp_path / "bundles"
-
-            async def mock_generate_mount_plan(*args, **kwargs):
-                return {
-                    "session": {
-                        "settings": {},
-                        "orchestrator": {
-                            "module": "orchestrator/sequential-orchestrator",
-                            "source": "registry",
-                        },
-                        "context": {
-                            "module": "context/simple-context",
-                            "source": "registry",
-                        },
-                    },
-                    "tools": [],
-                }
-
-            mock_bundle_instance.generate_mount_plan = mock_generate_mount_plan
-            mock_bundle_manager.return_value = mock_bundle_instance
-
-            # Mock mention resolver
             mock_resolver_instance = MagicMock()
             mock_resolver_instance.resolve_runtime_mentions.return_value = []
             mock_resolver.return_value = mock_resolver_instance
-
-            # Mock stream registry and runner
-            mock_manager = MagicMock()
-            mock_runner = MagicMock()
-
-            # Mock the async execute_stream method to return empty async generator
-            async def mock_execute_stream(*args, **kwargs):
-                yield "Test response"
-
-            mock_runner.execute_stream = mock_execute_stream
-            mock_runner._session = MagicMock()
-            mock_manager.get_runner = AsyncMock(return_value=mock_runner)
-            mock_manager.mount_hooks = AsyncMock()
-
-            mock_registry_instance = MagicMock()
-            mock_registry_instance.get_or_create = AsyncMock(return_value=mock_manager)
-            mock_registry.return_value = mock_registry_instance
 
             # Execute automation
             await scheduler._execute_automation(automation.id)

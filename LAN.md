@@ -163,11 +163,11 @@ VITE_API_URL=http://your-machine.local:8420
 ### Step 3: Start Services
 
 ```bash
-# Start both daemon and webapp (runs in background)
-lakehouse start
+# Start both daemon and webapp
+make dev
 
-# Alternative: View logs while starting
-lakehouse start && lakehouse logs -f
+# View logs (in another terminal)
+lakehouse logs -f
 ```
 
 **Access from client device:**
@@ -175,12 +175,11 @@ lakehouse start && lakehouse logs -f
 http://your-machine.local:7777
 ```
 
-**Note:** The `lakehouse` CLI runs services in the background, so you don't need multiple terminals. Use:
+**Note:** The `lakehouse` CLI provides read-only helpers (it does not start/stop services):
 - `lakehouse status` - Check if services are running
 - `lakehouse logs` - View output
 - `lakehouse logs -f` - Stream live logs
-- `lakehouse stop` - Stop services
-- `lakehouse restart` - Restart after config changes
+- Lifecycle (start/stop/restart) is managed outside the CLI — see [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ---
 
@@ -350,7 +349,7 @@ curl http://your-machine.local:8420/health
 
 **Solutions:**
 1. Verify `daemon.host: 0.0.0.0` in `daemon.yaml` (under `daemon:` section)
-2. Restart services: `lakehouse restart`
+2. Restart the daemon (managed outside the CLI — see [DEPLOYMENT.md](DEPLOYMENT.md))
 3. Add firewall rules (see [Prerequisites](#prerequisites))
 4. Try IP address instead of hostname
 
@@ -382,7 +381,7 @@ curl http://your-machine.local:8420/health
        - "http://localhost:5173"
        - "http://client-device-ip:5173"
    ```
-3. Restart services after config changes: `lakehouse restart`
+3. Restart the daemon after config changes (managed outside the CLI — see [DEPLOYMENT.md](DEPLOYMENT.md))
 4. Clear browser cache and reload
 
 ### Problem: Webapp Not Accessible from Client Device
@@ -407,7 +406,7 @@ sudo ufw status | grep 5173
 ```
 
 **Solutions:**
-1. Ensure services are running: `lakehouse start`
+1. Ensure services are running (`make dev`)
 2. Add firewall rule for port 5173
 3. Use IP address: `http://192.168.1.100:5173`
 4. Check logs for errors: `lakehouse logs --webapp`
@@ -692,7 +691,7 @@ VITE_API_URL=http://100.x.x.x:8420
 **A:** No. Just update config files and restart services:
 1. Edit `daemon.yaml` → change `host`
 2. Edit `.env.local` → change `VITE_API_URL`
-3. Restart services: `lakehouse restart`
+3. Restart the daemon (managed outside the CLI — see [DEPLOYMENT.md](DEPLOYMENT.md))
 
 ### Q: Can I use both localhost and LAN access simultaneously?
 
@@ -824,7 +823,7 @@ sudo ufw allow 8420/tcp
 sudo ufw allow 5173/tcp
 
 # 4. Start services (runs in background)
-lakehouse start
+make dev
 ```
 
 ### Client Device Access
@@ -878,5 +877,5 @@ grep -A 5 cors_origins .lakehoused/config/daemon.yaml
 echo "VITE_API_URL=http://localhost:8420" > webapp/.env.local
 
 # 3. Restart services
-lakehouse restart
+make dev
 ```

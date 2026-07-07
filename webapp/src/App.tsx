@@ -3,7 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { LoginPage } from '@/pages/Login'
 import { HomePage } from '@/pages/Home'
-import { BundlesPage } from '@/pages/Bundles'
+import { AssistantsPage } from '@/pages/Assistants'
 import { ProjectsPage } from '@/pages/Projects'
 import { SessionView } from '@/features/session'
 
@@ -22,7 +22,7 @@ function App() {
         >
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<HomePage />} />
-          <Route path="bundles" element={<BundlesPage />} />
+          <Route path="assistants" element={<AssistantsPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/sessions/:sessionId" element={<SessionView />} />
           {/* Backward compatibility redirects */}

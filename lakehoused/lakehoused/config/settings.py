@@ -58,6 +58,17 @@ class DaemonSettings(BaseSettings):
 
     data_path: str = "~/amplifier"
 
+    # opencode backend settings.
+    # opencode_bin: path/name of the opencode executable (default: on PATH).
+    # opencode_assistants_path: root of the version-controlled assistant repo
+    #   containing _library/ and manifests/*.json (empty => $LAKEHOUSED_HOME/share/opencode).
+    # opencode_max_servers: cap on concurrent pooled `opencode serve` processes.
+    # opencode_server_idle_secs: idle timeout before an unused server is reaped.
+    opencode_bin: str = "opencode"
+    opencode_assistants_path: str = ""
+    opencode_max_servers: int = 8
+    opencode_server_idle_secs: int = 1800
+
     # Timezone for automation scheduling (IANA format, e.g., "America/Los_Angeles")
     timezone: str = "UTC"
 
@@ -101,7 +112,6 @@ class DaemonSettings(BaseSettings):
 
 DEFAULT_CONFIG = """# lakehoused daemon configuration
 # This configures the daemon transport layer only
-# For amplifier-core configuration, see amplifier-core docs
 
 # Server settings
 host: "127.0.0.1"
@@ -114,6 +124,17 @@ workers: 1
 # Can be overridden with LAKEHOUSED_DATA_PATH environment variable
 # Supports: absolute paths (/data), ~ for home directory (~), relative paths (./data)
 # data_path: "~/amplifier"
+
+# opencode backend
+# opencode_bin: opencode executable (default: found on PATH)
+# opencode_assistants_path: version-controlled repo of _library/ + manifests/*.json
+#   produced by amplifier2opencode (empty => $LAKEHOUSED_HOME/share/opencode)
+# opencode_max_servers: cap on concurrent pooled `opencode serve` processes
+# opencode_server_idle_secs: idle timeout before an unused server is reaped
+# opencode_bin: "opencode"
+# opencode_assistants_path: ""
+# opencode_max_servers: 8
+# opencode_server_idle_secs: 1800
 """
 
 

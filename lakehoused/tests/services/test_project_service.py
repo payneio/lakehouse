@@ -23,8 +23,8 @@ class TestProjectService:
         return root
 
     @pytest.fixture
-    def service(self, test_root: Path) -> ProjectService:
-        """Create service instance with test root."""
+    def service(self, test_root: Path, mock_storage_env: Path) -> ProjectService:
+        """Create service instance with test root and isolated state (registry)."""
         return ProjectService(test_root)
 
     # --- Security Tests (Critical Priority) ---
@@ -95,7 +95,7 @@ class TestProjectService:
 
         # Verify result
         assert result.relative_path == "test_project"
-        assert "default_bundle" in result.metadata
+        assert "default_assistant" in result.metadata
         assert result.created_at is not None
         assert result.last_used_at is None
 
@@ -105,15 +105,15 @@ class TestProjectService:
         assert (test_root / "test_project" / PROJECT_MARKER_DIR / "metadata.json").exists()
 
     def test_create_with_explicit_profile(self, service: ProjectService) -> None:
-        """Test creating directory with explicit default_bundle."""
+        """Test creating directory with explicit default_assistant."""
         create_req = ProjectCreate(
             relative_path="custom_project",
-            default_bundle="developer-expertise/dev",
+            default_assistant="developer-expertise/dev",
         )
 
         result = service.create(create_req)
 
-        assert result.metadata["default_bundle"] == "developer-expertise/dev"
+        assert result.metadata["default_assistant"] == "developer-expertise/dev"
 
     def test_create_with_custom_metadata(self, service: ProjectService) -> None:
         """Test creating directory with additional metadata."""
@@ -131,7 +131,7 @@ class TestProjectService:
         assert result.metadata["name"] == "My Project"
         assert result.metadata["description"] == "Test project"
         assert result.metadata["tags"] == ["test", "example"]
-        assert "default_bundle" in result.metadata  # Should still be set
+        assert "default_assistant" in result.metadata  # Should still be set
 
     def test_create_with_explicit_marker_flag(self, service: ProjectService, test_root: Path) -> None:
         """Test that create_marker flag controls marker directory creation."""
@@ -171,7 +171,7 @@ class TestProjectService:
         assert result is not None
         assert result.relative_path == "to_retrieve"
         assert result.metadata["name"] == "Retrievable"
-        assert result.metadata["default_bundle"] == created.metadata["default_bundle"]
+        assert result.metadata["default_assistant"] == created.metadata["default_assistant"]
 
     def test_get_nonexistent_returns_none(self, service: ProjectService) -> None:
         """Test that getting non-existent directory returns None."""
@@ -224,7 +224,7 @@ class TestProjectService:
             metadata={
                 "name": "Updated",
                 "description": "New description",
-                "default_bundle": "foundation/base",
+                "default_assistant": "foundation/base",
             }
         )
         result = service.update("to_update", update_req)
@@ -232,7 +232,7 @@ class TestProjectService:
         assert result is not None
         assert result.metadata["name"] == "Updated"
         assert result.metadata["description"] == "New description"
-        assert result.metadata["default_bundle"] == "foundation/base"
+        assert result.metadata["default_assistant"] == "foundation/base"
 
     def test_update_nonexistent_returns_none(self, service: ProjectService) -> None:
         """Test that updating non-existent directory returns None."""
@@ -307,19 +307,19 @@ class TestProjectService:
         """Test that explicit profile is used when provided."""
         create_req = ProjectCreate(
             relative_path="explicit",
-            default_bundle="custom/profile",
+            default_assistant="custom/profile",
         )
 
         result = service.create(create_req)
 
-        assert result.metadata["default_bundle"] == "custom/profile"
+        assert result.metadata["default_assistant"] == "custom/profile"
 
     def test_inherits_from_parent_directory(self, service: ProjectService, test_root: Path) -> None:
-        """Test that child inherits default_bundle from parent."""
+        """Test that child inherits default_assistant from parent."""
         # Create parent with explicit bundle
         parent_req = ProjectCreate(
             relative_path="parent",
-            default_bundle="parent/profile",
+            default_assistant="parent/profile",
         )
         service.create(parent_req)
 
@@ -327,14 +327,14 @@ class TestProjectService:
         child_req = ProjectCreate(relative_path="parent/child")
         child = service.create(child_req)
 
-        assert child.metadata["default_bundle"] == "parent/profile"
+        assert child.metadata["default_assistant"] == "parent/profile"
 
     def test_inherits_from_root_when_no_parent(self, service: ProjectService, test_root: Path) -> None:
         """Test that directory inherits from root when no parent amplified."""
         # Amplify root first
         root_req = ProjectCreate(
             relative_path=".",
-            default_bundle="root/profile",
+            default_assistant="root/profile",
         )
         service.create(root_req)
 
@@ -342,44 +342,44 @@ class TestProjectService:
         child_req = ProjectCreate(relative_path="orphan")
         child = service.create(child_req)
 
-        assert child.metadata["default_bundle"] == "root/profile"
+        assert child.metadata["default_assistant"] == "root/profile"
 
-    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_BUNDLE": "env/profile"})
+    @patch.dict(os.environ, {"LAKEHOUSED_DEFAULT_ASSISTANT": "env/profile"})
     def test_root_uses_env_var_default(self, service: ProjectService) -> None:
         """Test that root uses environment variable for default profile."""
         create_req = ProjectCreate(relative_path="project")
 
         result = service.create(create_req)
 
-        assert result.metadata["default_bundle"] == "env/profile"
+        assert result.metadata["default_assistant"] == "env/profile"
 
     def test_nested_inheritance_chain(self, service: ProjectService) -> None:
         """Test inheritance through multiple levels."""
         # Create grandparent
         grandparent_req = ProjectCreate(
             relative_path="grandparent",
-            default_bundle="grandparent/profile",
+            default_assistant="grandparent/profile",
         )
         service.create(grandparent_req)
 
         # Create parent (inherits from grandparent)
         parent_req = ProjectCreate(relative_path="grandparent/parent")
         parent = service.create(parent_req)
-        assert parent.metadata["default_bundle"] == "grandparent/profile"
+        assert parent.metadata["default_assistant"] == "grandparent/profile"
 
         # Create child (inherits from parent)
         child_req = ProjectCreate(relative_path="grandparent/parent/child")
         child = service.create(child_req)
-        assert child.metadata["default_bundle"] == "grandparent/profile"
+        assert child.metadata["default_assistant"] == "grandparent/profile"
 
         # Now update parent to have different profile
-        parent_update = ProjectUpdate(metadata={"default_bundle": "parent/profile"})
+        parent_update = ProjectUpdate(metadata={"default_assistant": "parent/profile"})
         service.update("grandparent/parent", parent_update)
 
         # Create new child (should inherit parent's updated profile)
         child2_req = ProjectCreate(relative_path="grandparent/parent/child2")
         child2 = service.create(child2_req)
-        assert child2.metadata["default_bundle"] == "parent/profile"
+        assert child2.metadata["default_assistant"] == "parent/profile"
 
     # --- Edge Cases ---
 
@@ -427,9 +427,9 @@ class TestProjectService:
 
         assert result is None
 
-    def test_missing_default_bundle_in_metadata(self, service: ProjectService, test_root: Path) -> None:
-        """Test handling of project missing default_bundle."""
-        # Create directory manually without default_bundle
+    def test_missing_default_assistant_in_metadata(self, service: ProjectService, test_root: Path) -> None:
+        """Test handling of project missing default_assistant."""
+        # Create directory manually without default_assistant
         marker_path = test_root / "no_profile" / PROJECT_MARKER_DIR
         marker_path.mkdir(parents=True)
 
@@ -441,7 +441,7 @@ class TestProjectService:
 
         assert result is not None
         assert result.metadata["name"] == "No Profile"
-        assert "default_bundle" not in result.metadata
+        assert "default_assistant" not in result.metadata
 
     def test_special_characters_in_path(self, service: ProjectService) -> None:
         """Test paths with special but valid characters."""
@@ -520,7 +520,7 @@ class TestProjectService:
 
         # Update with new metadata (merging with existing)
         update_req = ProjectUpdate(
-            metadata={"field1": "updated", "field3": "value3", "default_bundle": "foundation/base"}
+            metadata={"field1": "updated", "field3": "value3", "default_assistant": "foundation/base"}
         )
         result = service.update("preserve", update_req)
 
@@ -558,7 +558,7 @@ class TestProjectService:
         tmp_path = metadata_path.with_suffix(".tmp")
 
         # Update metadata
-        update_req = ProjectUpdate(metadata={"test": "atomic", "default_bundle": "foundation/base"})
+        update_req = ProjectUpdate(metadata={"test": "atomic", "default_assistant": "foundation/base"})
         service.update("atomic", update_req)
 
         # Verify tmp file doesn't exist after successful write
@@ -619,3 +619,113 @@ class TestProjectService:
         finally:
             # Restore permissions for cleanup
             agents_path.chmod(0o644)
+
+
+class TestProjectRegistry:
+    """Tests for the persistent project registry (no filesystem walk on list)."""
+
+    @pytest.fixture
+    def test_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "test_root"
+        root.mkdir()
+        return root
+
+    @pytest.fixture
+    def service(self, test_root: Path, mock_storage_env: Path) -> ProjectService:
+        return ProjectService(test_root)
+
+    def _registry_path(self, mock_storage_env: Path) -> Path:
+        from lakehoused.services.project_service import REGISTRY_FILENAME
+
+        return mock_storage_env / "state" / REGISTRY_FILENAME
+
+    def _write_marker(self, root: Path, rel: str, bundle: str = "foundation/base") -> None:
+        """Create a project marker + metadata.json directly on disk (out-of-band)."""
+        marker = root / rel / PROJECT_MARKER_DIR
+        marker.mkdir(parents=True)
+        (marker / "metadata.json").write_text(json.dumps({"default_assistant": bundle}))
+
+    def test_registry_file_written_on_create(self, service: ProjectService, mock_storage_env: Path) -> None:
+        """Creating a project persists it to the registry file."""
+        service.create(ProjectCreate(relative_path="p1"))
+
+        registry_path = self._registry_path(mock_storage_env)
+        assert registry_path.exists()
+        data = json.loads(registry_path.read_text())
+        paths = {e["relative_path"] for e in data["projects"]}
+        assert "p1" in paths
+
+    def test_list_entries_omit_agents_content(self, service: ProjectService, test_root: Path) -> None:
+        """Registry-backed list entries exclude AGENTS.md; get() still returns it."""
+        service.create(ProjectCreate(relative_path="withagents"))
+        agents_path = test_root / "withagents" / PROJECT_MARKER_DIR / "AGENTS.md"
+        agents_path.write_text("# Agents\n", encoding="utf-8")
+
+        listed = service.list_all()
+        assert len(listed) == 1
+        assert listed[0].agents_content is None  # trimmed from list payload
+
+        fetched = service.get("withagents")
+        assert fetched is not None
+        assert fetched.agents_content == "# Agents\n"
+
+    def test_list_does_not_scan_filesystem(self, service: ProjectService, test_root: Path) -> None:
+        """list_all() reads the registry only; out-of-band markers are not discovered."""
+        service.create(ProjectCreate(relative_path="known"))
+
+        # Create a project marker directly on disk (bypassing the service).
+        self._write_marker(test_root, "outofband")
+
+        # Hot path: registry only — the out-of-band project is invisible.
+        paths = {p.relative_path for p in service.list_all()}
+        assert paths == {"known"}
+
+    def test_force_refresh_reconciles_out_of_band(self, service: ProjectService, test_root: Path) -> None:
+        """list_all(force_refresh=True) rescans and picks up out-of-band markers."""
+        service.create(ProjectCreate(relative_path="known"))
+        self._write_marker(test_root, "outofband")
+
+        paths = {p.relative_path for p in service.list_all(force_refresh=True)}
+        assert paths == {"known", "outofband"}
+
+    def test_delete_removes_from_registry(self, service: ProjectService, mock_storage_env: Path) -> None:
+        """Deleting a project removes it from the registry file."""
+        service.create(ProjectCreate(relative_path="temp"))
+        service.delete("temp", remove_marker=True)
+
+        assert {p.relative_path for p in service.list_all()} == set()
+        data = json.loads(self._registry_path(mock_storage_env).read_text())
+        assert data["projects"] == []
+
+    def test_bootstrap_builds_registry_from_existing_markers(self, test_root: Path, mock_storage_env: Path) -> None:
+        """A fresh service with no registry file bootstraps from existing markers."""
+        # Markers exist on disk but no registry file yet.
+        self._write_marker(test_root, "alpha")
+        self._write_marker(test_root, "nested/beta")
+        assert not self._registry_path(mock_storage_env).exists()
+
+        service = ProjectService(test_root)  # __init__ bootstraps
+
+        assert self._registry_path(mock_storage_env).exists()
+        assert {p.relative_path for p in service.list_all()} == {"alpha", "nested/beta"}
+
+    def test_registry_persists_across_instances(self, service: ProjectService, test_root: Path) -> None:
+        """A second service instance loads the registry without rescanning."""
+        service.create(ProjectCreate(relative_path="persisted"))
+
+        # Remove the marker from disk; a scan would miss it, but the registry won't.
+        import shutil
+
+        shutil.rmtree(test_root / "persisted" / PROJECT_MARKER_DIR)
+
+        second = ProjectService(test_root)
+        assert {p.relative_path for p in second.list_all()} == {"persisted"}
+
+    def test_scan_prunes_heavy_dirs(self, test_root: Path, mock_storage_env: Path) -> None:
+        """The bootstrap/reconcile scan skips heavy dirs like node_modules/.git."""
+        self._write_marker(test_root, "real")
+        # A stray marker buried inside a pruned directory must be ignored.
+        self._write_marker(test_root, "node_modules/pkg")
+
+        service = ProjectService(test_root)
+        assert {p.relative_path for p in service.list_all()} == {"real"}

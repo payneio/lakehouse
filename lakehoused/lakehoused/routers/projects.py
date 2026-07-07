@@ -38,7 +38,7 @@ async def create_project(
     """Create/register a new project.
 
     Creates directory structure and project marker if requested.
-    Resolves default_bundle using inheritance if not provided.
+    Resolves default_assistant using inheritance if not provided.
 
     Args:
         create_req: Creation request with path, optional profile, metadata
@@ -110,6 +110,26 @@ async def list_projects(
         )
     except Exception as e:
         logger.error(f"Failed to list projects: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+@router.post("/rescan", response_model=ProjectList)
+async def rescan_projects(
+    service: ProjectService = Depends(get_service),
+) -> ProjectList:
+    """Reconcile the project registry with the filesystem (pruned scan).
+
+    Use this to pick up projects created or removed outside the app. This is not
+    on the render hot path; normal listing reads the registry without scanning.
+
+    Returns:
+        The reconciled list of projects
+    """
+    try:
+        projects = service.list_all(force_refresh=True)
+        return ProjectList(projects=projects, total=len(projects))
+    except Exception as e:
+        logger.error(f"Failed to rescan projects: {e}")
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
 

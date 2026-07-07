@@ -1,6 +1,6 @@
 export * from './client';
 export * from './auth';
-export * from './bundles';
+export * from './assistants';
 export * from './registries';
 export * from './projects';
 export * from './directories';

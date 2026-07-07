@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { BASE_URL } from '@/api/client';
+import { fetchApi } from '@/api/client';
 
 /**
  * Hook to automatically mark a session as read after viewing it for 2 seconds.
@@ -13,15 +13,9 @@ export function useMarkSessionRead(sessionId: string | undefined) {
 
   const markRead = useMutation({
     mutationFn: async (sid: string) => {
-      const response = await fetch(
-        `${BASE_URL}/api/v1/sessions/${sid}/mark-read`,
-        { method: 'POST' }
-      );
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Failed to mark session as read: ${error}`);
-      }
-      return response.json();
+      // Route through fetchApi so the auth token is attached (raw fetch 401s
+      // against the password gate).
+      return fetchApi(`/api/v1/sessions/${sid}/mark-read`, { method: 'POST' });
     },
     onSuccess: () => {
       // Query invalidation happens via SSE session:updated event
