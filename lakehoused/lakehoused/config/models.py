@@ -1,7 +1,7 @@
 """Configuration models for lakehoused daemon.
 
 These models define the structure of the daemon's configuration file,
-including startup behavior, cache management, and daemon settings.
+including transport and daemon settings.
 """
 
 from __future__ import annotations
@@ -11,37 +11,6 @@ from pathlib import Path
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import field_validator
-
-
-class StartupConfig(BaseModel):
-    """Configuration for daemon startup behavior."""
-
-    auto_discover_profiles: bool = Field(
-        default=True,
-        description="Automatically discover new profiles on startup",
-    )
-    auto_compile_profiles: bool = Field(
-        default=True,
-        description="Automatically compile discovered profiles on startup",
-    )
-    check_cache_on_startup: bool = Field(
-        default=True,
-        description="Check cache freshness on startup",
-    )
-    update_stale_caches: bool = Field(
-        default=False,
-        description="Automatically update stale caches on startup (if False, only report status)",
-    )
-    parallel_compilation: bool = Field(
-        default=True,
-        description="Compile profiles in parallel when possible",
-    )
-    max_parallel_workers: int = Field(
-        default=4,
-        ge=1,
-        le=16,
-        description="Maximum number of parallel compilation workers",
-    )
 
 
 class DaemonConfig(BaseModel):
@@ -201,7 +170,6 @@ class Secrets(BaseModel):
 class Config(BaseModel):
     """Complete daemon configuration."""
 
-    startup: StartupConfig = Field(default_factory=StartupConfig)
     daemon: DaemonConfig = Field(default_factory=DaemonConfig)
 
     @classmethod

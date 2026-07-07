@@ -65,22 +65,31 @@ make dev
 
 **For auto-starting on reboot / long-running deployments**, see [DEPLOYMENT.md](./DEPLOYMENT.md).
 
-#### Inspecting the stack with the Lakehouse CLI
+#### The Lakehouse CLI
 
-The CLI provides read-only helpers (it does not start or stop services):
+The CLI inspects the stack and registers projects (it does not manage lifecycle):
 
 ```bash
-# Check status
+# Daemon/webapp status (daemon checked via its HTTP API)
 lakehouse status
 
-# View logs
-lakehouse logs              # Show both daemon and webapp logs
-lakehouse logs --daemon     # Show daemon logs only
-lakehouse logs -f --webapp  # Follow webapp logs live
+# Daemon logs from the systemd journal
+lakehouse logs                 # last 50 lines
+lakehouse logs -f              # follow live
+lakehouse logs -u <unit>       # override unit (default: $LAKEHOUSED_SYSTEMD_UNIT)
 
-# Open webapp in browser
+# Register the current directory as a lakehouse project
+lakehouse init                 # or: lakehouse init <path> --name "My Project"
+
+# Open the webapp in a browser
 lakehouse open
 ```
+
+`lakehouse init` asks the daemon to create the directory's `.lakehouse` marker and register
+it (the directory must live under the daemon's data root). It needs the daemon running and,
+if a password gate is enabled, the password via `--password`, `LAKEHOUSED_AUTH_PASSWORD`, or
+`~/.lakehoused/config/secrets.yaml`. `lakehouse logs` reads journald, so it targets a
+systemd-managed daemon.
 
 **Note:** Logs are written to `.lakehoused/logs/` (in your daemon's state directory).
 

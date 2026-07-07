@@ -7,8 +7,6 @@ interface AssistantCardProps {
 }
 
 export function AssistantCard({ assistant, onView }: AssistantCardProps) {
-  const isUserAssistant = assistant.source === 'user';
-
   return (
     <div
       onClick={() => onView(assistant)}
@@ -18,13 +16,6 @@ export function AssistantCard({ assistant, onView }: AssistantCardProps) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <Package className="h-8 w-8 text-primary/70 shrink-0" />
         <div className="flex flex-col items-end gap-1">
-          <span
-            className={`px-1.5 py-0.5 text-xs rounded ${
-              isUserAssistant ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            {isUserAssistant ? 'User' : 'System'}
-          </span>
           <span className="text-xs text-muted-foreground">v{assistant.version}</span>
         </div>
       </div>

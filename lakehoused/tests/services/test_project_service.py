@@ -729,3 +729,45 @@ class TestProjectRegistry:
 
         service = ProjectService(test_root)
         assert {p.relative_path for p in service.list_all()} == {"real"}
+
+    def _write_registry(self, mock_storage_env: Path, entries: list[dict]) -> Path:
+        """Write a registry file directly (to simulate a polluted/stale file)."""
+        path = self._registry_path(mock_storage_env)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"projects": entries}))
+        return path
+
+    def test_self_heal_drops_entries_outside_root(self, test_root: Path, mock_storage_env: Path) -> None:
+        """A registry with only foreign paths (different root) is rebuilt via scan.
+
+        Regression guard for the production bug where test /tmp entries polluted the
+        real registry and the daemon (root=/data) showed them in the nav.
+        """
+        self._write_marker(test_root, "real")
+        # Registry file contains only an entry whose path is NOT under test_root.
+        self._write_registry(
+            mock_storage_env,
+            [{"relative_path": "ghost", "metadata": {}, "path": "/tmp/elsewhere/ghost", "is_project": True}],
+        )
+
+        service = ProjectService(test_root)  # __init__ loads + self-heals
+        paths = {p.relative_path for p in service.list_all()}
+        assert "ghost" not in paths  # foreign entry dropped
+        assert paths == {"real"}  # rebuilt from a scan of the actual root
+
+    def test_self_heal_prunes_foreign_keeps_valid(self, test_root: Path, mock_storage_env: Path) -> None:
+        """Entries under the root are kept; foreign ones are dropped and the file rewritten."""
+        keep_abs = str((test_root / "keep").resolve())
+        registry_path = self._write_registry(
+            mock_storage_env,
+            [
+                {"relative_path": "keep", "metadata": {}, "path": keep_abs, "is_project": True},
+                {"relative_path": "ghost", "metadata": {}, "path": "/tmp/x/ghost", "is_project": True},
+            ],
+        )
+
+        service = ProjectService(test_root)
+        assert {p.relative_path for p in service.list_all()} == {"keep"}
+        # Foreign entry pruned from the persisted file too.
+        data = json.loads(registry_path.read_text())
+        assert {e["relative_path"] for e in data["projects"]} == {"keep"}

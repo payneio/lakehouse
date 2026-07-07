@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 interface CopyAssistantDialogProps {
   open: boolean;
   sourceAssistantName: string | null;
-  sourceAssistantSource: 'user' | 'system' | null;
   onClose: () => void;
   onCopy: (newName: string) => void;
   isLoading?: boolean;
@@ -15,7 +14,6 @@ interface CopyAssistantDialogProps {
 export function CopyAssistantDialog({
   open,
   sourceAssistantName,
-  sourceAssistantSource,
   onClose,
   onCopy,
   isLoading = false,
@@ -72,15 +70,6 @@ export function CopyAssistantDialog({
             <label className="block text-sm font-medium mb-1">Source</label>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm">{sourceAssistantName}</span>
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded ${
-                  sourceAssistantSource === 'user'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {sourceAssistantSource === 'user' ? 'User' : 'System'}
-              </span>
             </div>
           </div>
 

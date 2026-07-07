@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 class DaemonSettings(BaseSettings):
     """Configuration for lakehoused daemon.
 
-    This configures the daemon transport layer (HTTP/SSE), not amplifier-core.
-    amplifier-core has its own configuration system.
+    This configures the daemon transport layer (HTTP/SSE) and the opencode
+    backend that drives chat.
 
     Attributes:
         host: Listen address (default: 127.0.0.1)
@@ -56,7 +56,7 @@ class DaemonSettings(BaseSettings):
     log_level: str = "info"
     workers: int = 1
 
-    data_path: str = "~/amplifier"
+    data_path: str = "/data"
 
     # opencode backend settings.
     # opencode_bin: path/name of the opencode executable (default: on PATH).
@@ -120,15 +120,15 @@ log_level: "info"
 workers: 1
 
 # Data directory root
-# Default: "~/amplifier" (defined in DaemonSettings class)
+# Default: "/data" (defined in DaemonSettings class)
 # Can be overridden with LAKEHOUSED_DATA_PATH environment variable
 # Supports: absolute paths (/data), ~ for home directory (~), relative paths (./data)
-# data_path: "~/amplifier"
+# data_path: "/data"
 
 # opencode backend
 # opencode_bin: opencode executable (default: found on PATH)
 # opencode_assistants_path: version-controlled repo of _library/ + manifests/*.json
-#   produced by amplifier2opencode (empty => $LAKEHOUSED_HOME/share/opencode)
+#   (empty => $LAKEHOUSED_HOME/share/opencode)
 # opencode_max_servers: cap on concurrent pooled `opencode serve` processes
 # opencode_server_idle_secs: idle timeout before an unused server is reaped
 # opencode_bin: "opencode"

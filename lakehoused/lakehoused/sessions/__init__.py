@@ -1,4 +1,4 @@
-"""Session management for amplifier library."""
+"""Session management for lakehoused."""
 
 from lakehoused.models.sessions import Session
 from lakehoused.models.sessions import SessionIndex

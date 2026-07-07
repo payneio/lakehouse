@@ -17,10 +17,6 @@
       "path": "webapp",
     },
     {
-      "name": "guides",
-      "path": "guides",
-    },
-    {
       "name": "notebooks",
       "path": "notebooks",
     },

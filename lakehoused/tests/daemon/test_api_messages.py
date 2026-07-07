@@ -47,32 +47,6 @@ def mock_session_manager(mock_session: Mock) -> Mock:
 
 
 @pytest.fixture
-def mock_mount_plan() -> dict:
-    """Sample mount plan for testing.
-
-    Returns:
-        Sample mount plan with basic structure
-    """
-    return {
-        "format_version": "1.0",
-        "session": {
-            "session_id": "test_session_123",
-            "bundle_id": "foundation/base",
-            "created_at": datetime.now(UTC).isoformat(),
-            "settings": {},
-        },
-        "mount_points": [
-            {
-                "mount_type": "embedded",
-                "module_id": "foundation/base.agents.test-agent",
-                "module_type": "agent",
-                "content": "# Test Agent",
-            }
-        ],
-    }
-
-
-@pytest.fixture
 def mock_session_metadata() -> SessionMetadata:
     """Sample session metadata for testing.
 
@@ -83,7 +57,6 @@ def mock_session_metadata() -> SessionMetadata:
         session_id="test_session_123",
         status=SessionStatus.CREATED,
         assistant_name="foundation/base",
-        mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
     )
 
@@ -309,7 +282,6 @@ class TestMessagesAPI:
                 session_id=f"test_session_{session_counter[0]}",
                 status=SessionStatus.CREATED,
                 assistant_name="foundation/base",
-                mount_plan_path=f"state/sessions/test_session_{session_counter[0]}/mount_plan.json",
                 created_at=datetime.now(UTC),
             )
 

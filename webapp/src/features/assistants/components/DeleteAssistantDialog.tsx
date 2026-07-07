@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 interface DeleteAssistantDialogProps {
   open: boolean;
   assistantName: string | null;
-  assistantSource?: 'user' | 'system' | null;
   onClose: () => void;
   onDelete: () => void;
   isLoading?: boolean;
@@ -14,7 +13,6 @@ interface DeleteAssistantDialogProps {
 export function DeleteAssistantDialog({
   open,
   assistantName,
-  assistantSource = 'user',
   onClose,
   onDelete,
   isLoading = false,
@@ -28,24 +26,19 @@ export function DeleteAssistantDialog({
 
   if (!assistantName) return null;
 
-  const isUserAssistant = assistantSource === 'user';
-  const title = isUserAssistant ? 'Delete Assistant' : 'Remove Assistant';
-  const actionLabel = isUserAssistant ? 'Delete Assistant' : 'Remove Assistant';
-  const loadingLabel = isUserAssistant ? 'Deleting...' : 'Removing...';
-
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <Trash2 className="h-5 w-5" />
-            {title}
+            Delete Assistant
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <p className="text-sm">
-            Are you sure you want to {isUserAssistant ? 'delete' : 'remove'} the assistant{' '}
+            Are you sure you want to delete the assistant{' '}
             <code className="bg-gray-100 px-1 rounded font-mono">{assistantName}</code>?
           </p>
           <p className="text-sm text-muted-foreground">
@@ -76,7 +69,7 @@ export function DeleteAssistantDialog({
             className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
             disabled={isLoading}
           >
-            {isLoading ? loadingLabel : actionLabel}
+            {isLoading ? 'Deleting...' : 'Delete Assistant'}
           </button>
         </DialogFooter>
       </DialogContent>

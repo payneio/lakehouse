@@ -1,5 +1,6 @@
 """API integration tests for projects endpoints."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,28 @@ def client(override_service) -> TestClient:
 @pytest.mark.integration
 class TestProjectsAPI:
     """Test projects API endpoints."""
+
+    # --- Rescan Endpoint Tests ---
+
+    def test_rescan_picks_up_out_of_band_project(self, client: TestClient, test_root: Path) -> None:
+        """POST /api/v1/projects/rescan reconciles markers created outside the app."""
+        # Registered normally.
+        client.post("/api/v1/projects/", json={"relative_path": "p1"})
+
+        # Create a marker directly on disk (bypassing the API).
+        marker = test_root / "p2" / PROJECT_MARKER_DIR
+        marker.mkdir(parents=True)
+        (marker / "metadata.json").write_text(json.dumps({"default_assistant": "foundation/base"}))
+
+        # Not visible before rescan (registry only, no walk).
+        listed = client.get("/api/v1/projects/").json()["projects"]
+        assert "p2" not in {p["relative_path"] for p in listed}
+
+        # Rescan reconciles it in.
+        resp = client.post("/api/v1/projects/rescan")
+        assert resp.status_code == 200
+        paths = {p["relative_path"] for p in resp.json()["projects"]}
+        assert {"p1", "p2"} <= paths
 
     # --- Create Endpoint Tests ---
 

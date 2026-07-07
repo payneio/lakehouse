@@ -42,7 +42,6 @@ class SessionManager:
         self,
         session_id: str,
         assistant_name: str,
-        mount_plan: Any = None,
         parent_session_id: str | None = None,
         project_path: str = ".",
         name: str | None = None,
@@ -53,7 +52,6 @@ class SessionManager:
         Args:
             session_id: Unique session identifier
             assistant_name: Assistant name for this session
-            mount_plan: Complete mount plan to persist
             parent_session_id: Optional parent session for sub-sessions
             project_path: Relative path to project directory (defaults to ".")
             name: Optional human-readable session name
@@ -67,7 +65,6 @@ class SessionManager:
 
         Side Effects:
             Creates session directory with:
-            - mount_plan.json (full mount plan)
             - session.json (metadata)
             - transcript.jsonl (empty)
             Updates index.json
@@ -82,18 +79,6 @@ class SessionManager:
             # Create session directory
             session_dir.mkdir(parents=True)
 
-            # Write mount_plan.json if provided
-            if mount_plan is not None:
-                import json
-
-                mount_plan_path = session_dir / "mount_plan.json"
-                # Handle both Pydantic models and dicts
-                if hasattr(mount_plan, "model_dump"):
-                    mount_plan_data = mount_plan.model_dump()
-                else:
-                    mount_plan_data = mount_plan
-                mount_plan_path.write_text(json.dumps(mount_plan_data, indent=2))
-
             # Create SessionMetadata with ACTIVE status (auto-start)
             now = datetime.now(UTC)
             metadata = SessionMetadata(
@@ -106,7 +91,6 @@ class SessionManager:
                 started_at=now,  # Set started_at to creation time
                 ended_at=None,
                 parent_session_id=parent_session_id,
-                mount_plan_path="mount_plan.json",
                 message_count=0,
                 agent_invocations=0,
                 token_usage=None,

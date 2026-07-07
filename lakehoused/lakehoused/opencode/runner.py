@@ -56,7 +56,6 @@ class OpencodeRunner:
         directory: str,
         agent: str | None = None,
         model: str | None = None,
-        system: str | None = None,
         opencode_session_id: str | None = None,
         on_session_created: Callable[[str], None] | None = None,
     ) -> None:
@@ -67,7 +66,6 @@ class OpencodeRunner:
         self._directory = directory
         self._agent = agent
         self._model = model
-        self._system = system
         self._ocid = opencode_session_id
         self._on_session_created = on_session_created
         self._execution_lock = asyncio.Lock()
@@ -94,7 +92,7 @@ class OpencodeRunner:
         logger.info("Created opencode session %s for lakehouse session %s", self._ocid, self._session_id)
 
     def _build_prompt(self, user_input: str, ctx_messages: list[Any] | None) -> str:
-        """Inline @mention/context messages as a preamble to the user text."""
+        """Inline runtime @mention messages as a preamble to the user text."""
         if not ctx_messages:
             return user_input
         preambles: list[str] = []
@@ -140,6 +138,9 @@ class OpencodeRunner:
             client = self._server.client
             assert client is not None
 
+            # Project context (AGENTS.md chain + @mentions) is injected by the opencode
+            # `agent_context` plugin, not here. This path only inlines the user's runtime
+            # @mentions as a preamble to their message.
             prompt = self._build_prompt(user_input, runtime_context_messages)
             queue = self._server.subscribe(self._ocid)
             state = TurnState()
@@ -151,7 +152,6 @@ class OpencodeRunner:
                     self._directory,
                     agent=self._agent,
                     model=self._model,
-                    system=self._system,
                 )
                 while True:
                     event = await queue.get()

@@ -99,7 +99,6 @@ export interface Session {
   endedAt?: string;
   parentSessionId?: string;
   projectPath?: string;
-  mountPlanPath?: string;
   messageCount?: number;
   agentInvocations?: number;
   tokenUsage?: unknown;

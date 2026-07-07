@@ -27,44 +27,6 @@ class MessageResponse(CamelCaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Optional metadata")
 
 
-class SessionInfoResponse(CamelCaseModel):
-    """Response for session listing.
-
-    Attributes:
-        id: Session ID
-        profile: Profile name
-        created_at: Creation timestamp
-        updated_at: Last update timestamp
-        message_count: Number of messages in session
-    """
-
-    id: str = Field(..., description="Session ID")
-    profile: str = Field(..., description="Profile name")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
-    message_count: int = Field(..., description="Number of messages")
-
-
-class SessionResponse(CamelCaseModel):
-    """Response for full session details.
-
-    Attributes:
-        id: Session ID
-        profile: Profile name
-        context: Session context data
-        created_at: Creation timestamp
-        updated_at: Last update timestamp
-        message_count: Number of messages in session
-    """
-
-    id: str = Field(..., description="Session ID")
-    profile: str = Field(..., description="Profile name")
-    context: dict[str, Any] = Field(..., description="Session context")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
-    message_count: int = Field(..., description="Number of messages")
-
-
 class TranscriptResponse(CamelCaseModel):
     """Response for session transcript.
 

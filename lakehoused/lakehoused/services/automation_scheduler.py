@@ -461,14 +461,6 @@ class AutomationScheduler:
             runtime_context_messages = resolver.resolve_runtime_mentions(automation.message)
             logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
 
-            # Build project context (lakehouse primer + ancestor AGENTS.md chain), delivered to
-            # opencode as the prompt `system` field so automated turns carry project context too.
-            from ..services.project_context import build_project_context_system
-
-            system_context = build_project_context_system(Path(absolute_project_path), data_path)
-            if system_context:
-                logger.info(f"Built project context system ({len(system_context)} chars)")
-
             # Boot the assistant's opencode server and build a headless runner.
             if self.opencode_servers is None:
                 raise RuntimeError("opencode server registry is unavailable")
@@ -491,7 +483,6 @@ class AutomationScheduler:
                 directory=absolute_project_path,
                 agent=resolved.default_agent,
                 model=resolved.model,
-                system=system_context,
                 on_session_created=_persist_ocid,
             )
 

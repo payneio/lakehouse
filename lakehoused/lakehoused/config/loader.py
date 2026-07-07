@@ -197,29 +197,6 @@ def _apply_env_overrides(config: Config) -> Config:
     # Convert config to dict for manipulation
     config_dict = config.model_dump()
 
-    # Check for startup overrides
-    startup_overrides = {}
-    for key in [
-        "auto_discover_profiles",
-        "auto_compile_profiles",
-        "check_cache_on_startup",
-        "update_stale_caches",
-        "parallel_compilation",
-        "max_parallel_workers",
-    ]:
-        env_var = f"LAKEHOUSED_STARTUP_{key.upper()}"
-        if env_var in os.environ:
-            value = os.environ[env_var]
-            # Parse value based on type
-            if key == "max_parallel_workers":
-                startup_overrides[key] = int(value)
-            else:
-                startup_overrides[key] = value.lower() in ("true", "1", "yes")
-            logger.info(f"Environment override: startup.{key} = {startup_overrides[key]}")
-
-    if startup_overrides:
-        config_dict["startup"].update(startup_overrides)
-
     # Check for daemon overrides
     daemon_overrides = {}
     for key in [

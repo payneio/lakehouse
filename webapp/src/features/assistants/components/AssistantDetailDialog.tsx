@@ -34,7 +34,6 @@ type ViewMode = 'details' | 'source';
 
 interface AssistantDetailDialogProps {
   assistantName: string | null;
-  assistantSource: 'user' | 'system' | null;
   open: boolean;
   onClose: () => void;
   onCopy: () => void;
@@ -44,7 +43,6 @@ interface AssistantDetailDialogProps {
 
 export function AssistantDetailDialog({
   assistantName,
-  assistantSource,
   open,
   onClose,
   onCopy,
@@ -56,7 +54,6 @@ export function AssistantDetailDialog({
   return (
     <AssistantDetailDialogContent
       assistantName={assistantName}
-      assistantSource={assistantSource}
       onClose={onClose}
       onCopy={onCopy}
       onDelete={onDelete}
@@ -69,14 +66,12 @@ export function AssistantDetailDialog({
 // This ensures state resets when dialog reopens
 function AssistantDetailDialogContent({
   assistantName,
-  assistantSource,
   onClose,
   onCopy,
   onDelete,
   onRename,
 }: {
   assistantName: string;
-  assistantSource: 'user' | 'system' | null;
   onClose: () => void;
   onCopy: () => void;
   onDelete?: () => void;
@@ -89,7 +84,7 @@ function AssistantDetailDialogContent({
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(assistantName);
 
-  const isEditable = assistantSource === 'user';
+  const isEditable = true;
 
   const { data: assistant, isLoading: assistantLoading, error: assistantError } = useQuery({
     queryKey: ['assistant', assistantName, 'resolved'],
@@ -234,15 +229,6 @@ function AssistantDetailDialogContent({
                     )}
                   </div>
                 )}
-                <span
-                  className={`text-xs px-1.5 py-0.5 rounded ${
-                    assistantSource === 'user'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {assistantSource === 'user' ? 'User' : 'System'}
-                </span>
                 {assistant?.gitUrl && (
                   <div className="text-xs text-muted-foreground mt-1 font-mono truncate max-w-md" title={assistant.gitUrl}>
                     {assistant.gitUrl}
@@ -285,10 +271,10 @@ function AssistantDetailDialogContent({
                 <button
                   onClick={onDelete}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-md hover:bg-red-50"
-                  title={assistantSource === 'user' ? 'Delete user assistant' : 'Remove from registry'}
+                  title="Delete assistant"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {assistantSource === 'user' ? 'Delete' : 'Remove'}
+                  Delete
                 </button>
               )}
             </div>

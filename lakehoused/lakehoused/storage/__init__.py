@@ -1,4 +1,4 @@
-"""Storage module for amplifier_library.
+"""Storage module for lakehoused.
 
 Provides JSON-based persistence with atomic writes and retry logic.
 

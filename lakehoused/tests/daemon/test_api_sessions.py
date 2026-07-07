@@ -25,36 +25,9 @@ def mock_session_metadata() -> SessionMetadata:
         session_id="test_session_123",
         status=SessionStatus.ACTIVE,
         assistant_name="foundation/base",
-        mount_plan_path="state/sessions/test_session_123/mount_plan.json",
         created_at=datetime.now(UTC),
         started_at=datetime.now(UTC),
     )
-
-
-@pytest.fixture
-def mock_mount_plan() -> dict:
-    """Sample mount plan for testing.
-
-    Returns:
-        Sample mount plan dict with basic structure
-    """
-    return {
-        "format_version": "1.0",
-        "session": {
-            "session_id": "test_session_123",
-            "bundle_id": "foundation/base",
-            "created_at": datetime.now(UTC).isoformat(),
-            "settings": {},
-        },
-        "mount_points": [
-            {
-                "mount_type": "embedded",
-                "module_id": "foundation/base.agents.test-agent",
-                "module_type": "agent",
-                "content": "# Test Agent",
-            }
-        ],
-    }
 
 
 @pytest.fixture
@@ -600,15 +573,12 @@ class TestSessionsAPI:
     # --- Clone Session Tests ---
 
     def test_clone_session_success(
-        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+        self, client: TestClient, mock_session_state_service: Mock, tmp_path
     ) -> None:
         """Test POST /api/v1/sessions/{session_id}/clone creates cloned session."""
-        import json
-
-        # Create mock source session directory with mount plan and transcript
+        # Create mock source session directory with transcript
         session_dir = tmp_path / "sessions" / "test_session_123"
         session_dir.mkdir(parents=True)
-        (session_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
         (session_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Hello"}\n')
         (session_dir / "events.jsonl").write_text('{"event": "test", "ts": "2024-01-01T00:00:00Z"}\n')
 
@@ -626,7 +596,6 @@ class TestSessionsAPI:
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
             assistant_name="foundation/base",
-            mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
             project_path=".",
@@ -642,7 +611,6 @@ class TestSessionsAPI:
                     session_id=created_session_id,
                     status=SessionStatus.ACTIVE,
                     assistant_name="foundation/base",
-                    mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                     created_at=datetime.now(UTC),
                     started_at=datetime.now(UTC),
                     name="Test Session (copy)",
@@ -656,7 +624,6 @@ class TestSessionsAPI:
                 session_id=created_session_id or "unknown",
                 status=SessionStatus.ACTIVE,
                 assistant_name=kwargs.get("assistant_name", "foundation/base"),
-                mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
             )
@@ -694,15 +661,12 @@ class TestSessionsAPI:
         assert "not found" in response.json()["detail"].lower()
 
     def test_clone_session_copies_transcript_and_events(
-        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+        self, client: TestClient, mock_session_state_service: Mock, tmp_path
     ) -> None:
         """Test POST /api/v1/sessions/{session_id}/clone copies transcript and events."""
-        import json
-
         # Create source session with transcript and events
         source_dir = tmp_path / "sessions" / "test_session_123"
         source_dir.mkdir(parents=True)
-        (source_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
         (source_dir / "transcript.jsonl").write_text(
             '{"role": "user", "content": "Hello"}\n{"role": "assistant", "content": "Hi there!"}\n'
         )
@@ -724,7 +688,6 @@ class TestSessionsAPI:
             session_id="test_session_123",
             status=SessionStatus.ACTIVE,
             assistant_name="foundation/base",
-            mount_plan_path="state/sessions/test_session_123/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
             project_path=".",
@@ -745,7 +708,6 @@ class TestSessionsAPI:
                 session_id=created_session_id,
                 status=SessionStatus.ACTIVE,
                 assistant_name=kwargs.get("assistant_name", "foundation/base"),
-                mount_plan_path=f"state/sessions/{created_session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
                 project_path=kwargs.get("project_path", "."),
@@ -759,7 +721,6 @@ class TestSessionsAPI:
                 session_id=sid,
                 status=SessionStatus.ACTIVE,
                 assistant_name="foundation/base",
-                mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
                 project_path=".",
@@ -793,20 +754,16 @@ class TestSessionsAPI:
             lakehoused.routers.sessions.get_state_dir = original_get_state_dir
 
     def test_clone_session_with_subsessions(
-        self, client: TestClient, mock_session_state_service: Mock, mock_mount_plan: dict, tmp_path
+        self, client: TestClient, mock_session_state_service: Mock, tmp_path
     ) -> None:
         """Test POST /api/v1/sessions/{session_id}/clone clones subsessions recursively."""
-        import json
-
         # Create source session directories
         parent_dir = tmp_path / "sessions" / "parent_session"
         parent_dir.mkdir(parents=True)
-        (parent_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
         (parent_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Parent message"}\n')
 
         child_dir = tmp_path / "sessions" / "child_session"
         child_dir.mkdir(parents=True)
-        (child_dir / "mount_plan.json").write_text(json.dumps(mock_mount_plan))
         (child_dir / "transcript.jsonl").write_text('{"role": "user", "content": "Child message"}\n')
 
         # Mock get_state_dir
@@ -819,7 +776,6 @@ class TestSessionsAPI:
             session_id="parent_session",
             status=SessionStatus.ACTIVE,
             assistant_name="foundation/base",
-            mount_plan_path="state/sessions/parent_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
             project_path=".",
@@ -830,7 +786,6 @@ class TestSessionsAPI:
             session_id="child_session",
             status=SessionStatus.ACTIVE,
             assistant_name="foundation/base",
-            mount_plan_path="state/sessions/child_session/mount_plan.json",
             created_at=datetime.now(UTC),
             started_at=datetime.now(UTC),
             project_path=".",
@@ -851,7 +806,6 @@ class TestSessionsAPI:
                 session_id=session_id,
                 status=SessionStatus.ACTIVE,
                 assistant_name=kwargs.get("assistant_name", "foundation/base"),
-                mount_plan_path=f"state/sessions/{session_id}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
                 project_path=kwargs.get("project_path", "."),
@@ -868,7 +822,6 @@ class TestSessionsAPI:
                 session_id=sid,
                 status=SessionStatus.ACTIVE,
                 assistant_name="foundation/base",
-                mount_plan_path=f"state/sessions/{sid}/mount_plan.json",
                 created_at=datetime.now(UTC),
                 started_at=datetime.now(UTC),
                 project_path=".",

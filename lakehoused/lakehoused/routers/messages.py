@@ -167,14 +167,6 @@ async def send_message_for_execution(
         runtime_context_messages = mention_resolver.resolve_runtime_mentions(message_request.content)
         logger.info(f"Resolved {len(runtime_context_messages)} runtime context messages")
 
-        # Build the project context (lakehouse primer + ancestor AGENTS.md chain, from the
-        # project dir up to the data root). Delivered to opencode as the prompt `system` field.
-        from ..services.project_context import build_project_context_system
-
-        system_context = build_project_context_system(project_path, data_dir)
-        if system_context:
-            logger.info(f"Built project context system ({len(system_context)} chars)")
-
         # Get (or create) the session's stream manager (owns the emitter).
         registry = get_stream_registry()
         manager = await registry.get_or_create(session_id)
@@ -194,7 +186,6 @@ async def send_message_for_execution(
             directory=directory,
             agent=cfg.get("agent") or resolved.default_agent,
             model=cfg.get("model") or resolved.model,
-            system=system_context,
             opencode_session_id=cfg.get("opencode_session_id"),
             on_session_created=_persist_ocid,
         )

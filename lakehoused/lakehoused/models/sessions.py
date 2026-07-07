@@ -53,7 +53,6 @@ class SessionMetadata(CamelCaseModel):
     started_at: datetime | None = Field(default=None, description="Session start timestamp (ACTIVE)")
     ended_at: datetime | None = Field(default=None, description="Session end timestamp (final state)")
     assistant_name: str = Field(default="", description="Assistant used for this session")
-    mount_plan_path: str = Field(description="Relative path to mount_plan.json")
     message_count: int = Field(default=0, description="Number of messages exchanged")
     agent_invocations: int = Field(default=0, description="Number of agent invocations")
     token_usage: int | None = Field(default=None, description="Total tokens consumed")

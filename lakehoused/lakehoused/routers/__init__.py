@@ -9,7 +9,6 @@ from .automations import router as automations_router
 from .events import router as events_router
 from .files import router as files_router
 from .messages import router as messages_router
-from .modules import router as modules_router
 from .projects import router as projects_router
 from .sessions import router as sessions_router
 from .settings import router as settings_router
@@ -23,7 +22,6 @@ __all__ = [
     "events_router",
     "files_router",
     "messages_router",
-    "modules_router",
     "projects_router",
     "sessions_router",
     "settings_router",

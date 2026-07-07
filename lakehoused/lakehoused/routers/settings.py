@@ -38,15 +38,6 @@ class DaemonSettingsResponse(CamelCaseModel):
     cors_origins: list[str]
 
 
-class StartupSettingsResponse(CamelCaseModel):
-    """Startup configuration settings."""
-
-    auto_discover_profiles: bool
-    auto_compile_profiles: bool
-    parallel_compilation: bool
-    max_parallel_workers: int
-
-
 class ApiKeyInfo(CamelCaseModel):
     """API key information with masked value."""
 
@@ -59,10 +50,9 @@ class SettingsResponse(CamelCaseModel):
     """Complete settings response."""
 
     daemon: DaemonSettingsResponse
-    startup: StartupSettingsResponse
     api_keys: list[ApiKeyInfo]
     config_path: str
-    data_path: str  # From amplifier_library config (read-only)
+    data_path: str  # From lakehoused library config (read-only)
 
 
 class UpdateDaemonConfigRequest(CamelCaseModel):
@@ -150,7 +140,7 @@ def _get_api_key_infos(secrets: Secrets) -> list[ApiKeyInfo]:
 async def get_settings() -> SettingsResponse:
     """Get current daemon settings and API key status.
 
-    Returns daemon configuration, startup settings, and which API keys are configured.
+    Returns daemon configuration and which API keys are configured.
     API key values are masked for security.
     """
     from lakehoused.config.settings import load_config as load_library_config
@@ -167,12 +157,6 @@ async def get_settings() -> SettingsResponse:
             log_level=config.daemon.log_level,
             timezone=config.daemon.timezone,
             cors_origins=config.daemon.cors_origins,
-        ),
-        startup=StartupSettingsResponse(
-            auto_discover_profiles=config.startup.auto_discover_profiles,
-            auto_compile_profiles=config.startup.auto_compile_profiles,
-            parallel_compilation=config.startup.parallel_compilation,
-            max_parallel_workers=config.startup.max_parallel_workers,
         ),
         api_keys=_get_api_key_infos(secrets),
         config_path=str(get_config_path()),

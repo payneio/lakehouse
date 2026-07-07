@@ -14,11 +14,6 @@ from .assistants import ResolvedModuleRef
 from .assistants import UpdateAssistantRequest
 from .errors import ErrorResponse
 from .errors import ValidationErrorDetail
-from .modules import ModuleDetails
-from .modules import ModuleInfo
-from .profiles import ModuleConfig
-from .profiles import ProfileDetails
-from .profiles import ProfileInfo
 from .projects import AgentsContentResponse
 from .projects import AgentsContentUpdate
 from .projects import Project
@@ -28,8 +23,6 @@ from .projects import ProjectUpdate
 from .requests import SendMessageRequest
 from .requests import UpdateContextRequest
 from .responses import MessageResponse
-from .responses import SessionInfoResponse
-from .responses import SessionResponse
 from .responses import StatusResponse
 from .responses import TranscriptResponse
 from .sessions import SessionIndex
@@ -65,17 +58,8 @@ __all__ = [
     "ValidationErrorDetail",
     # Responses
     "MessageResponse",
-    "SessionInfoResponse",
-    "SessionResponse",
     "StatusResponse",
     "TranscriptResponse",
-    # Profiles
-    "ProfileInfo",
-    "ProfileDetails",
-    "ModuleConfig",
-    # Modules
-    "ModuleInfo",
-    "ModuleDetails",
     # Sessions
     "SessionStatus",
     "SessionMetadata",

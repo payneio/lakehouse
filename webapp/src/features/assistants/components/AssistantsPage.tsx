@@ -16,8 +16,6 @@ import { CopyAssistantDialog } from "./CopyAssistantDialog";
 import { CreateAssistantDialog } from "./CreateAssistantDialog";
 import { DeleteAssistantDialog } from "./DeleteAssistantDialog";
 
-type SourceFilter = "all" | "user" | "system";
-
 export function AssistantsPage() {
   const queryClient = useQueryClient();
 
@@ -27,7 +25,6 @@ export function AssistantsPage() {
   });
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
   // Dialog states
   const [selectedAssistant, setSelectedAssistant] = useState<AssistantListItem | null>(
@@ -91,14 +88,9 @@ export function AssistantsPage() {
 
   // Filter and sort assistants alphabetically
   const filteredAssistants = assistants
-    .filter((assistant) => {
-      const matchesSearch = assistant.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-      const matchesSource =
-        sourceFilter === "all" || assistant.source === sourceFilter;
-      return matchesSearch && matchesSource;
-    })
+    .filter((assistant) =>
+      assistant.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Event handlers
@@ -156,7 +148,7 @@ export function AssistantsPage() {
         Assistants configure agent behavior and capabilities.
       </p>
 
-      {/* Search and Filter */}
+      {/* Search */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -168,27 +160,12 @@ export function AssistantsPage() {
             className="w-full pl-10 pr-4 py-2 border rounded-md"
           />
         </div>
-        <div className="flex border rounded-md overflow-hidden">
-          {(["all", "user", "system"] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setSourceFilter(filter)}
-              className={`px-3 py-2 text-sm ${
-                sourceFilter === filter
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent"
-              }`}
-            >
-              {filter === "all" ? "All" : filter === "user" ? "User" : "System"}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Assistant Grid */}
       {filteredAssistants.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          {searchQuery || sourceFilter !== "all"
+          {searchQuery
             ? "No assistants match your search"
             : "No assistants found in your assistant store."}
         </div>
@@ -203,7 +180,6 @@ export function AssistantsPage() {
       {/* Dialogs */}
       <AssistantDetailDialog
         assistantName={selectedAssistant?.name ?? null}
-        assistantSource={selectedAssistant?.source ?? null}
         open={detailDialogOpen}
         onClose={() => {
           setDetailDialogOpen(false);
@@ -226,7 +202,6 @@ export function AssistantsPage() {
       <CopyAssistantDialog
         open={copyDialogOpen}
         sourceAssistantName={selectedAssistant?.name ?? null}
-        sourceAssistantSource={selectedAssistant?.source ?? null}
         onClose={() => {
           setCopyDialogOpen(false);
           setSelectedAssistant(null);
@@ -258,7 +233,6 @@ export function AssistantsPage() {
       <DeleteAssistantDialog
         open={deleteDialogOpen}
         assistantName={selectedAssistant?.name ?? null}
-        assistantSource={selectedAssistant?.source ?? null}
         onClose={() => {
           setDeleteDialogOpen(false);
           setSelectedAssistant(null);

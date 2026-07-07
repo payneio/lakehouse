@@ -28,18 +28,6 @@ class TestSessionStateService:
         """Create SessionStateService instance."""
         return SessionStateService(storage_dir=state_dir)
 
-    @pytest.fixture
-    def sample_mount_plan(self) -> dict:
-        """Create sample mount plan for testing."""
-        return {
-            "session": {
-                "session_id": "test_session",
-                "bundle_id": "foundation/base",
-                "created_at": datetime.now(UTC).isoformat(),
-            },
-            "mount_points": [],
-        }
-
     def test_init_creates_sessions_directory(self, state_dir: Path) -> None:
         """Test that initializing service creates sessions directory."""
         SessionStateService(storage_dir=state_dir)
@@ -52,13 +40,11 @@ class TestSessionStateService:
         self,
         service: SessionStateService,
         state_dir: Path,
-        sample_mount_plan: dict,
     ) -> None:
         """Test creating session creates all required files."""
         metadata = service.create_session(
             session_id="sess_test",
             assistant_name="foundation.base",
-            mount_plan=sample_mount_plan,
         )
 
         # Verify metadata
@@ -75,17 +61,8 @@ class TestSessionStateService:
         assert session_dir.exists()
 
         # Verify files exist
-        assert (session_dir / "mount_plan.json").exists()
         assert (session_dir / "session.json").exists()
         assert (session_dir / "transcript.jsonl").exists()
-
-        # Verify mount plan was saved
-        mount_plan_data = json.loads((session_dir / "mount_plan.json").read_text())
-        # Check with both camelCase and snake_case as Pydantic may use either
-        assert (
-            mount_plan_data["session"].get("sessionId") == "test_session"
-            or mount_plan_data["session"].get("session_id") == "test_session"
-        )
 
         # Verify session metadata was saved
         session_data = json.loads((session_dir / "session.json").read_text())
@@ -99,13 +76,11 @@ class TestSessionStateService:
     def test_create_session_with_parent(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test creating session with parent session ID."""
         metadata = service.create_session(
             session_id="sess_child",
             assistant_name="foundation.base",
-            mount_plan=sample_mount_plan,
             parent_session_id="sess_parent",
         )
 
@@ -114,20 +89,17 @@ class TestSessionStateService:
     def test_create_session_idempotency_error(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test that creating duplicate session raises ValueError."""
         service.create_session(
             session_id="sess_dup",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         with pytest.raises(ValueError) as exc_info:
             service.create_session(
                 session_id="sess_dup",
                 assistant_name="test.profile",
-                mount_plan=sample_mount_plan,
             )
 
         assert "already exists" in str(exc_info.value)
@@ -135,13 +107,11 @@ class TestSessionStateService:
     def test_start_session(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test transitioning session from CREATED to ACTIVE."""
         service.create_session(
             session_id="sess_start",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         service.start_session("sess_start")
@@ -154,13 +124,11 @@ class TestSessionStateService:
     def test_start_session_invalid_state(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test that starting already active session is idempotent (no-op)."""
         service.create_session(
             session_id="sess_bad_start",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
         # Session is already ACTIVE after creation (auto-start in v0.2.0)
 
@@ -175,13 +143,11 @@ class TestSessionStateService:
     def test_complete_session(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test transitioning session from ACTIVE to COMPLETED."""
         service.create_session(
             session_id="sess_complete",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
         service.start_session("sess_complete")
 
@@ -195,13 +161,11 @@ class TestSessionStateService:
     def test_fail_session(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test transitioning session from ACTIVE to FAILED with error."""
         service.create_session(
             session_id="sess_fail",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
         service.start_session("sess_fail")
 
@@ -222,13 +186,11 @@ class TestSessionStateService:
     def test_terminate_session(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test transitioning session from ACTIVE to TERMINATED."""
         service.create_session(
             session_id="sess_terminate",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
         service.start_session("sess_terminate")
 
@@ -243,13 +205,11 @@ class TestSessionStateService:
         self,
         service: SessionStateService,
         state_dir: Path,
-        sample_mount_plan: dict,
     ) -> None:
         """Test appending messages to transcript."""
         service.create_session(
             session_id="sess_messages",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Append user message
@@ -293,13 +253,11 @@ class TestSessionStateService:
     def test_append_message_with_agent(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test appending message from specific agent."""
         service.create_session(
             session_id="sess_agent",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         service.append_message(
@@ -317,13 +275,11 @@ class TestSessionStateService:
     def test_get_transcript(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test retrieving full transcript."""
         service.create_session(
             session_id="sess_transcript",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Add several messages
@@ -344,13 +300,11 @@ class TestSessionStateService:
     def test_get_transcript_with_limit(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test retrieving transcript with limit (last N messages)."""
         service.create_session(
             session_id="sess_limit",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Add 10 messages
@@ -371,13 +325,11 @@ class TestSessionStateService:
     def test_get_session(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test getting session metadata."""
         created = service.create_session(
             session_id="sess_get",
             assistant_name="test.profile",
-            mount_plan=sample_mount_plan,
         )
 
         retrieved = service.get_session("sess_get")
@@ -396,7 +348,6 @@ class TestSessionStateService:
     def test_list_sessions_all(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test listing all sessions."""
         # Create multiple sessions
@@ -404,7 +355,6 @@ class TestSessionStateService:
             service.create_session(
                 session_id=f"sess_{i}",
                 assistant_name="test.profile",
-                mount_plan=sample_mount_plan,
             )
 
         sessions = service.list_sessions()
@@ -414,14 +364,13 @@ class TestSessionStateService:
     def test_list_sessions_by_status(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test filtering sessions by status."""
         # Create sessions in different states
         # All start as ACTIVE in v0.2.0
-        service.create_session("sess_active1", "test", sample_mount_plan)
-        service.create_session("sess_active2", "test", sample_mount_plan)
-        service.create_session("sess_completed", "test", sample_mount_plan)
+        service.create_session("sess_active1", "test")
+        service.create_session("sess_active2", "test")
+        service.create_session("sess_completed", "test")
         service.complete_session("sess_completed")
 
         # Query only active sessions
@@ -435,11 +384,10 @@ class TestSessionStateService:
     def test_list_sessions_by_profile(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test filtering sessions by profile name."""
-        service.create_session("sess_foundation", "foundation.base", sample_mount_plan)
-        service.create_session("sess_custom", "custom.profile", sample_mount_plan)
+        service.create_session("sess_foundation", "foundation.base")
+        service.create_session("sess_custom", "custom.profile")
 
         sessions = service.list_sessions(assistant_name="foundation.base")
 
@@ -449,11 +397,10 @@ class TestSessionStateService:
     def test_list_sessions_with_limit(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test limiting number of results."""
         for i in range(5):
-            service.create_session(f"sess_{i}", "test", sample_mount_plan)
+            service.create_session(f"sess_{i}", "test")
 
         sessions = service.list_sessions(limit=3)
 
@@ -462,14 +409,13 @@ class TestSessionStateService:
     def test_get_active_sessions(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test getting all active sessions."""
         # Create mixed status sessions
         # All start as ACTIVE in v0.2.0
-        service.create_session("sess_1", "test", sample_mount_plan)
-        service.create_session("sess_2", "test", sample_mount_plan)
-        service.create_session("sess_3", "test", sample_mount_plan)
+        service.create_session("sess_1", "test")
+        service.create_session("sess_2", "test")
+        service.create_session("sess_3", "test")
         # Complete one to test filtering
         service.complete_session("sess_1")
 
@@ -484,10 +430,9 @@ class TestSessionStateService:
         self,
         service: SessionStateService,
         state_dir: Path,
-        sample_mount_plan: dict,
     ) -> None:
         """Test deleting session removes directory and updates index."""
-        service.create_session("sess_delete", "test", sample_mount_plan)
+        service.create_session("sess_delete", "test")
 
         session_dir = state_dir / "sessions" / "sess_delete"
         assert session_dir.exists()
@@ -511,11 +456,10 @@ class TestSessionStateService:
     def test_cleanup_old_sessions(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Test cleanup removes sessions older than threshold."""
         # Create old session (mock by creating and manually updating timestamp)
-        service.create_session("sess_old", "test", sample_mount_plan)
+        service.create_session("sess_old", "test")
         service.start_session("sess_old")
         service.complete_session("sess_old")
 
@@ -529,7 +473,7 @@ class TestSessionStateService:
         service._update_session("sess_old", make_old)
 
         # Create recent session
-        service.create_session("sess_recent", "test", sample_mount_plan)
+        service.create_session("sess_recent", "test")
         service.start_session("sess_recent")
         service.complete_session("sess_recent")
 
@@ -546,10 +490,9 @@ class TestSessionStateService:
         self,
         service: SessionStateService,
         state_dir: Path,
-        sample_mount_plan: dict,
     ) -> None:
         """Test that updates use atomic write (tmp + rename)."""
-        service.create_session("sess_atomic", "test", sample_mount_plan)
+        service.create_session("sess_atomic", "test")
 
         # Verify session.json exists
         session_path = state_dir / "sessions" / "sess_atomic" / "session.json"
@@ -571,14 +514,12 @@ class TestSessionStateService:
     def test_complete_session_from_created_state_error(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Sessions auto-start in v0.2.0, can be completed immediately."""
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             assistant_name="test/profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Can complete immediately (session is ACTIVE)
@@ -591,14 +532,12 @@ class TestSessionStateService:
     def test_fail_session_from_created_state_error(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Sessions auto-start in v0.2.0, can fail immediately."""
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             assistant_name="test/profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Can fail immediately (session is ACTIVE)
@@ -612,14 +551,12 @@ class TestSessionStateService:
     def test_terminate_session_from_created_state_error(
         self,
         service: SessionStateService,
-        sample_mount_plan: dict,
     ) -> None:
         """Sessions auto-start in v0.2.0, can be terminated immediately."""
         # Create session (starts ACTIVE immediately)
         service.create_session(
             session_id="test_session",
             assistant_name="test/profile",
-            mount_plan=sample_mount_plan,
         )
 
         # Can terminate immediately (session is ACTIVE)
@@ -629,13 +566,12 @@ class TestSessionStateService:
         assert metadata is not None
         assert metadata.status == SessionStatus.TERMINATED
 
-    def test_create_session_cleanup_on_mount_plan_write_failure(
+    def test_create_session_cleanup_on_existing_directory(
         self,
         service: SessionStateService,
         state_dir: Path,
-        sample_mount_plan: dict,
     ) -> None:
-        """Verify session directory cleaned up if mount plan write fails."""
+        """Verify creating a session over an existing directory raises."""
         # Create session directory manually to trigger idempotency error
         session_dir = state_dir / "sessions" / "test_session"
         session_dir.mkdir(parents=True)
@@ -645,7 +581,6 @@ class TestSessionStateService:
             service.create_session(
                 session_id="test_session",
                 assistant_name="test/profile",
-                mount_plan=sample_mount_plan,
             )
 
     # --- CWD (Current Working Directory) Tests ---
@@ -662,26 +597,13 @@ class TestSessionStateServiceIntegration:
         """Create service with temporary state directory."""
         return SessionStateService(storage_dir=tmp_path)
 
-    @pytest.fixture
-    def mount_plan(self) -> dict:
-        """Create sample mount plan."""
-        return {
-            "session": {
-                "session_id": "integration_test",
-                "bundle_id": "foundation/base",
-                "created_at": datetime.now(UTC).isoformat(),
-            },
-            "mount_points": [],
-        }
-
     def test_full_session_lifecycle(
         self,
         service: SessionStateService,
-        mount_plan: dict,
     ) -> None:
         """Test complete session lifecycle from creation to completion."""
         # Create (auto-starts as ACTIVE in v0.2.0)
-        metadata = service.create_session("sess_lifecycle", "test.profile", mount_plan)
+        metadata = service.create_session("sess_lifecycle", "test.profile")
         assert metadata.status == SessionStatus.ACTIVE
         assert metadata.started_at is not None
 
@@ -706,14 +628,13 @@ class TestSessionStateServiceIntegration:
     def test_multiple_sessions_with_queries(
         self,
         service: SessionStateService,
-        mount_plan: dict,
     ) -> None:
         """Test creating multiple sessions and querying them."""
         # Create diverse sessions (all start ACTIVE in v0.2.0)
         for i in range(3):
-            service.create_session(f"sess_found_{i}", "foundation.base", mount_plan)
+            service.create_session(f"sess_found_{i}", "foundation.base")
         for i in range(2):
-            service.create_session(f"sess_custom_{i}", "custom.profile", mount_plan)
+            service.create_session(f"sess_custom_{i}", "custom.profile")
 
         # Complete one foundation session to have mixed states
         service.complete_session("sess_found_0")

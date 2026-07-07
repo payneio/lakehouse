@@ -1,7 +1,7 @@
 """Main FastAPI application for lakehoused daemon.
 
 This module creates and configures the FastAPI application that exposes
-the amplifier_library via REST API with SSE streaming.
+the Lakehouse data platform via REST API with SSE streaming.
 """
 
 import logging
@@ -11,10 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.responses import Response
 
 from lakehoused.config.settings import load_config
 
@@ -27,13 +24,11 @@ from .routers import automations_router
 from .routers import events_router
 from .routers import files_router
 from .routers import messages_router
-from .routers import modules_router
 from .routers import projects_router
 from .routers import sessions_router
 from .routers import settings_router
 from .routers import status_router
 from .routers import stream_router
-from .startup import handle_startup_updates
 
 # Configure logging
 logging.basicConfig(
@@ -89,15 +84,6 @@ async def lifespan(app: FastAPI):
             logger.info("Root directory is already a project")
     except Exception as e:
         logger.error(f"Failed to auto-create root project: {e}")
-        # Don't fail startup, just log the error
-
-    # Handle cache updates based on startup configuration
-    daemon_config = None
-    try:
-        daemon_config = load_daemon_config()
-        await handle_startup_updates(daemon_config.startup)
-    except Exception as e:
-        logger.error(f"Startup cache handling failed: {e}")
         # Don't fail startup, just log the error
 
     # Initialize the opencode server registry (pooled `opencode serve` processes).
@@ -177,7 +163,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="lakehoused",
-    description="REST API daemon for amplifier-core with SSE streaming support",
+    description="REST API daemon for the Lakehouse data platform with SSE streaming support",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -243,7 +229,6 @@ app.include_router(automations_router)
 app.include_router(events_router)
 app.include_router(files_router)
 app.include_router(messages_router)
-app.include_router(modules_router)
 app.include_router(projects_router)
 app.include_router(sessions_router)
 app.include_router(settings_router)
@@ -274,49 +259,3 @@ async def info() -> dict[str, str | int]:
         "webapp_path": webapp_path,
         "webapp_url": webapp_url,
     }
-
-
-# --- Static file serving for packaged SPA ---
-# When webapp_dist/ exists (production/Nixpacks build), serve the frontend
-# from FastAPI. In dev mode (no webapp_dist/), this is skipped entirely.
-#
-# Search order:
-#   1. Next to installed package (pip install with package-data)
-#   2. Relative to working directory (simple deploys)
-#   3. Source tree layout (Nixpacks: vite build runs AFTER pip install,
-#      so webapp_dist lands in the source tree, not the installed package)
-_webapp_dist_candidates = [
-    Path(__file__).parent / "webapp_dist",
-    Path("webapp_dist"),
-    Path(__file__).resolve().parent / "webapp_dist",
-]
-# In Nixpacks, the source tree lives under /app/ and the install step copies
-# the package to /opt/venv/..., but vite build writes to /app/lakehoused/lakehoused/webapp_dist.
-# If NIXPACKS=1 or the /app/ source tree exists, check there too.
-_nixpacks_source = Path("/app/lakehoused/lakehoused/webapp_dist")
-if _nixpacks_source not in _webapp_dist_candidates:
-    _webapp_dist_candidates.append(_nixpacks_source)
-
-_webapp_dist = next((p for p in _webapp_dist_candidates if p.exists() and p.is_dir()), None)
-
-if _webapp_dist is not None:
-    logger.info("Serving packaged webapp from %s", _webapp_dist)
-
-    # Serve static assets (JS, CSS, images) directly
-    app.mount("/assets", StaticFiles(directory=_webapp_dist / "assets"), name="static-assets")
-
-    # Catch-all: serve index.html for all non-API routes (SPA client-side routing)
-    @app.get("/{path:path}")
-    async def serve_spa(request: Request, path: str) -> Response:
-        """Serve the SPA index.html for all non-API routes.
-
-        Skips /api/ paths so unmatched API requests return proper 404s
-        instead of the SPA HTML.
-        """
-        if path.startswith("api/"):
-            return JSONResponse(status_code=404, content={"detail": f"Not found: /{path}"})
-        assert _webapp_dist is not None  # guarded by outer if
-        file_path = _webapp_dist / path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(_webapp_dist / "index.html")

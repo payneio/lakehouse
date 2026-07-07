@@ -32,7 +32,6 @@ export interface AssistantListItem {
   name: string;
   version: string;
   description?: string | null;
-  source: 'user' | 'system';
   path: string;
 
   // Quick stats

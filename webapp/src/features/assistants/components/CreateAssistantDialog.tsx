@@ -102,7 +102,7 @@ export function CreateAssistantDialog({
                     <option value="">Select an assistant...</option>
                     {assistants.map((assistant) => (
                       <option key={assistant.name} value={assistant.name}>
-                        {assistant.name} ({assistant.source})
+                        {assistant.name}
                       </option>
                     ))}
                   </select>

@@ -240,10 +240,10 @@ class TestDaemonSettingsPathExpansion:
         expected = str(Path.home() / "custom")
         assert cfg.data_path == expected
 
-    def test_data_path_default_is_home_amplifier(self) -> None:
-        """Default data_path should be ~/amplifier expanded to absolute."""
+    def test_data_path_default_is_data(self) -> None:
+        """Default data_path should be /data expanded to absolute."""
         cfg = DaemonSettings()
-        expected = str(Path("~/amplifier").expanduser().resolve())
+        expected = str(Path("/data").expanduser().resolve())
         assert cfg.data_path == expected
 
     def test_data_path_creates_directory(self, tmp_path: Path) -> None:

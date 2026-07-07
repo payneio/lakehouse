@@ -46,14 +46,12 @@ class TestSessionMetadata:
             status=SessionStatus.CREATED,
             created_at=now,
             assistant_name="foundation.base",
-            mount_plan_path="mount_plan.json",
         )
 
         assert metadata.session_id == "sess_123"
         assert metadata.status == SessionStatus.CREATED
         assert metadata.created_at == now
         assert metadata.assistant_name == "foundation.base"
-        assert metadata.mount_plan_path == "mount_plan.json"
 
         # Check defaults
         assert metadata.parent_session_id is None
@@ -79,7 +77,6 @@ class TestSessionMetadata:
             started_at=started,
             ended_at=ended,
             assistant_name="foundation.base",
-            mount_plan_path="mount_plan.json",
             message_count=15,
             agent_invocations=8,
             token_usage=5000,
@@ -99,7 +96,6 @@ class TestSessionMetadata:
             status=SessionStatus.FAILED,
             created_at=datetime.now(),
             assistant_name="test.profile",
-            mount_plan_path="mount_plan.json",
             error_message="Module import failed",
             error_details={"module": "provider.anthropic", "exception": "ImportError"},
         )
@@ -341,7 +337,6 @@ class TestSessionModelIntegration:
             status=SessionStatus.ACTIVE,
             created_at=now,
             assistant_name="foundation.base",
-            mount_plan_path="mount_plan.json",
             message_count=10,
         )
 
